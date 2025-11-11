@@ -351,7 +351,7 @@ if st.session_state.get("raw_chain") is not None:
         )
 
     # טבלה – מציגים את הדף הנוכחי בלבד
-    st.dataframe(page_df, width="stretch")
+    st.dataframe(page_df, use_container_width=True)
 
     # === Strategy Sandbox: Iron Condor ===
     with st.expander("🧪 Strategy: Iron Condor (quick sandbox)", expanded=False):
@@ -480,16 +480,30 @@ if st.session_state.get("raw_chain") is not None:
                     title=f"Histogram: {chart_metric}",
                 )
 
-            st.plotly_chart(fig, use_container_width=True, key="options_chart_v1")
+ # === Render results (only after data exists) ===
 
-# ===== Footer / Notes =====
-with st.expander("הערות ומידע"):
-    st.markdown(
-        """
-- **מקור הנתונים**: סימולטור (`sim`) המייצר שרשרת אופציות מחושבת (Black–Scholes).
-- **אי-זוגיות סטרייקים**: השרשרת נבנית סביב מרכז (ATM). לכן אנו דורשים מספר סטרייקים אי-זוגי כדי לאפשר סימטריה סביב הספוט.
-- **Pagination**: בחרי גודל עמוד, עברי עמודים עם Prev/Next או הזיני מספר עמוד ידנית.
-- **Strategy Sandbox**: בחירה ידנית של סטרייקים מייצרת חישוב **קרדיט**, **רווח/הפסד מקסימלי** ונקודות **Break-even** + גרף Payoff.
-- **המשך פיתוח**: שילוב IBKR (TWS API) לנתוני שוק חיים, Greeks/PNL דינמיים והזרמה בזמן אמת.
-        """
-    )
+# אם את מייצרת את הנתונים ושומרת אותם ב-session_state:
+#   st.session_state.page_df = ...  # DataFrame
+#   st.session_state.fig = ...      # Plotly Figure
+
+has_df  = ("page_df" in st.session_state) and (st.session_state.page_df is not None)
+has_fig = ("fig"     in st.session_state) and (st.session_state.fig is not None)
+
+if has_fig or has_df:
+    st.divider()
+    st.subheader("Results")
+
+    if has_fig:
+        st.plotly_chart(st.session_state.fig, use_container_width=True)
+
+    if has_df and not st.session_state.page_df.empty:
+        st.dataframe(
+            st.session_state.page_df,
+            use_container_width=True,
+            height=520
+        )
+    elif has_df:
+        st.info("לא נמצאו נתונים לתצוגה (DataFrame ריק).")
+else:
+    st.info("לחצי על **Generate chain** כדי לחשב ולהציג תוצאות.")
+
