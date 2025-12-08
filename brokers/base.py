@@ -1,5 +1,5 @@
+# Layer: services
 from abc import ABC, abstractmethod
-from typing import Any, Optional
 
 
 class Broker(ABC):
@@ -18,4 +18,3 @@ class Broker(ABC):
     def is_connected(self) -> bool:
         """Return connection status."""
         return False
-

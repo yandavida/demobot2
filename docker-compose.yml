@@ -1,0 +1,35 @@
+version: "3.9"
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    container_name: demobot-api
+    ports:
+      - "8000:8000"
+    environment:
+      # אפשר בעתיד לשים פה SAAS_API_BASE_URL וכו'
+      - DEMOBOT_ENV=production
+      - DEMOBOT_API_KEY=DEMO_API_KEY_123
+    depends_on:
+      - redis
+
+  redis:
+    image: redis:7.4-alpine
+    container_name: demobot-redis
+    ports:
+      - "6379:6379"
+
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    container_name: demobot-worker
+    command: ["python", "-m", "core.workers.demo_worker"]
+    environment:
+      - DEMOBOT_ENV=production
+      - DEMOBOT_API_KEY=DEMO_API_KEY_123
+      - REDIS_URL=redis://redis:6379/0
+    depends_on:
+      - redis

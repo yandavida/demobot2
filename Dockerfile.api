@@ -1,0 +1,27 @@
+# Dockerfile.api
+FROM python:3.11-slim
+
+# לא להשתגע בגודל – מעט חבילות בסיס
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
+# סביבת עבודה
+WORKDIR /app
+
+# העתקת קבצי requirements
+# אם אצלך הקובץ נקרא אחרת – תשני בהתאם
+COPY requirements.txt /app/requirements.txt
+
+RUN pip install --no-cache-dir -r /app/requirements.txt
+
+# העתקת קוד האפליקציה
+COPY . /app
+
+# משתני סביבה בסיסיים
+ENV PYTHONUNBUFFERED=1 \
+    DEMOBOT_ENV=production
+
+# ברירת מחדל – להפעיל את ה-API
+# api.main:app זה בדיוק מה שאת מריצה היום ב-Uvicorn
+CMD ["uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "8000"]

@@ -1,0 +1,17 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# venv/conda
+.venv/
+venv/
+.env
+
+# Streamlit
+.streamlit/
+
+# OS/IDE
+.DS_Store
+.idea/
+.vscode/

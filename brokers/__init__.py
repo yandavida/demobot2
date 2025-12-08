@@ -1,15 +1,8 @@
-# brokers/__init__.py
-# -------------------
-from . import sim
+from .sim import SimBroker
 
 
-def get_broker(name: str):
-    """
-    פונקציה שמחזירה 'ברוקר' לפי שם.
-    כרגע רק סימולטור פעיל.
-    """
+def get_broker(name: str = "sim"):
+    """מחזיר מופע ברוקר לפי שם."""
     if name == "sim":
-        # נחזיר מודול עם פונקציות סטנדרטיות (simulate)
-        return sim
-    else:
-        raise ValueError(f"Unknown broker name: {name}")
+        return SimBroker()
+    raise ValueError(f"Unknown broker: {name}")

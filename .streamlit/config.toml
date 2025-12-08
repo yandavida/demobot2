@@ -1,4 +1,15 @@
-[server]
-headless = true
-enableCORS = false
-enableXsrfProtection = true
+[theme]
+# בסיס כהה, אבל לא "שחור טוטאלי"
+base = "dark"
+
+# כתום לכפתורים, סליידרים, בחירות וכו'
+primaryColor = "#f97316"
+
+# רקע ראשי – אפור כהה במקום שחור
+backgroundColor = "#1f242b"
+
+# רקע משני – פאנלים, כרטיסים, expander וכו'
+secondaryBackgroundColor = "#252b34"
+
+# צבע טקסט
+textColor = "#e5e7eb"

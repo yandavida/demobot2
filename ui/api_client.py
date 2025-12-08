@@ -1,105 +1,192 @@
-"""Client utilities for calling the SaaS API from the UI layer."""
-
+# ui/api_client.py
 from __future__ import annotations
 
-import os
-from dataclasses import dataclass
-from typing import Any, Dict, Optional
+from datetime import date
+from typing import Any, Dict, List
 
 import pandas as pd
 import requests
 
-DEFAULT_BASE_URL = "http://localhost:8000"
-ENV_BASE_URL = "OPTIONS_API_BASE_URL"
-ENV_API_KEY = "OPTIONS_API_KEY"
+
+# =====================================================
+#  Base API Configuration
+# =====================================================
+
+from config import settings
+
+API_BASE_URL = settings.saas_api_base_url
+API_KEY = settings.saas_api_key
 
 
-@dataclass
 class ApiError(Exception):
-    """Domain-specific API error with categorization for UI handling."""
+    """שגיאה כללית בקריאת ה-SaaS API של DemoBot."""
 
-    message: str
-    error_type: str = "unknown"
-    status_code: Optional[int] = None
-    detail: Any | None = None
+    def __init__(
+        self, status_code: int, message: str, error_type: str = "unknown"
+    ) -> None:
+        self.status_code = status_code
+        self.message = message
+        self.error_type = error_type
+        super().__init__(f"[{status_code}] {error_type}: {message}")
 
-    def __str__(self) -> str:
-        prefix = f"[{self.error_type}] " if self.error_type else ""
-        suffix = f" (status={self.status_code})" if self.status_code else ""
-        return f"{prefix}{self.message}{suffix}"
-
-    def to_dict(self) -> Dict[str, Any]:
-        return {
-            "message": self.message,
-            "error_type": self.error_type,
-            "status_code": self.status_code,
-            "detail": self.detail,
-        }
-
-
-def _get_base_url() -> str:
-    """Resolve the base URL for the SaaS API from environment."""
-
-    return os.getenv(ENV_BASE_URL, DEFAULT_BASE_URL).rstrip("/")
+    def __str__(self) -> str:  # כשעושים str(e)
+        base = self.message
+        if self.status_code is not None:
+            base += f" (HTTP {self.status_code})"
+        return base
 
 
 def _build_headers() -> Dict[str, str]:
-    headers = {"Content-Type": "application/json"}
-    api_key = os.getenv(ENV_API_KEY)
-    if api_key:
-        headers["Authorization"] = f"Bearer {api_key}"
-    return headers
+    """Headers אחידים לכל הקריאות ל-API."""
+    return {
+        "X-API-Key": API_KEY,
+        "Content-Type": "application/json",
+    }
 
 
-def _post_json(path: str, payload: Dict[str, Any], timeout: int = 10) -> Dict[str, Any]:
-    """POST JSON payload to the SaaS API with robust error mapping."""
+# =====================================================
+#  Generic HTTP Wrapper
+# =====================================================
 
-    url = f"{_get_base_url()}{path}"
+
+def _request_json(
+    method: str,
+    path: str,
+    json: Dict[str, Any] | None = None,
+    timeout: int = 30,
+) -> Any:
+    """
+    עטיפה ל-requests שמרכזת:
+    - בניית URL ו-Headers
+    - טיפול בשגיאות רשת / timeout
+    - מיפוי קודי HTTP לשגיאות ApiError ברורות
+    """
+    url = f"{API_BASE_URL.rstrip('/')}{path}"
 
     try:
-        resp = requests.post(url, json=payload, headers=_build_headers(), timeout=timeout)
-    except requests.Timeout as exc:  # type: ignore[misc]
-        raise ApiError("API request timed out", error_type="timeout") from exc
-    except requests.RequestException as exc:  # type: ignore[misc]
-        raise ApiError("API request failed", error_type="network") from exc
+        resp = requests.request(
+            method=method.upper(),
+            url=url,
+            json=json,
+            headers=_build_headers(),
+            timeout=timeout,
+        )
+    except requests.exceptions.Timeout as exc:
+        # חריגה מזמן – חשוב ללקוח מוסדי
+        raise ApiError(
+            "חריגה מזמן ההמתנה לשרת ה-API (timeout). נסי שוב בעוד מספר שניות.",
+            path=path,
+            error_type="timeout",
+        ) from exc
+    except requests.exceptions.RequestException as exc:
+        # שגיאת רשת כללית (DNS / חיבור / SSL וכו')
+        raise ApiError(
+            f"שגיאת רשת בזמן ניסיון להתחבר ל-API: {exc}",
+            path=path,
+            error_type="network",
+        ) from exc
 
-    if resp.status_code == 204:
-        return {}
+    status = resp.status_code
 
-    try:
-        data = resp.json()
-    except ValueError:
-        data = None
+    # אם לא 2xx – נמפה את קוד ה-HTTP לסוג שגיאה ברור
+    if not (200 <= status < 300):
+        try:
+            detail = resp.json()
+        except Exception:
+            detail = resp.text
 
-    if resp.status_code >= 400:
-        error_type = "server" if resp.status_code >= 500 else "validation"
-        if resp.status_code in (401, 403):
-            error_type = "auth"
-        elif resp.status_code == 408:
-            error_type = "timeout"
-
-        message: str
-        if isinstance(data, dict) and "message" in data:
-            message = str(data.get("message"))
+        if status in (401, 403):
+            msg = "שגיאת התחברות ל-API (401/403). בדקי API Key או הרשאות."
+            err_type = "auth"
+        elif status == 422:
+            msg = "שגיאת ולידציה (422) בנתונים שנשלחו ל-API – כנראה שדה חסר או ערך לא תקין."
+            err_type = "validation"
+        elif status >= 500:
+            msg = (
+                "שגיאת שרת בצד המנוע (5xx). ניתן לנסות שוב, ואם זה נמשך – לפנות לתמיכה."
+            )
+            err_type = "server"
         else:
-            message = f"API request failed with status {resp.status_code}"
+            msg = f"שגיאת API (HTTP {status})."
+            err_type = "http"
 
         raise ApiError(
-            message=message,
-            error_type=error_type,
-            status_code=resp.status_code,
-            detail=data,
+            msg,
+            status_code=status,
+            path=path,
+            error_type=err_type,
+            details=detail,
         )
 
-    if not isinstance(data, dict):
+    # נסה לפענח JSON תקין
+    try:
+        return resp.json()
+    except Exception as e:
         raise ApiError(
-            message="Unexpected API response format",
-            error_type="server",
-            status_code=resp.status_code,
-            detail=data,
+            "התקבלה תשובה לא תקינה מה-API (JSON לא קריא).",
+            status_code=status,
+            path=path,
+            error_type="decode",
+            details=resp.text,
+        ) from e
+
+
+# =====================================================
+# Helper – Options Legs
+# =====================================================
+
+
+def _legs_df_to_list(legs_df: pd.DataFrame) -> List[Dict[str, Any]]:
+    legs_list: List[Dict[str, Any]] = []
+
+    if legs_df is None or legs_df.empty:
+        return legs_list
+
+    for _, row in legs_df.iterrows():
+        side_raw = str(row.get("side", "")).upper()
+        cp_raw = str(row.get("cp", "")).upper()
+
+        if side_raw == "BUY":
+            side = "long"
+        elif side_raw == "SELL":
+            side = "short"
+        else:
+            continue
+
+        if cp_raw == "C":
+            cp = "CALL"
+        elif cp_raw == "P":
+            cp = "PUT"
+        else:
+            continue
+
+        legs_list.append(
+            {
+                "side": side,
+                "cp": cp,
+                "strike": float(row.get("strike", 0)),
+                "quantity": int(row.get("quantity", 0)),
+                "premium": float(row.get("premium", 0)),
+            }
         )
 
-    return data
+    return legs_list
+
+
+# =====================================================
+# /v1/position/price
+# =====================================================
+
+
+def price_position(legs_df: pd.DataFrame) -> Dict[str, Any]:
+    legs_payload = _legs_df_to_list(legs_df)
+    payload = {"legs": legs_payload}
+    return _request_json("POST", "/v1/position/price", json=payload, timeout=20)
+
+
+# =====================================================
+# /v1/position/analyze
+# =====================================================
 
 
 def analyze_position_v1(
@@ -116,34 +203,228 @@ def analyze_position_v1(
     contract_multiplier: float,
     invested_override: float | None = None,
 ) -> Dict[str, Any]:
-    """Invoke the SaaS builder analysis endpoint (v1)."""
+    legs_list = _legs_df_to_list(legs_df)
 
-    if legs_df is None or legs_df.empty:
-        raise ApiError("No position legs provided", error_type="validation")
+    payload = {
+        "legs": legs_list,
+        "market": {
+            "spot": float(spot),
+            "lower_factor": float(lower_factor),
+            "upper_factor": float(upper_factor),
+            "num_points": int(num_points),
+            "dte_days": int(dte_days),
+            "iv": float(iv),
+            "r": float(r),
+            "q": float(q),
+            "contract_multiplier": float(contract_multiplier),
+            "invested_capital_override": (
+                float(invested_override)
+                if invested_override not in (None, "", 0)
+                else None
+            ),
+        },
+    }
 
-    legs_payload = legs_df.to_dict(orient="records")
+    return _request_json("POST", "/v1/position/analyze", json=payload, timeout=30)
 
-    payload: Dict[str, Any] = {
+
+# =====================================================
+# /v1/chain/generate
+# =====================================================
+
+
+def generate_chain_v1(
+    symbol: str,
+    expiry: date,
+    spot: float,
+    r: float,
+    q: float,
+    iv: float,
+    strikes_count: int,
+    step_pct: float,
+) -> pd.DataFrame:
+    payload = {
+        "symbol": symbol,
+        "expiry": expiry.isoformat(),
+        "spot": float(spot),
+        "r": float(r),
+        "q": float(q),
+        "iv": float(iv),
+        "strikes_count": int(strikes_count),
+        "step_pct": float(step_pct),
+    }
+
+    data = _request_json("POST", "/v1/chain/generate", json=payload, timeout=30)
+
+    records = data.get("items", data)
+    df = pd.DataFrame(records)
+
+    if df.empty:
+        raise ApiError("Empty chain received from API")
+
+    return df
+
+
+# =====================================================
+# FX – /v1/fx/forward/analyze
+# =====================================================
+def analyze_fx_forward_v1(
+    base_ccy: str,
+    quote_ccy: str,
+    notional: float,
+    direction: str,  # "BUY" / "SELL"
+    spot: float,
+    forward_rate: float,
+    valuation_date: date,
+    maturity_date: date,
+    curve_min_pct: float = -0.1,
+    curve_max_pct: float = 0.1,
+    curve_points: int = 101,
+) -> Dict[str, Any]:
+    """קריאה ל-POST /v1/fx/forward/analyze"""
+
+    url = f"{API_BASE_URL.rstrip('/')}/v1/fx/forward/analyze"
+
+    payload = {
+        "base_ccy": base_ccy,
+        "quote_ccy": quote_ccy,
+        "notional": notional,
+        "direction": direction,
         "spot": spot,
-        "lower_factor": lower_factor,
-        "upper_factor": upper_factor,
-        "num_points": num_points,
-        "dte_days": dte_days,
+        "forward_rate": forward_rate,
+        "valuation_date": valuation_date.isoformat(),
+        "maturity_date": maturity_date.isoformat(),
+        "curve_min_pct": curve_min_pct,
+        "curve_max_pct": curve_max_pct,
+        "curve_points": curve_points,
+    }
+
+    try:
+        resp = requests.post(
+            url,
+            json=payload,
+            headers=_build_headers(),
+            timeout=10,
+        )
+    except requests.exceptions.Timeout as exc:
+        raise ApiError(
+            "חריגה מזמן ההמתנה לשרת ה-FX (timeout).",
+            path="/v1/fx/forward/analyze",
+            error_type="timeout",
+        ) from exc
+    except requests.exceptions.RequestException as exc:
+        raise ApiError(
+            f"שגיאת רשת בקריאת FX API: {exc}",
+            path="/v1/fx/forward/analyze",
+            error_type="network",
+        ) from exc
+
+    status = resp.status_code
+
+    if status >= 400:
+        try:
+            detail = resp.json()
+        except Exception:
+            detail = resp.text
+
+        if status in (401, 403):
+            msg = "שגיאת התחברות ל-FX API (401/403)."
+            err_type = "auth"
+        elif status == 422:
+            msg = "שגיאת ולידציה בעסקת FX (422) – אחד הפרמטרים לא תקין."
+            err_type = "validation"
+        elif status >= 500:
+            msg = "שגיאת שרת במנוע ה-FX (5xx)."
+            err_type = "server"
+        else:
+            msg = f"שגיאת FX API (HTTP {status})."
+            err_type = "http"
+
+        raise ApiError(
+            msg,
+            status_code=status,
+            path="/v1/fx/forward/analyze",
+            error_type=err_type,
+            details=detail,
+        )
+
+    return resp.json()
+
+
+# =====================================================
+# Strategy Planner – /v1/strategy/suggest
+# =====================================================
+
+
+def suggest_strategies_v1(
+    goals: Dict[str, Any],
+    market: Dict[str, Any],
+) -> Dict[str, Any]:
+    """
+    לקוח ל-POST /v1/strategy/suggest.
+
+    expected response:
+    {
+      "strategies": [
+        {
+          "name": "...",
+          "subtype": "...",
+          "legs": [...],
+          "payoff_summary": {...},
+          "risk_score": 0.0-1.0,
+          "explanation_tokens": [...]
+        },
+        ...
+      ]
+    }
+    """
+    payload = {
+        "goals": goals,
+        "market": market,
+    }
+
+    return _request_json(
+        method="POST",
+        path="/v1/strategy/suggest",
+        json=payload,
+        timeout=30,
+    )
+
+
+def simulate_strategy_v1(
+    *,
+    symbol: str,
+    spot: float,
+    iv: float,
+    r: float,
+    q: float,
+    dte: int,
+    num_points: int,
+    contract_multiplier: float,
+) -> pd.DataFrame:
+    """
+    קריאת SaaS ליצירת שרשרת אופציות / סימולטור אסטרטגיה.
+
+    הערה: נתיב ה־API כאן הוא דוגמה. כשיהיה לך endpoint אמיתי,
+    נעדכן את ה-path ואת המבנה לפי מה שהשרת מחזיר.
+    """
+    payload: Dict[str, Any] = {
+        "symbol": symbol,
+        "spot": spot,
         "iv": iv,
         "r": r,
         "q": q,
+        "dte_days": dte,
+        "num_points": num_points,
         "contract_multiplier": contract_multiplier,
-        "legs": legs_payload,
     }
 
-    if invested_override is not None:
-        payload["invested_override"] = invested_override
-
-    response = _post_json(
-        "/api/v1/strategy/analyze",
-        payload,
-        timeout=15,
+    data = _request_json(
+        method="POST",
+        path="/v1/strategy/simulate",  # אפשר יהיה לעדכן בעתיד אם תבחרי נתיב אחר
+        json=payload,
     )
 
-    # רוב השירותים מחזירים את הנתונים תחת מפתח "data"; אם לא – נחזיר את הכל.
-    return response.get("data", response)
+    # נניח שה־API מחזיר {"chain": [...]} או רשימה ישירות
+    chain_rows = data.get("chain") if isinstance(data, dict) else data
+    return pd.DataFrame(chain_rows or [])
