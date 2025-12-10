@@ -17,4 +17,4 @@ class InMemoryMarketDataAdapter(MarketDataAdapter):
         else:
             requested = set(symbols)
             snapshot_prices = {symbol: price for symbol, price in self.prices.items() if symbol in requested}
-        return MarketSnapshot(prices=snapshot_prices)
+        return MarketSnapshot(spot=snapshot_prices)

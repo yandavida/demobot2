@@ -25,14 +25,14 @@ class PricingRouter:
     def register_adapter(self, instrument_type: str, adapter: PricingAdapter) -> None:
         self._adapters[instrument_type] = adapter
 
-    def get_adapter(self, instrument_type: str) -> PricingAdapter:
-        if instrument_type in self._adapters:
+    def get_adapter(self, instrument_type: str | None) -> PricingAdapter:
+        if instrument_type is not None and instrument_type in self._adapters:
             return self._adapters[instrument_type]
         if self._default_adapter is not None:
             return self._default_adapter
-        # TODO: introduce richer routing logic based on product metadata
-        raise KeyError(f"No pricing adapter registered for instrument type '{instrument_type}'")
+        raise KeyError("No pricing adapter available for the provided position.")
 
     def price(self, position: Position, market: MarketSnapshot, fx_converter: FxConverter | None = None) -> Money:
-        adapter = self.get_adapter(position.instrument_type)
+        instrument_type = getattr(position, "instrument_type", None)
+        adapter = self.get_adapter(instrument_type)
         return adapter.price(position, market, fx_converter=fx_converter)
