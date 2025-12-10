@@ -101,7 +101,10 @@ class Leg:
 
     def is_put(self) -> bool:
         return self.cp == "PUT"
-
+    
+    def copy(self) -> "Leg":
+        """Return a shallow copy of the leg."""
+        return replace(self)
 
 @dataclass
 class Position:
