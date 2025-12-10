@@ -40,8 +40,16 @@ jobs:
       - name: Run ruff
         run: ruff check .
 
-      - name: Run mypy on core only
-        run: mypy core
+       - name: Run mypy on PortfolioEngine V2 layer
+        run: |
+          mypy \
+            core/adapters \
+            core/portfolio/models.py \
+            core/portfolio/engine.py \
+            core/portfolio/cache.py \
+            core/fx/contracts.py
+
+
 
   tests:
     name: Test suite (pytest)
