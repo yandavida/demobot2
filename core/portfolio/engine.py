@@ -30,11 +30,11 @@ class PortfolioEngine:
 
         for position in portfolio.positions:
             price = self.pricing_router.price(position, market, fx_converter=self.fx_converter)
-            if price.currency != currency and self.fx_converter is not None:
+            if price.ccy != currency and self.fx_converter is not None:
                 price = self.fx_converter.convert(price, target_currency=currency)
             total_value += price.amount
 
-        return Money(amount=total_value, currency=currency)
+        return Money(amount=total_value, ccy=currency)
 
     def build_pl_surface(self, portfolio: Portfolio) -> dict:
         # TODO: implement P&L surface construction leveraging scenario pricing

@@ -5,13 +5,20 @@ from datetime import datetime
 from typing import Mapping, MutableMapping, Optional, Sequence
 
 
+Currency = str
+
+
 @dataclass(frozen=True)
 class Money:
     amount: float
-    currency: str
+    ccy: Currency
 
     def __repr__(self) -> str:
-        return f"Money(amount={self.amount}, currency='{self.currency}')"
+        return f"Money(amount={self.amount}, ccy='{self.ccy}')"
+
+    @property
+    def currency(self) -> Currency:
+        return self.ccy
 
 
 @dataclass(frozen=True)
@@ -34,7 +41,7 @@ class Position:
 @dataclass(frozen=True)
 class Portfolio:
     positions: Sequence[Position] = field(default_factory=list)
-    base_currency: str = "USD"
+    base_currency: Currency = "USD"
     cash_balances: MutableMapping[str, float] = field(default_factory=dict)
 
     def with_position(self, position: Position) -> "Portfolio":
