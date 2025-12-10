@@ -1,9 +1,11 @@
 from __future__ import annotations
 
-from typing import Iterable, Protocol
+from typing import Any, Dict, Iterable, Protocol, TYPE_CHECKING
 
-from core.fx.contracts import FxConverter
-from core.portfolio.models import MarketSnapshot, Money, Position
+from core.portfolio.models import MarketSnapshot, Money
+
+if TYPE_CHECKING:
+    from core.models import Position
 
 
 class MarketDataAdapter(Protocol):
@@ -14,7 +16,10 @@ class MarketDataAdapter(Protocol):
 
 
 class PricingAdapter(Protocol):
-    """Prices financial positions using market data."""
+    """Pricing and Greeks for a single leg."""
 
-    def price(self, position: Position, market: MarketSnapshot, fx_converter: FxConverter | None = None) -> Money:
+    def price_leg(self, leg: Any, snapshot: MarketSnapshot) -> Money:
+        ...
+
+    def greeks_leg(self, leg: Any, snapshot: MarketSnapshot) -> Dict[str, float]:
         ...
