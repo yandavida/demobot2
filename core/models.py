@@ -1,7 +1,7 @@
 # Layer: foundation
 # core/models.py
 from __future__ import annotations
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Literal, Optional, List
 
 # סוג אופציה
@@ -101,6 +101,9 @@ class Leg:
 
     def is_put(self) -> bool:
         return self.cp == "PUT"
+
+    def copy(self) -> "Leg":
+        return replace(self)
 
 
 @dataclass
