@@ -4,7 +4,7 @@ from dataclasses import dataclass, field
 from typing import Iterable, Mapping
 
 from core.adapters.contracts import MarketDataAdapter
-from core.portfolio.models import MarketSnapshot
+from core.portfolio.models import Currency, MarketSnapshot
 
 
 @dataclass
@@ -17,4 +17,5 @@ class InMemoryMarketDataAdapter(MarketDataAdapter):
         else:
             requested = set(symbols)
             snapshot_prices = {symbol: price for symbol, price in self.prices.items() if symbol in requested}
-        return MarketSnapshot(prices=snapshot_prices)
+        usd = Currency("USD")
+        return MarketSnapshot(spot=snapshot_prices, rates={usd: 1.0}, iv={})
