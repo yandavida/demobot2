@@ -18,7 +18,7 @@ permissions:
 
 jobs:
   lint:
-    name: Lint (ruff + mypy core)
+    name: Lint (ruff + mypy)
     runs-on: ubuntu-latest
 
     steps:
@@ -40,14 +40,8 @@ jobs:
       - name: Run ruff
         run: ruff check .
 
-       - name: Run mypy on PortfolioEngine V2 layer
-        run: |
-          mypy \
-            core/adapters \
-            core/portfolio/models.py \
-            core/portfolio/engine.py \
-            core/portfolio/cache.py \
-            core/fx/contracts.py
+      - name: Run mypy
+        run: mypy .
 
 
 
