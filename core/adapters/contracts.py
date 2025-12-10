@@ -1,11 +1,8 @@
 from __future__ import annotations
 
-from typing import Any, Dict, Iterable, Protocol, TYPE_CHECKING
+from typing import Any, Dict, Iterable, Protocol
 
 from core.portfolio.models import MarketSnapshot, Money
-
-if TYPE_CHECKING:
-    from core.models import Position
 
 
 class MarketDataAdapter(Protocol):
