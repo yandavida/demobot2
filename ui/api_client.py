@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from datetime import date
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Mapping, TypedDict
 
 import pandas as pd
 import requests
@@ -18,22 +18,70 @@ API_BASE_URL = settings.saas_api_base_url
 API_KEY = settings.saas_api_key
 
 
+DEFAULT_BASE_CURRENCY = "ILS"
+DEFAULT_FX_RATES: Mapping[str, float] = {"USD/ILS": 3.6, "ILS/USD": 1 / 3.6}
+
+
 class ApiError(Exception):
     """שגיאה כללית בקריאת ה-SaaS API של DemoBot."""
 
     def __init__(
-        self, status_code: int, message: str, error_type: str = "unknown"
+        self,
+        message: str,
+        status_code: int | None = None,
+        *,
+        error_type: str = "unknown",
+        path: str | None = None,
+        details: Any | None = None,
     ) -> None:
         self.status_code = status_code
         self.message = message
         self.error_type = error_type
+        self.path = path
+        self.details = details
         super().__init__(f"[{status_code}] {error_type}: {message}")
 
     def __str__(self) -> str:  # כשעושים str(e)
         base = self.message
         if self.status_code is not None:
             base += f" (HTTP {self.status_code})"
+        if self.path:
+            base += f" @ {self.path}"
         return base
+
+
+class PortfolioPosition(TypedDict):
+    symbol: str
+    quantity: float
+    price: float
+    currency: str
+    instrument_type: str
+
+
+class PortfolioGreeks(TypedDict):
+    delta: float
+    gamma: float
+    vega: float
+    theta: float
+    rho: float
+
+
+class PortfolioRisk(TypedDict):
+    pv: float
+    currency: str
+    greeks: PortfolioGreeks
+
+
+class PortfolioValuationResponse(TypedDict, total=False):
+    total_value: float
+    currency: str
+    portfolio_risk: PortfolioRisk | None
+
+
+class PortfolioValuationRequest(TypedDict):
+    positions: list[PortfolioPosition]
+    fx_rates: Mapping[str, float]
+    base_currency: str
 
 
 def _build_headers() -> Dict[str, str]:
@@ -171,6 +219,31 @@ def _legs_df_to_list(legs_df: pd.DataFrame) -> List[Dict[str, Any]]:
         )
 
     return legs_list
+
+
+# =====================================================
+# /v1/portfolio/valuate
+# =====================================================
+
+
+def valuate_portfolio(
+    *,
+    positions: list[PortfolioPosition],
+    base_currency: str = DEFAULT_BASE_CURRENCY,
+    fx_rates: Mapping[str, float] | None = None,
+) -> PortfolioValuationResponse:
+    payload: PortfolioValuationRequest = {
+        "positions": positions,
+        "base_currency": base_currency or DEFAULT_BASE_CURRENCY,
+        "fx_rates": dict(DEFAULT_FX_RATES) if fx_rates is None else dict(fx_rates),
+    }
+
+    return _request_json(
+        method="POST",
+        path="/v1/portfolio/valuate",
+        json=payload,
+        timeout=30,
+    )
 
 
 # =====================================================

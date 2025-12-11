@@ -44,3 +44,64 @@ def test_request_json_raises_api_error_on_401(monkeypatch: pytest.MonkeyPatch) -
     err = exc.value
     assert err.status_code == 401
     assert err.error_type == "auth"
+
+
+def test_valuate_portfolio_uses_defaults(monkeypatch: pytest.MonkeyPatch) -> None:
+    captured: Dict[str, Any] = {}
+
+    def fake_request_json(method: str, path: str, json: Dict[str, Any], timeout: int) -> Dict[str, Any]:
+        captured.update({"method": method, "path": path, "json": json, "timeout": timeout})
+        return {"total_value": 10_000.0, "currency": "ILS"}
+
+    monkeypatch.setattr(api_client, "_request_json", fake_request_json)
+
+    positions = [
+        {
+            "symbol": "AAPL",
+            "quantity": 2,
+            "price": 170.0,
+            "currency": "USD",
+            "instrument_type": "equity",
+        }
+    ]
+
+    response = api_client.valuate_portfolio(positions=positions)
+
+    assert response["total_value"] == 10_000.0
+    assert captured["path"] == "/v1/portfolio/valuate"
+    assert captured["timeout"] == 30
+    assert captured["json"]["positions"] == positions
+    assert captured["json"]["base_currency"] == api_client.DEFAULT_BASE_CURRENCY
+    assert captured["json"]["fx_rates"] == dict(api_client.DEFAULT_FX_RATES)
+
+
+def test_valuate_portfolio_overrides_defaults(monkeypatch: pytest.MonkeyPatch) -> None:
+    captured: Dict[str, Any] = {}
+
+    def fake_request_json(method: str, path: str, json: Dict[str, Any], timeout: int) -> Dict[str, Any]:
+        captured.update({"method": method, "path": path, "json": json, "timeout": timeout})
+        return {"total_value": 5_000.0, "currency": "EUR"}
+
+    monkeypatch.setattr(api_client, "_request_json", fake_request_json)
+
+    positions = [
+        {
+            "symbol": "MSFT",
+            "quantity": 1,
+            "price": 330.0,
+            "currency": "EUR",
+            "instrument_type": "equity",
+        }
+    ]
+
+    custom_fx = {"EUR/USD": 1.1, "USD/EUR": 0.91}
+
+    response = api_client.valuate_portfolio(
+        positions=positions,
+        base_currency="EUR",
+        fx_rates=custom_fx,
+    )
+
+    assert response["currency"] == "EUR"
+    assert captured["json"]["base_currency"] == "EUR"
+    assert captured["json"]["fx_rates"] == custom_fx
