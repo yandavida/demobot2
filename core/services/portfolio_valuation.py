@@ -11,6 +11,7 @@ from core.fx.converter import FxConverter
 from core.fx.provider import FxRateProvider
 from core.portfolio.engine import PortfolioEngine
 from core.portfolio.models import Currency, Money, Portfolio, Position
+from core.portfolio.risk import PortfolioRiskSnapshot, aggregate_portfolio_risk
 
 
 class PublicPosition(BaseModel):
@@ -30,9 +31,24 @@ class PublicValuationRequest(BaseModel):
     )
 
 
+class PublicGreeks(BaseModel):
+    delta: float
+    gamma: float
+    vega: float
+    theta: float
+    rho: float
+
+
+class PublicPortfolioRisk(BaseModel):
+    pv: float
+    currency: Currency
+    greeks: PublicGreeks
+
+
 class PublicValuationResponse(BaseModel):
     total_value: float
     currency: Currency
+    portfolio_risk: PublicPortfolioRisk | None = None
 
 
 class _StaticPricingAdapter(PricingAdapter):
@@ -79,6 +95,26 @@ def valuate_portfolio(request: PublicValuationRequest) -> PublicValuationRespons
     )
 
     portfolio = Portfolio(positions=portfolio_positions, base_currency=request.base_currency)
-    total = engine.evaluate_portfolio(portfolio)
+    risk_snapshot = aggregate_portfolio_risk(portfolio=portfolio, engine=engine)
 
-    return PublicValuationResponse(total_value=total.amount, currency=total.ccy)
+    portfolio_risk = _snapshot_to_public_risk(risk_snapshot)
+
+    return PublicValuationResponse(
+        total_value=risk_snapshot.pv_base.amount,
+        currency=risk_snapshot.pv_base.ccy,
+        portfolio_risk=portfolio_risk,
+    )
+
+
+def _snapshot_to_public_risk(snapshot: PortfolioRiskSnapshot) -> PublicPortfolioRisk:
+    return PublicPortfolioRisk(
+        pv=snapshot.pv_base.amount,
+        currency=snapshot.pv_base.ccy,
+        greeks=PublicGreeks(
+            delta=snapshot.greeks.delta,
+            gamma=snapshot.greeks.gamma,
+            vega=snapshot.greeks.vega,
+            theta=snapshot.greeks.theta,
+            rho=snapshot.greeks.rho,
+        ),
+    )
