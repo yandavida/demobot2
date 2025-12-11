@@ -1,7 +1,7 @@
 # Layer: foundation
 # core/models.py
 from __future__ import annotations
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Literal, Optional, List
 
 # סוג אופציה
@@ -95,6 +95,9 @@ class Leg:
     strike: float
     quantity: int = 1
     premium: float = 0.0  # פרמיה ליחידה אחת
+
+    def copy(self) -> "Leg":
+        return replace(self)
 
     def is_call(self) -> bool:
         return self.cp == "CALL"
