@@ -36,7 +36,7 @@ def normalize_currency(currency: Currency | str) -> Currency:
 class FxRateProvider(Protocol):
     """Provides foreign exchange rates between two currencies."""
 
-    def get_rate(self, base_currency: Currency | str, quote_currency: Currency | str) -> float:
+    def get(self, from_ccy: Currency, to_ccy: Currency) -> float:
         ...
 
 
