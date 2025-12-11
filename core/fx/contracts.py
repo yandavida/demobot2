@@ -12,7 +12,6 @@ def normalize_currency(currency: Currency | str) -> Currency:
     that flexibility while ensuring inputs are uppercased and validated against
     the supported currency literals.
     """
-
     supported_currencies = cast(tuple[str, ...], get_args(Currency))
 
     if isinstance(currency, str):
@@ -36,7 +35,8 @@ def normalize_currency(currency: Currency | str) -> Currency:
 class FxRateProvider(Protocol):
     """Provides foreign exchange rates between two currencies."""
 
-    def get(self, from_ccy: Currency, to_ccy: Currency) -> float:
+    def get(self, from_ccy: Currency | str, to_ccy: Currency | str) -> float:
+        """Return rate such that 1 unit of from_ccy = rate units of to_ccy."""
         ...
 
 
@@ -45,5 +45,5 @@ class FxConverter(Protocol):
 
     def convert(self, money: Money, target_currency: Currency | str) -> Money:
         """Convert ``money`` to ``target_currency`` and return normalized ``Money``."""
-
         ...
+
