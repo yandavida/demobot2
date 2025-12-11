@@ -6,19 +6,17 @@ on:
   pull_request:
     branches: [ main ]
 
-# מבטיח שריצה חדשה תבטל קודמות על אותו ברנץ'/PR
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
-# הרשאות מינימליות ל-GITHUB_TOKEN לצמצום סיכוני אבטחה
 permissions:
   contents: read
   pull-requests: read
 
 jobs:
   lint:
-    name: Lint (ruff + mypy core)
+    name: Lint (ruff + mypy)
     runs-on: ubuntu-latest
 
     steps:
@@ -34,13 +32,13 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install --upgrade pip
+          python -m pip install --upgrade pip
           pip install -r requirements.txt
 
       - name: Run ruff
         run: ruff check .
 
-      - name: Run mypy on PortfolioEngine V2 layer
+      - name: Run mypy (PortfolioEngine V2 only)
         run: |
           mypy \
             core/adapters \
@@ -49,11 +47,10 @@ jobs:
             core/portfolio/cache.py \
             core/fx/contracts.py
 
-
   tests:
     name: Test suite (pytest)
     runs-on: ubuntu-latest
-    needs: lint   # מריץ טסטים רק אם lint עבר
+    needs: lint
 
     strategy:
       fail-fast: false
@@ -73,7 +70,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install --upgrade pip
+          python -m pip install --upgrade pip
           pip install -r requirements.txt
 
       - name: Run pytest
