@@ -1,7 +1,8 @@
 # Layer: foundation
 # core/models.py
 from __future__ import annotations
-from dataclasses import dataclass
+
+from dataclasses import dataclass, replace
 from typing import Literal, Optional, List, cast
 
 # סוג אופציה
@@ -109,14 +110,14 @@ class Leg:
         direction: str | None = None,
         qty: int | None = None,
     ) -> None:
-        resolved_side = (side or direction)
+        resolved_side = side or direction
         if resolved_side is None:
             raise TypeError("Leg requires either 'side' or 'direction'.")
         normalized_side = resolved_side.lower()
         if normalized_side not in ("long", "short"):
             raise ValueError(f"Invalid side/direction value: {resolved_side}")
 
-        resolved_cp = (cp or kind)
+        resolved_cp = cp or kind
         if resolved_cp is None:
             raise TypeError("Leg requires either 'cp' or 'kind'.")
         normalized_cp = resolved_cp.upper()
@@ -130,6 +131,9 @@ class Leg:
         self.strike = strike
         self.quantity = resolved_quantity
         self.premium = premium
+
+    def copy(self) -> "Leg":
+        return replace(self)
 
     def is_call(self) -> bool:
         return self.cp == "CALL"
@@ -159,7 +163,6 @@ class Position:
 
     def copy(self) -> "Position":
         return Position(
-            # כל שאר השדות כמו היום...
             legs=[leg.copy() for leg in self.legs],
             underlying=self.underlying,
         )
