@@ -8,6 +8,10 @@ from typing import Literal, Mapping, MutableMapping, Optional, Sequence, cast
 Currency = Literal["ILS", "USD"]
 
 
+def _normalize_currency(value: Currency | str) -> Currency:
+    return cast(Currency, value)
+
+
 @dataclass(frozen=True, init=False)
 class Money:
     amount: float
@@ -20,7 +24,7 @@ class Money:
             raise TypeError("Specify only one of ccy or currency.")
 
         resolved_currency_input = ccy if ccy is not None else currency
-        resolved_currency = cast(Currency, resolved_currency_input)
+        resolved_currency = _normalize_currency(resolved_currency_input)
         assert resolved_currency is not None
         object.__setattr__(self, "amount", amount)
         object.__setattr__(self, "ccy", resolved_currency)
@@ -54,11 +58,26 @@ class Position:
     metadata: Mapping[str, object] = field(default_factory=dict)
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, init=False)
 class Portfolio:
-    positions: Sequence[Position] = field(default_factory=list)
-    base_currency: str = "USD"
-    cash_balances: MutableMapping[str, float] = field(default_factory=dict)
+    positions: Sequence[Position]
+    base_currency: Currency
+    cash_balances: MutableMapping[Currency, float]
+
+    def __init__(
+        self,
+        positions: Sequence[Position] | None = None,
+        base_currency: Currency | str = "USD",
+        cash_balances: Mapping[Currency | str, float] | None = None,
+    ) -> None:
+        normalized_base_currency = _normalize_currency(base_currency)
+        normalized_cash_balances: dict[Currency, float] = {
+            _normalize_currency(ccy): amount for ccy, amount in (cash_balances or {}).items()
+        }
+
+        object.__setattr__(self, "positions", list(positions) if positions is not None else [])
+        object.__setattr__(self, "base_currency", normalized_base_currency)
+        object.__setattr__(self, "cash_balances", normalized_cash_balances)
 
     def with_position(self, position: Position) -> "Portfolio":
         positions = list(self.positions) + [position]

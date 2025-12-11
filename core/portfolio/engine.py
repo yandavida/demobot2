@@ -6,7 +6,7 @@ from core.adapters.contracts import MarketDataAdapter
 from core.adapters.pricing import PricingRouter
 from core.fx.contracts import FxConverter
 from core.portfolio.cache import CacheKey, InMemoryCache
-from core.portfolio.models import Money, Portfolio
+from core.portfolio.models import Currency, Money, Portfolio
 
 
 
@@ -26,7 +26,7 @@ class PortfolioEngine:
     def evaluate_portfolio(self, portfolio: Portfolio) -> Money:
         symbols: Iterable[str] = [position.symbol for position in portfolio.positions]
         market = self.market_data.get_snapshot(symbols=symbols)
-        currency = portfolio.base_currency
+        currency: Currency = portfolio.base_currency
         total_value = 0.0
 
         for position in portfolio.positions:
