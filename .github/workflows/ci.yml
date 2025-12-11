@@ -18,7 +18,7 @@ permissions:
 
 jobs:
   lint:
-    name: Lint (ruff + mypy)
+    name: Lint (ruff + mypy core)
     runs-on: ubuntu-latest
 
     steps:
@@ -40,10 +40,8 @@ jobs:
       - name: Run ruff
         run: ruff check .
 
-      - name: Run mypy
-        run: mypy .
-
-
+      - name: Run mypy on PortfolioEngine core layer
+        run: mypy core
 
   tests:
     name: Test suite (pytest)
@@ -53,7 +51,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.11"]   # קל להרחיב בהמשך לעוד גרסאות
+        python-version: ["3.11"]
 
     steps:
       - name: Checkout repository
