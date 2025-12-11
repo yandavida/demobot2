@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Iterable, Protocol
 
-from core.fx.contracts import FxConverter
+from core.fx.converter import FxConverter
 from core.portfolio.models import MarketSnapshot, Money, Position
 
 
