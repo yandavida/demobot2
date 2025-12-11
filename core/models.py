@@ -1,8 +1,9 @@
 # Layer: foundation
 # core/models.py
 from __future__ import annotations
+
 from dataclasses import dataclass, replace
-from typing import Literal, Optional, List
+from typing import Literal, Optional, List, cast
 
 # סוג אופציה
 CP = Literal["CALL", "PUT"]
@@ -96,6 +97,41 @@ class Leg:
     quantity: int = 1
     premium: float = 0.0  # פרמיה ליחידה אחת
 
+    def __init__(
+        self,
+        *,
+        side: Side | None = None,
+        cp: CP | None = None,
+        strike: float,
+        quantity: int = 1,
+        premium: float = 0.0,
+        # Aliases
+        kind: str | None = None,
+        direction: str | None = None,
+        qty: int | None = None,
+    ) -> None:
+        resolved_side = side or direction
+        if resolved_side is None:
+            raise TypeError("Leg requires either 'side' or 'direction'.")
+        normalized_side = resolved_side.lower()
+        if normalized_side not in ("long", "short"):
+            raise ValueError(f"Invalid side/direction value: {resolved_side}")
+
+        resolved_cp = cp or kind
+        if resolved_cp is None:
+            raise TypeError("Leg requires either 'cp' or 'kind'.")
+        normalized_cp = resolved_cp.upper()
+        if normalized_cp not in ("CALL", "PUT"):
+            raise ValueError(f"Invalid cp/kind value: {resolved_cp}")
+
+        resolved_quantity = qty if qty is not None else quantity
+
+        self.side = cast(Side, normalized_side)
+        self.cp = cast(CP, normalized_cp)
+        self.strike = strike
+        self.quantity = resolved_quantity
+        self.premium = premium
+
     def copy(self) -> "Leg":
         return replace(self)
 
@@ -114,6 +150,7 @@ class Position:
     """
 
     legs: List[Leg]
+    underlying: Optional[str] = None
 
     def calls(self) -> List[Leg]:
         return [leg for leg in self.legs if leg.cp == "CALL"]
@@ -126,8 +163,8 @@ class Position:
 
     def copy(self) -> "Position":
         return Position(
-            # כל שאר השדות כמו היום...
             legs=[leg.copy() for leg in self.legs],
+            underlying=self.underlying,
         )
 
 
