@@ -1,5 +1,6 @@
 from core.portfolio.cache import CacheKey, InMemoryCache
 from core.portfolio.models import MarketSnapshot, Money, Portfolio, Position
+from core.portfolio.risk_models import PortfolioRiskSnapshot, PositionGreeks
 
 __all__ = [
     "CacheKey",
@@ -8,4 +9,6 @@ __all__ = [
     "Money",
     "Portfolio",
     "Position",
+    "PortfolioRiskSnapshot",
+    "PositionGreeks",
 ]
