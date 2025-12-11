@@ -428,3 +428,19 @@ def simulate_strategy_v1(
     # נניח שה־API מחזיר {"chain": [...]} או רשימה ישירות
     chain_rows = data.get("chain") if isinstance(data, dict) else data
     return pd.DataFrame(chain_rows or [])
+
+
+# =====================================================
+# Portfolio valuation – /v1/portfolio/valuate
+# =====================================================
+
+
+def valuate_portfolio(payload: Dict[str, Any]) -> Dict[str, Any]:
+    """Invoke the public portfolio valuation endpoint."""
+
+    return _request_json(
+        method="POST",
+        path="/v1/portfolio/valuate",
+        json=payload,
+        timeout=30,
+    )

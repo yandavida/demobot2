@@ -17,6 +17,7 @@ import streamlit as st
 from ui.api_client import (
     analyze_position_v1,
     suggest_strategies_v1,
+    valuate_portfolio,
     ApiError,
 )
 
@@ -341,6 +342,118 @@ def render_analysis_outputs(analysis: Dict[str, Any]) -> None:
 
 
 # =========================
+# Portfolio valuation helpers
+# =========================
+
+
+def _build_portfolio_payload(
+    legs_df: pd.DataFrame,
+    *,
+    symbol: str,
+    fx_rate_usd_ils: float,
+    base_currency: str,
+) -> Dict[str, Any]:
+    """Construct a portfolio valuation payload from the current legs."""
+
+    positions: list[Dict[str, Any]] = []
+    for _, row in legs_df.iterrows():
+        try:
+            qty = float(row.get("quantity", 0))
+        except Exception:
+            qty = 0.0
+
+        if qty == 0:
+            continue
+
+        side = str(row.get("side", "")).upper()
+        signed_qty = -qty if side == "SELL" else qty
+
+        pos_symbol = f"{symbol}-{str(row.get('cp', '')).upper()}{row.get('strike', '')}"
+
+        positions.append(
+            {
+                "symbol": pos_symbol,
+                "quantity": signed_qty,
+                "price": float(row.get("premium", 0.0)),
+                "currency": "USD",
+                "instrument_type": "option",
+            }
+        )
+
+    fx_rates = {"USD/ILS": fx_rate_usd_ils, "ILS/USD": 1.0 / fx_rate_usd_ils}
+
+    return {
+        "positions": positions,
+        "fx_rates": fx_rates,
+        "base_currency": base_currency,
+    }
+
+
+def render_portfolio_controls() -> tuple[float, str]:
+    st.markdown("### Portfolio Valuation Inputs")
+    col1, col2 = st.columns(2)
+
+    with col1:
+        base_currency = st.selectbox(
+            "Base currency",
+            options=["USD", "ILS"],
+            index=0,
+            key="portfolio_base_currency",
+            help="מטבע הדיווח לפורטפוליו המצטבר.",
+        )
+
+    with col2:
+        fx_rate = st.number_input(
+            "USD/ILS FX rate",
+            min_value=0.0001,
+            value=3.60,
+            step=0.01,
+            format="%.4f",
+            key="portfolio_fx_rate",
+            help="שער המרה בין USD↔ILS לצורך נרמול לפורטפוליו.",
+        )
+
+    st.caption(
+        "הרגליים מתורגמות לפוזיציות Options עם פרמיה כ-NPV. "
+        "כל הרגליים מניחות מטבע USD ומומרות לפי השער שסיפקת."
+    )
+
+    return fx_rate, base_currency
+
+
+def render_portfolio_risk_dashboard(response: Dict[str, Any]) -> None:
+    st.markdown("### Portfolio Risk Dashboard")
+
+    if not response:
+        st.info("לא התקבל ערך פורטפוליו מה-API.")
+        return
+
+    risk = response.get("portfolio_risk") or {}
+    greeks = risk.get("greeks") or {}
+
+    pv_value = response.get("total_value", 0.0)
+    pv_ccy = response.get("currency", risk.get("currency", ""))
+
+    st.metric("Portfolio PV", f"{pv_value:,.2f} {pv_ccy}")
+
+    greek_cols = st.columns(5)
+    greek_labels = [
+        ("Delta", greeks.get("delta")),
+        ("Gamma", greeks.get("gamma")),
+        ("Vega", greeks.get("vega")),
+        ("Theta", greeks.get("theta")),
+        ("Rho", greeks.get("rho")),
+    ]
+
+    for col, (label, value) in zip(greek_cols, greek_labels):
+        with col:
+            if value is None:
+                st.info(f"{label}: N/A")
+            else:
+                st.metric(label, f"{float(value):,.4f}")
+
+
+# =========================
 # Strategy Planner – UI
 # =========================
 
@@ -541,6 +654,45 @@ def main() -> None:
                 return
 
         render_analysis_outputs(analysis)
+
+    st.markdown("---")
+
+    fx_rate, base_currency = render_portfolio_controls()
+
+    if st.button("Valuate Portfolio", type="secondary", key="btn_valuate_portfolio"):
+        if edited_df.empty:
+            st.warning("לא הוגדר אף Leg בפוזיציה לפורטפוליו.")
+        elif fx_rate <= 0:
+            st.warning("יש להזין שער המרה חיובי.")
+        else:
+            payload = _build_portfolio_payload(
+                edited_df,
+                symbol=market_params.get("symbol", "SPY"),
+                fx_rate_usd_ils=fx_rate,
+                base_currency=base_currency,
+            )
+
+            if not payload.get("positions"):
+                st.info("לא נמצאו פוזיציות לחישוב פורטפוליו.")
+            else:
+                with st.spinner("מריץ חישוב ערך ו-Risk לפורטפוליו..."):
+                    try:
+                        valuation = valuate_portfolio(payload)
+                    except ApiError as e:
+                        if e.error_type == "auth":
+                            st.error("שגיאת הרשאות ב-Portfolio API.")
+                        elif e.error_type == "validation":
+                            st.error("ולידציה בפורטפוליו נכשלה. בדקי פוזיציות/שער מטבע.")
+                        elif e.error_type == "timeout":
+                            st.warning("חריגה מזמן ההמתנה ל-Portfolio API.")
+                        elif e.error_type == "server":
+                            st.error("שגיאת שרת ב-Portfolio API.")
+                        else:
+                            st.error(f"שגיאת API לא צפויה: {e}")
+                    except Exception as e:
+                        st.error(f"שגיאה לא צפויה בחישוב פורטפוליו: {e}")
+                    else:
+                        render_portfolio_risk_dashboard(valuation)
 
     st.markdown("## Strategy Planner – SaaS")
 
