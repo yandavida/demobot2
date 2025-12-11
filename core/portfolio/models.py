@@ -2,16 +2,39 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Mapping, MutableMapping, Optional, Sequence
+from typing import Literal, Mapping, MutableMapping, Optional, Sequence, cast
 
 
-@dataclass(frozen=True)
+Currency = Literal["ILS", "USD"]
+
+
+@dataclass(frozen=True, init=False)
 class Money:
     amount: float
-    currency: str
+    ccy: Currency
 
-    def __repr__(self) -> str:
-        return f"Money(amount={self.amount}, currency='{self.currency}')"
+    def __init__(self, amount: float, ccy: Currency | str | None = None, currency: Currency | str | None = None) -> None:
+        if ccy is None and currency is None:
+            raise TypeError("Either ccy or currency must be provided.")
+        if ccy is not None and currency is not None:
+            raise TypeError("Specify only one of ccy or currency.")
+
+        resolved_currency_input = ccy if ccy is not None else currency
+        resolved_currency = cast(Currency, resolved_currency_input)
+        assert resolved_currency is not None
+        object.__setattr__(self, "amount", amount)
+        object.__setattr__(self, "ccy", resolved_currency)
+
+    def __str__(self) -> str:
+        return f"{self.amount} {self.ccy}"
+
+    @property
+    def currency(self) -> Currency:
+        return self.ccy
+
+    @classmethod
+    def zero(cls, ccy: Currency) -> "Money":
+        return cls(amount=0.0, ccy=ccy)
 
 
 @dataclass(frozen=True)
