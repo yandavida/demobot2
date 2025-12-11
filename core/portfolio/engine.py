@@ -6,7 +6,8 @@ from core.adapters.contracts import MarketDataAdapter
 from core.adapters.pricing import PricingRouter
 from core.fx.contracts import FxConverter
 from core.portfolio.cache import CacheKey, InMemoryCache
-from core.portfolio.models import Money, Portfolio, Position
+from core.portfolio.models import Money, Portfolio
+
 
 
 class PortfolioEngine:
