@@ -6,6 +6,7 @@ on:
   pull_request:
     branches: [ main ]
 
+# לא לרוץ במקביל על אותו ברנץ'/PR
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
@@ -13,6 +14,9 @@ concurrency:
 permissions:
   contents: read
   pull-requests: read
+
+env:
+  PYTHON_VERSION: "3.12"
 
 jobs:
   lint:
@@ -26,7 +30,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: ${{ env.PYTHON_VERSION }}
           cache: "pip"
           cache-dependency-path: requirements.txt
 
@@ -52,11 +56,6 @@ jobs:
     runs-on: ubuntu-22.04
     needs: lint
 
-    strategy:
-      fail-fast: false
-      matrix:
-        python-version: ["3.11"]
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -64,7 +63,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: ${{ matrix.python-version }}
+          python-version: ${{ env.PYTHON_VERSION }}
           cache: "pip"
           cache-dependency-path: requirements.txt
 
