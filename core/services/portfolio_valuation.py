@@ -24,7 +24,10 @@ class PublicPosition(BaseModel):
 
 class PublicValuationRequest(BaseModel):
     positions: list[PublicPosition]
-    fx_rates: Mapping[str, float]
+    fx_rates: Mapping[str, float] = Field(
+        default_factory=dict,
+        description="Optional FX rates mapping; required when converting across currencies",
+    )
     base_currency: Currency = Field(
         default="ILS",
         description="Base currency for aggregation; defaults to ILS for backward compatibility",
@@ -49,6 +52,14 @@ class PublicValuationResponse(BaseModel):
     total_value: float
     currency: Currency
     portfolio_risk: PublicPortfolioRisk | None = None
+    base_currency: Currency | None = Field(
+        default=None,
+        description="Echoed base currency used for aggregation (if provided)",
+    )
+    fx_rates: Mapping[str, float] | None = Field(
+        default=None,
+        description="FX rates applied during valuation (if provided)",
+    )
 
 
 class _StaticPricingAdapter(PricingAdapter):
@@ -85,7 +96,8 @@ def valuate_portfolio(request: PublicValuationRequest) -> PublicValuationRespons
 
     pricing_router = PricingRouter(default_adapter=_StaticPricingAdapter())
 
-    fx_provider = FxRateProvider(rates=request.fx_rates)
+    fx_rates = request.fx_rates or {}
+    fx_provider = FxRateProvider(rates=fx_rates)
     fx_converter = FxConverter(provider=fx_provider, base_ccy=request.base_currency)
 
     engine = PortfolioEngine(
@@ -103,6 +115,8 @@ def valuate_portfolio(request: PublicValuationRequest) -> PublicValuationRespons
         total_value=risk_snapshot.pv_base.amount,
         currency=risk_snapshot.pv_base.ccy,
         portfolio_risk=portfolio_risk,
+        base_currency=request.base_currency,
+        fx_rates=fx_rates,
     )
 
 
