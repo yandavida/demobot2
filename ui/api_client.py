@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from datetime import date
-from typing import Any, Dict, List, Mapping, TypedDict, cast
+from typing import Any, Dict, List, Mapping, TypedDict
 
 import pandas as pd
 import requests  # type: ignore[import-untyped]
