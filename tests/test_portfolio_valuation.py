@@ -26,6 +26,12 @@ def test_public_valuation_defaults_to_ils() -> None:
     assert response.portfolio_risk.pv == pytest.approx(120.0)
     assert response.portfolio_risk.currency == "ILS"
     assert response.portfolio_risk.greeks.delta == 0.0
+    assert response.portfolio_risk.margin is not None
+    assert response.portfolio_risk.margin.required == pytest.approx(18.0)
+    assert response.portfolio_risk.margin.currency == "ILS"
+    assert response.portfolio_risk.var is not None
+    assert response.portfolio_risk.var.amount == pytest.approx(5.592)
+    assert response.portfolio_risk.var.currency == "ILS"
 
 
 def test_public_valuation_respects_usd_base_currency() -> None:
@@ -45,3 +51,9 @@ def test_public_valuation_respects_usd_base_currency() -> None:
     assert response.portfolio_risk is not None
     assert response.portfolio_risk.pv == pytest.approx(38.5714286)
     assert response.portfolio_risk.currency == "USD"
+    assert response.portfolio_risk.margin is not None
+    assert response.portfolio_risk.margin.required == pytest.approx(5.78571429)
+    assert response.portfolio_risk.margin.currency == "USD"
+    assert response.portfolio_risk.var is not None
+    assert response.portfolio_risk.var.amount == pytest.approx(1.796)
+    assert response.portfolio_risk.var.currency == "USD"
