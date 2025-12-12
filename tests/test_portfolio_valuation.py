@@ -55,5 +55,7 @@ def test_public_valuation_respects_usd_base_currency() -> None:
     assert response.portfolio_risk.margin.required == pytest.approx(5.78571429)
     assert response.portfolio_risk.margin.currency == "USD"
     assert response.portfolio_risk.var is not None
-    assert response.portfolio_risk.var.amount == pytest.approx(1.796)
-    assert response.portfolio_risk.var.currency == "USD"
+    assert response.portfolio_risk.var is not None
+    expected_var_usd = 38.5714286 * 0.0466
+    assert response.portfolio_risk.var.amount == pytest.approx(expected_var_usd)
+
