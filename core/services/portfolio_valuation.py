@@ -10,8 +10,12 @@ from core.adapters.pricing import PricingRouter
 from core.fx.converter import FxConverter
 from core.fx.provider import FxRateProvider
 from core.portfolio.engine import PortfolioEngine
+from core.portfolio.margin_engine import calculate_portfolio_margin
+from core.portfolio.margin_models import MarginConfig, MarginResult
 from core.portfolio.models import Currency, Money, Portfolio, Position
 from core.portfolio.risk import PortfolioRiskSnapshot, aggregate_portfolio_risk
+from core.portfolio.var_engine import calculate_parametric_var
+from core.portfolio.var_models import VarConfig, VarResult
 
 
 class PublicPosition(BaseModel):
@@ -32,6 +36,22 @@ class PublicValuationRequest(BaseModel):
         default="ILS",
         description="Base currency for aggregation; defaults to ILS for backward compatibility",
     )
+    margin_rate: float = Field(
+        default=0.15,
+        description="Portfolio margin rate applied to absolute PV (baseline).",
+    )
+    margin_minimum: float = Field(
+        default=0.0,
+        description="Minimum absolute margin requirement in base currency.",
+    )
+    var_horizon_days: int = Field(default=1, description="VaR horizon in days.")
+    var_confidence: float = Field(
+        default=0.99, description="Confidence level used for VaR (e.g. 0.99)."
+    )
+    var_daily_volatility: float = Field(
+        default=0.02,
+        description="Assumed daily volatility (fraction, e.g. 0.02 = 2%).",
+    )
 
 
 class PublicGreeks(BaseModel):
@@ -42,10 +62,27 @@ class PublicGreeks(BaseModel):
     rho: float
 
 
+class PublicMargin(BaseModel):
+    required: float
+    currency: Currency
+    rate: float
+    minimum: float
+
+
+class PublicVar(BaseModel):
+    amount: float
+    currency: Currency
+    horizon_days: int
+    confidence: float
+    daily_volatility: float
+
+
 class PublicPortfolioRisk(BaseModel):
     pv: float
     currency: Currency
     greeks: PublicGreeks
+    margin: PublicMargin | None = None
+    var: PublicVar | None = None
 
 
 class PublicValuationResponse(BaseModel):
@@ -74,7 +111,7 @@ class _StaticPricingAdapter(PricingAdapter):
         if currency is None:
             raise ValueError(f"Missing currency metadata for {position.symbol}")
 
-        return Money(amount=price * position.quantity, ccy=currency)
+        return Money(amount=price * position.quantity, ccy=str(currency))
 
 
 def valuate_portfolio(request: PublicValuationRequest) -> PublicValuationResponse:
@@ -109,7 +146,24 @@ def valuate_portfolio(request: PublicValuationRequest) -> PublicValuationRespons
     portfolio = Portfolio(positions=portfolio_positions, base_currency=request.base_currency)
     risk_snapshot = aggregate_portfolio_risk(portfolio=portfolio, engine=engine)
 
-    portfolio_risk = _snapshot_to_public_risk(risk_snapshot)
+    margin_config = MarginConfig(
+        rate=request.margin_rate,
+        minimum=request.margin_minimum,
+    )
+    var_config = VarConfig(
+        horizon_days=request.var_horizon_days,
+        confidence=request.var_confidence,
+        daily_volatility=request.var_daily_volatility,
+    )
+
+    margin_result = calculate_portfolio_margin(risk_snapshot, margin_config)
+    var_result = calculate_parametric_var(risk_snapshot, var_config)
+
+    portfolio_risk = _snapshot_to_public_risk(
+        risk_snapshot,
+        margin_result=margin_result,
+        var_result=var_result,
+    )
 
     return PublicValuationResponse(
         total_value=risk_snapshot.pv_base.amount,
@@ -120,7 +174,12 @@ def valuate_portfolio(request: PublicValuationRequest) -> PublicValuationRespons
     )
 
 
-def _snapshot_to_public_risk(snapshot: PortfolioRiskSnapshot) -> PublicPortfolioRisk:
+def _snapshot_to_public_risk(
+    snapshot: PortfolioRiskSnapshot,
+    *,
+    margin_result: MarginResult,
+    var_result: VarResult,
+) -> PublicPortfolioRisk:
     return PublicPortfolioRisk(
         pv=snapshot.pv_base.amount,
         currency=snapshot.pv_base.ccy,
@@ -130,5 +189,18 @@ def _snapshot_to_public_risk(snapshot: PortfolioRiskSnapshot) -> PublicPortfolio
             vega=snapshot.greeks.vega,
             theta=snapshot.greeks.theta,
             rho=snapshot.greeks.rho,
+        ),
+        margin=PublicMargin(
+            required=margin_result.required.amount,
+            currency=margin_result.required.ccy,
+            rate=margin_result.rate,
+            minimum=margin_result.minimum,
+        ),
+        var=PublicVar(
+            amount=var_result.amount.amount,
+            currency=var_result.amount.ccy,
+            horizon_days=var_result.horizon_days,
+            confidence=var_result.confidence,
+            daily_volatility=var_result.daily_volatility,
         ),
     )

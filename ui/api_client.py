@@ -5,7 +5,7 @@ from datetime import date
 from typing import Any, Dict, List, Mapping, TypedDict
 
 import pandas as pd
-import requests
+import requests  # type: ignore[import-untyped]
 
 
 # =====================================================
@@ -66,10 +66,12 @@ class PortfolioGreeks(TypedDict):
     rho: float
 
 
-class PortfolioRisk(TypedDict):
+class PortfolioRisk(TypedDict, total=False):
     pv: float
     currency: str
     greeks: PortfolioGreeks
+    margin: Dict[str, Any]
+    var: Dict[str, Any]
 
 
 class PortfolioValuationResponse(TypedDict, total=False):
@@ -82,6 +84,11 @@ class PortfolioValuationRequest(TypedDict):
     positions: list[PortfolioPosition]
     fx_rates: Mapping[str, float]
     base_currency: str
+    margin_rate: float
+    margin_minimum: float
+    var_horizon_days: int
+    var_confidence: float
+    var_daily_volatility: float
 
 
 def _build_headers() -> Dict[str, str]:
@@ -231,17 +238,27 @@ def valuate_portfolio(
     positions: list[PortfolioPosition],
     base_currency: str = DEFAULT_BASE_CURRENCY,
     fx_rates: Mapping[str, float] | None = None,
+    margin_rate: float = 0.15,
+    margin_minimum: float = 0.0,
+    var_horizon_days: int = 1,
+    var_confidence: float = 0.99,
+    var_daily_volatility: float = 0.02,
 ) -> PortfolioValuationResponse:
     payload: PortfolioValuationRequest = {
         "positions": positions,
         "base_currency": base_currency or DEFAULT_BASE_CURRENCY,
         "fx_rates": dict(DEFAULT_FX_RATES) if fx_rates is None else dict(fx_rates),
+        "margin_rate": margin_rate,
+        "margin_minimum": margin_minimum,
+        "var_horizon_days": var_horizon_days,
+        "var_confidence": var_confidence,
+        "var_daily_volatility": var_daily_volatility,
     }
 
     return _request_json(
         method="POST",
         path="/v1/portfolio/valuate",
-        json=payload,
+        json=dict(payload),
         timeout=30,
     )
 
@@ -278,6 +295,10 @@ def analyze_position_v1(
 ) -> Dict[str, Any]:
     legs_list = _legs_df_to_list(legs_df)
 
+    invested_override_value: float | None = None
+    if invested_override is not None and invested_override != 0:
+        invested_override_value = float(invested_override)
+
     payload = {
         "legs": legs_list,
         "market": {
@@ -290,11 +311,7 @@ def analyze_position_v1(
             "r": float(r),
             "q": float(q),
             "contract_multiplier": float(contract_multiplier),
-            "invested_capital_override": (
-                float(invested_override)
-                if invested_override not in (None, "", 0)
-                else None
-            ),
+            "invested_capital_override": invested_override_value,
         },
     }
 
@@ -508,8 +525,8 @@ def simulate_strategy_v1(
 # =====================================================
 
 
-def valuate_portfolio(payload: Dict[str, Any]) -> Dict[str, Any]:
-    """Invoke the public portfolio valuation endpoint."""
+def valuate_portfolio_raw(payload: Dict[str, Any]) -> Dict[str, Any]:
+    """Invoke the public portfolio valuation endpoint with a prebuilt payload."""
 
     return _request_json(
         method="POST",

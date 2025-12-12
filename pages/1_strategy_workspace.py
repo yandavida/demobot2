@@ -8,7 +8,7 @@
 from __future__ import annotations
 
 from datetime import date, timedelta
-from typing import Any, Dict, List
+from typing import Any, Dict, List, cast
 
 import pandas as pd
 import plotly.express as px
@@ -352,6 +352,11 @@ def _build_portfolio_payload(
     symbol: str,
     fx_rate_usd_ils: float,
     base_currency: str,
+    margin_rate: float,
+    margin_minimum: float,
+    var_horizon_days: int,
+    var_confidence: float,
+    var_daily_volatility: float,
 ) -> Dict[str, Any]:
     """Construct a portfolio valuation payload from the current legs."""
 
@@ -386,10 +391,17 @@ def _build_portfolio_payload(
         "positions": positions,
         "fx_rates": fx_rates,
         "base_currency": base_currency,
+        "margin_rate": margin_rate,
+        "margin_minimum": margin_minimum,
+        "var_horizon_days": var_horizon_days,
+        "var_confidence": var_confidence,
+        "var_daily_volatility": var_daily_volatility,
     }
 
 
-def render_portfolio_controls() -> tuple[float, str]:
+def render_portfolio_controls() -> tuple[
+    float, str, float, float, int, float, float
+]:
     st.markdown("### Portfolio Valuation Inputs")
     col1, col2 = st.columns(2)
 
@@ -418,7 +430,72 @@ def render_portfolio_controls() -> tuple[float, str]:
         "כל הרגליים מניחות מטבע USD ומומרות לפי השער שסיפקת."
     )
 
-    return fx_rate, base_currency
+    st.markdown("### Margin & VaR Parameters")
+    col_m1, col_m2 = st.columns(2)
+
+    with col_m1:
+        margin_rate = st.slider(
+            "Margin rate (% of |PV|)",
+            min_value=0.05,
+            max_value=0.5,
+            value=0.15,
+            step=0.01,
+            format="%.2f",
+            help="שיעור מרג'ין יחסי לערך הפורטפוליו.",
+        )
+    with col_m2:
+        margin_minimum = st.number_input(
+            "Minimum margin (base currency)",
+            min_value=0.0,
+            value=0.0,
+            step=100.0,
+            format="%.2f",
+            help="רף תחתון אבסולוטי לחישוב המרג'ין.",
+        )
+
+    col_v1, col_v2, col_v3 = st.columns(3)
+
+    with col_v1:
+        var_horizon_days = int(
+            st.number_input(
+                "VaR horizon (days)",
+                min_value=1,
+                max_value=365,
+                value=1,
+                step=1,
+                help="אופק זמן (ימים) ל-Value at Risk.",
+            )
+        )
+    with col_v2:
+        var_confidence = st.slider(
+            "VaR confidence",
+            min_value=0.8,
+            max_value=0.999,
+            value=0.99,
+            step=0.01,
+            format="%.3f",
+            help="רמת ביטחון סטנדרטית ל-VaR.",
+        )
+    with col_v3:
+        var_daily_volatility = st.number_input(
+            "Daily volatility (σ)",
+            min_value=0.0,
+            max_value=1.0,
+            value=0.02,
+            step=0.005,
+            format="%.3f",
+            help="סטיית תקן יומית בהנחה פשוטה.",
+        )
+
+    return (
+        fx_rate,
+        base_currency,
+        margin_rate,
+        margin_minimum,
+        var_horizon_days,
+        var_confidence,
+        var_daily_volatility,
+    )
 
 
 def render_portfolio_risk_dashboard(response: Dict[str, Any]) -> None:
@@ -430,6 +507,8 @@ def render_portfolio_risk_dashboard(response: Dict[str, Any]) -> None:
 
     risk = response.get("portfolio_risk") or {}
     greeks = risk.get("greeks") or {}
+    margin = risk.get("margin") or {}
+    var_data = risk.get("var") or {}
 
     pv_value = response.get("total_value", 0.0)
     pv_ccy = response.get("currency", risk.get("currency", ""))
@@ -451,6 +530,56 @@ def render_portfolio_risk_dashboard(response: Dict[str, Any]) -> None:
                 st.info(f"{label}: N/A")
             else:
                 st.metric(label, f"{float(value):,.4f}")
+
+    st.markdown("#### מרג'ין נדרש")
+    margin_cols = st.columns(3)
+    with margin_cols[0]:
+        required = margin.get("required")
+        margin_ccy = margin.get("currency", pv_ccy)
+        if required is None:
+            st.info("Margin: N/A")
+        else:
+            st.metric("Required", f"{float(required):,.2f} {margin_ccy}")
+    with margin_cols[1]:
+        rate = margin.get("rate")
+        if rate is None:
+            st.info("Rate: N/A")
+        else:
+            st.metric("Rate", f"{float(rate) * 100:.1f}%")
+    with margin_cols[2]:
+        minimum = margin.get("minimum")
+        margin_ccy = margin.get("currency", pv_ccy)
+        if minimum is None:
+            st.info("Minimum: N/A")
+        else:
+            st.metric("Minimum", f"{float(minimum):,.2f} {margin_ccy}")
+
+    st.markdown("#### VaR בסיסי")
+    var_cols = st.columns(3)
+    with var_cols[0]:
+        amount = var_data.get("amount")
+        var_ccy = var_data.get("currency", pv_ccy)
+        if amount is None:
+            st.info("VaR: N/A")
+        else:
+            st.metric("VaR", f"{float(amount):,.2f} {var_ccy}")
+    with var_cols[1]:
+        horizon = var_data.get("horizon_days")
+        confidence = var_data.get("confidence")
+        if horizon is None:
+            st.info("Horizon: N/A")
+        else:
+            st.metric("Horizon (days)", int(horizon))
+        if confidence is None:
+            st.info("Confidence: N/A")
+        else:
+            st.metric("Confidence", f"{float(confidence) * 100:.2f}%")
+    with var_cols[2]:
+        daily_vol = var_data.get("daily_volatility")
+        if daily_vol is None:
+            st.info("σ daily: N/A")
+        else:
+            st.metric("Daily σ", f"{float(daily_vol) * 100:.2f}%")
 
 
 # =========================
@@ -657,7 +786,15 @@ def main() -> None:
 
     st.markdown("---")
 
-    fx_rate, base_currency = render_portfolio_controls()
+    (
+        fx_rate,
+        base_currency,
+        margin_rate,
+        margin_minimum,
+        var_horizon_days,
+        var_confidence,
+        var_daily_volatility,
+    ) = render_portfolio_controls()
 
     if st.button("Valuate Portfolio", type="secondary", key="btn_valuate_portfolio"):
         if edited_df.empty:
@@ -670,6 +807,11 @@ def main() -> None:
                 symbol=market_params.get("symbol", "SPY"),
                 fx_rate_usd_ils=fx_rate,
                 base_currency=base_currency,
+                margin_rate=margin_rate,
+                margin_minimum=margin_minimum,
+                var_horizon_days=var_horizon_days,
+                var_confidence=var_confidence,
+                var_daily_volatility=var_daily_volatility,
             )
 
             if not payload.get("positions"):
@@ -677,7 +819,7 @@ def main() -> None:
             else:
                 with st.spinner("מריץ חישוב ערך ו-Risk לפורטפוליו..."):
                     try:
-                        valuation = valuate_portfolio(payload)
+                        valuation = cast(Dict[str, Any], valuate_portfolio(**payload))
                     except ApiError as e:
                         if e.error_type == "auth":
                             st.error("שגיאת הרשאות ב-Portfolio API.")
