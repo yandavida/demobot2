@@ -15,6 +15,56 @@ from core.portfolio.models import Currency
 _orchestrator = ArbitrageOrchestrator()
 
 
+class ValidationError(Exception):
+    """Raised when incoming quotes fail strict validation."""
+
+
+def _validate_quotes_payload(
+    quotes_payload: List[Dict[str, Any]], default_ccy: Currency
+) -> tuple[List[Dict[str, Any]], Dict[str, Any]]:
+    valid: list[Dict[str, Any]] = []
+    invalid: list[Dict[str, Any]] = []
+
+    for idx, quote in enumerate(quotes_payload):
+        errors: list[str] = []
+        if not isinstance(quote, dict):
+            errors.append("Quote must be a dictionary")
+        else:
+            venue = quote.get("venue")
+            symbol = quote.get("symbol")
+            if not venue:
+                errors.append("Missing venue")
+            if not symbol:
+                errors.append("Missing symbol")
+
+            for field in ("bid", "ask"):
+                value = quote.get(field)
+                if value is None:
+                    continue
+                try:
+                    float(value)
+                except Exception:
+                    errors.append(f"Invalid {field} value")
+
+            ccy = quote.get("ccy", default_ccy)
+            if ccy is None:
+                errors.append("Missing currency")
+
+        if errors:
+            invalid.append({"index": idx, "quote": quote, "errors": errors})
+        else:
+            valid.append(quote)
+
+    summary: Dict[str, Any] = {
+        "received_count": len(quotes_payload),
+        "valid_count": len(valid),
+        "invalid_count": len(invalid),
+        "invalid_quotes": invalid,
+    }
+
+    return valid, summary
+
+
 def _normalize_execution_readiness(
     readiness: Any | None,
 ) -> dict[str, object] | None:
@@ -124,8 +174,17 @@ def ingest_quotes_and_scan(
     session_id: UUID,
     quotes_payload: List[Dict[str, Any]],
     fx_rate_usd_ils: float,
+    strict_validation: bool = False,
 ) -> List[Dict[str, Any]]:
     session = _orchestrator.get_session(session_id)
+    valid_quotes, validation_summary = _validate_quotes_payload(
+        quotes_payload, default_ccy=session.base_currency
+    )
+    session.validation_summary = validation_summary
+
+    if validation_summary["invalid_count"] and strict_validation:
+        raise ValidationError("Invalid quotes in payload")
+
     quotes: List[VenueQuote] = [
         VenueQuote(
             venue=q["venue"],
@@ -136,7 +195,7 @@ def ingest_quotes_and_scan(
             size=q.get("size"),
             fees_bps=q.get("fees_bps", 0.0),
         )
-        for q in quotes_payload
+        for q in valid_quotes
     ]
     snapshot = QuoteSnapshot(as_of=datetime.utcnow(), quotes=quotes)
 
@@ -146,7 +205,7 @@ def ingest_quotes_and_scan(
     opportunities = _orchestrator.ingest_snapshot(
         session_id=session_id, snapshot=snapshot, fx_converter=fx_converter
     )
-    return [
+    summaries = [
         _attach_execution_readiness(
             opp.to_summary(),
             session.opportunity_state.get(opp.opportunity.opportunity_id),
@@ -155,6 +214,14 @@ def ingest_quotes_and_scan(
         )
         for opp in opportunities
     ]
+
+    if not summaries:
+        return [{"validation_summary": validation_summary}]
+
+    for summary in summaries:
+        summary["validation_summary"] = validation_summary
+
+    return summaries
 
 
 def get_session_history(

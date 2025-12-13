@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections import deque
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
-from typing import Deque, Dict, List
+from typing import Any, Deque, Dict, List
 from uuid import UUID, uuid4
 
 from core.arbitrage.engine import find_cross_venue_opportunities
@@ -91,6 +91,7 @@ class ArbitrageSessionState:
     opportunity_state: Dict[str, OpportunityState] = field(default_factory=dict)
     events: Deque[ArbitrageEvent] = field(default_factory=deque)
     last_accessed: datetime = field(default_factory=datetime.utcnow)
+    validation_summary: Dict[str, Any] | None = None
 
 
 @dataclass
