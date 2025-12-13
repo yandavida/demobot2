@@ -4,29 +4,54 @@ from datetime import datetime
 from typing import Any, Dict, List
 from uuid import UUID
 
+from pydantic import BaseModel, ValidationError, field_validator
+
 from core.arbitrage.feed import QuoteSnapshot
 from core.arbitrage.intelligence.lifecycle import OpportunityState
 from core.arbitrage.models import ArbitrageConfig, VenueQuote
-from core.arbitrage.orchestrator import ArbitrageOrchestrator, ValidationSummary
+from core.arbitrage.orchestrator import ArbitrageOrchestrator
 from core.fx.converter import FxConverter
 from core.fx.provider import FxRateProvider
+from core.market_data import validate_quotes_payload
 from core.portfolio.models import Currency
 
 _orchestrator = ArbitrageOrchestrator()
 
 
-def _normalize_execution_readiness(
-    readiness: Any | None,
-) -> dict[str, object] | None:
+class QuotePayload(BaseModel):
+    """Strict schema for validating incoming quote payloads.
+
+    Notes:
+    - strict_validation=True will use this schema and fail-fast via ValidationError.
+    - Keep fields aligned with VenueQuote + any tolerated metadata (e.g. latency_ms).
+    """
+
+    symbol: str
+    venue: str
+    ccy: str = "USD"
+    bid: float
+    ask: float
+    size: float | None = None
+    fees_bps: float | None = 0.0
+    latency_ms: float | None = None
+
+    @field_validator("bid", "ask")
+    @classmethod
+    def _require_positive(cls, value: float) -> float:
+        if value is None:
+            raise ValueError("Quote must include bid/ask")
+        if value <= 0:
+            raise ValueError("Bid/ask must be positive")
+        return value
+
+
+def _normalize_execution_readiness(readiness: Any | None) -> dict[str, object] | None:
     if readiness is None:
         return None
-
     if hasattr(readiness, "to_dict"):
         return readiness.to_dict()
-
     if isinstance(readiness, dict):
         return readiness
-
     return None
 
 
@@ -51,19 +76,6 @@ def _serialize_execution_decision(decision: Any | None) -> dict[str, object] | N
 
     if isinstance(decision, dict):
         return decision
-
-    return None
-
-
-def _serialize_validation_summary(summary: ValidationSummary | dict[str, Any] | None) -> dict[str, Any] | None:
-    if summary is None:
-        return None
-
-    if isinstance(summary, dict):
-        return summary
-
-    if hasattr(summary, "to_dict"):
-        return summary.to_dict()  # type: ignore[no-any-return]
 
     return None
 
@@ -125,11 +137,25 @@ def _attach_execution_readiness(
     return summary
 
 
-def _attach_validation_summary(
-    payload: dict[str, Any], summary: ValidationSummary | dict[str, Any] | None
-) -> dict[str, Any]:
-    payload["validation_summary"] = _serialize_validation_summary(summary)
-    return payload
+def _summarize_validations(results: list[Any]) -> dict[str, object]:
+    valid = sum(1 for r in results if getattr(r, "is_valid", False))
+    invalid = len(results) - valid
+
+    def _collect(kind: str) -> list[dict[str, object]]:
+        collected: list[dict[str, object]] = []
+        for idx, result in enumerate(results):
+            messages = getattr(result, kind, None)
+            if messages:
+                collected.append({"index": idx, "messages": list(messages)})
+        return collected
+
+    return {
+        "total": len(results),
+        "valid": valid,
+        "invalid": invalid,
+        "errors": _collect("errors"),
+        "warnings": _collect("warnings"),
+    }
 
 
 def create_arbitrage_session(
@@ -140,24 +166,58 @@ def create_arbitrage_session(
     return state.session_id
 
 
+def _validate_quotes_payload_strict(
+    quotes_payload: List[Dict[str, Any]],
+) -> List[Dict[str, Any]]:
+    """Strict validation + normalization.
+
+    Raises:
+        ValidationError: if any quote fails the strict schema.
+    """
+    validated = [QuotePayload.model_validate(quote) for quote in quotes_payload]
+    return [quote.model_dump() for quote in validated]
+
+
 def ingest_quotes_and_scan(
     session_id: UUID,
     quotes_payload: List[Dict[str, Any]],
     fx_rate_usd_ils: float,
-) -> List[Dict[str, Any]]:
+    strict_validation: bool = False,
+) -> Dict[str, Any]:
     session = _orchestrator.get_session(session_id)
+
+    quote_validation: dict[str, object] | None = None
+    normalized_payload: List[Dict[str, Any]] = quotes_payload
+
+    if strict_validation:
+        # Fail-fast, let API layer convert ValidationError to HTTP 422.
+        normalized_payload = _validate_quotes_payload_strict(quotes_payload)
+        quote_validation = None
+    else:
+        validation_results = validate_quotes_payload(quotes_payload)
+        quote_validation = _summarize_validations(validation_results)
+
+        normalized_payload = []
+        for payload, result in zip(quotes_payload, validation_results):
+            if not getattr(result, "is_valid", False):
+                continue
+            source = getattr(result, "normalized", None) or payload
+            normalized_payload.append(source)
+
     quotes: List[VenueQuote] = [
         VenueQuote(
-            venue=q["venue"],
-            symbol=q["symbol"],
+            venue=q.get("venue"),
+            symbol=q.get("symbol"),
             ccy=q.get("ccy", session.base_currency),
             bid=q.get("bid"),
             ask=q.get("ask"),
             size=q.get("size"),
             fees_bps=q.get("fees_bps", 0.0),
+            latency_ms=q.get("latency_ms"),
         )
-        for q in quotes_payload
+        for q in normalized_payload
     ]
+
     snapshot = QuoteSnapshot(as_of=datetime.utcnow(), quotes=quotes)
 
     fx_provider = FxRateProvider.from_usd_ils(fx_rate_usd_ils)
@@ -166,19 +226,23 @@ def ingest_quotes_and_scan(
     opportunities = _orchestrator.ingest_snapshot(
         session_id=session_id, snapshot=snapshot, fx_converter=fx_converter
     )
-    validation_summary = _serialize_validation_summary(session.last_validation_summary)
-    return [
-        _attach_validation_summary(
-            _attach_execution_readiness(
-                opp.to_summary(),
-                session.opportunity_state.get(opp.opportunity.opportunity_id),
-                readiness=opp.execution_readiness,
-                decision=opp.execution_decision,
-            ),
-            validation_summary,
+
+    opp_payload = [
+        _attach_execution_readiness(
+            opp.to_summary(),
+            session.opportunity_state.get(opp.opportunity.opportunity_id),
+            readiness=opp.execution_readiness,
+            decision=opp.execution_decision,
         )
         for opp in opportunities
     ]
+
+    # Keep legacy key name for compatibility with earlier branch output.
+    return {
+        "opportunities": opp_payload,
+        "quote_validation": quote_validation,
+        "validation_summary": quote_validation,
+    }
 
 
 def get_session_history(
@@ -188,16 +252,12 @@ def get_session_history(
     records = _orchestrator.get_opportunity_time_series(
         session_id=session_id, symbol=symbol
     )
-    validation_summary = _serialize_validation_summary(session.last_validation_summary)
     return [
-        _attach_validation_summary(
-            _attach_execution_readiness(
-                record.to_summary(),
-                session.opportunity_state.get(record.opportunity.opportunity_id),
-                readiness=record.execution_readiness,
-                decision=record.execution_decision,
-            ),
-            validation_summary,
+        _attach_execution_readiness(
+            record.to_summary(),
+            session.opportunity_state.get(record.opportunity.opportunity_id),
+            readiness=record.execution_readiness,
+            decision=record.execution_decision,
         )
         for record in records
     ]
@@ -212,32 +272,28 @@ def get_top_recommendations(
     )
 
     result: list[Dict[str, Any]] = []
-    validation_summary = _serialize_validation_summary(session.last_validation_summary)
     for rec in recs:
         embedded = getattr(rec, "execution_readiness", None)
         lifecycle = session.opportunity_state.get(rec.opportunity_id)
         execution_readiness = _serialize_execution_readiness(
-            lifecycle, readiness=embedded, decision=getattr(rec, "execution_decision", None)
+            lifecycle,
+            readiness=embedded,
+            decision=getattr(rec, "execution_decision", None),
         )
 
         result.append(
-            _attach_validation_summary(
-                {
-                    "opportunity_id": rec.opportunity_id,
-                    "rank": rec.rank,
-                    "quality_score": rec.quality_score,
-                    "reasons": [
-                        {"code": r.code, "detail": r.detail} for r in rec.reasons
-                    ],
-                    "signals": rec.signals,
-                    "economics": rec.economics,
-                    "execution_readiness": execution_readiness,
-                    "execution_decision": execution_readiness.get("decision")
-                    if execution_readiness
-                    else None,
-                },
-                validation_summary,
-            )
+            {
+                "opportunity_id": rec.opportunity_id,
+                "rank": rec.rank,
+                "quality_score": rec.quality_score,
+                "reasons": [{"code": r.code, "detail": r.detail} for r in rec.reasons],
+                "signals": rec.signals,
+                "economics": rec.economics,
+                "execution_readiness": execution_readiness,
+                "execution_decision": execution_readiness.get("decision")
+                if execution_readiness
+                else None,
+            }
         )
     return result
 
@@ -256,7 +312,6 @@ def get_opportunity_detail(
 
     latest = history[-1]
     opp_state = state.opportunity_state.get(opportunity_id)
-    validation_summary = _serialize_validation_summary(state.last_validation_summary)
 
     signals: dict[str, float] = {}
     reasons: list[Any] = []
@@ -284,7 +339,6 @@ def get_opportunity_detail(
             decision=latest.execution_decision,
         ),
         "execution_decision": _serialize_execution_decision(latest.execution_decision),
-        "validation_summary": validation_summary,
     }
 
 
@@ -294,16 +348,12 @@ def get_history_window(
     state = _orchestrator.get_session(session_id)
     history = state.opportunities_history
     filtered = [h for h in history if symbol is None or h.opportunity.symbol == symbol]
-    validation_summary = _serialize_validation_summary(state.last_validation_summary)
     return [
-        _attach_validation_summary(
-            _attach_execution_readiness(
-                h.to_summary(),
-                state.opportunity_state.get(h.opportunity.opportunity_id),
-                readiness=h.execution_readiness,
-                decision=h.execution_decision,
-            ),
-            validation_summary,
+        _attach_execution_readiness(
+            h.to_summary(),
+            state.opportunity_state.get(h.opportunity.opportunity_id),
+            readiness=h.execution_readiness,
+            decision=h.execution_decision,
         )
         for h in filtered[-limit:]
     ]
@@ -325,7 +375,6 @@ def get_readiness_states(
     session_id: UUID, symbol: str | None = None
 ) -> List[Dict[str, Any]]:
     state = _orchestrator.get_session(session_id)
-    validation_summary = _serialize_validation_summary(state.last_validation_summary)
 
     symbol_by_opportunity: dict[str, str] = {}
     for record in state.opportunities_history:
@@ -353,14 +402,11 @@ def get_readiness_states(
             decision=decision_by_opportunity.get(opp_id),
         )
         readiness.append(
-            _attach_validation_summary(
-                {
-                    "opportunity_id": opp_id,
-                    "symbol": opp_symbol,
-                    **(readiness_payload or {}),
-                },
-                validation_summary,
-            )
+            {
+                "opportunity_id": opp_id,
+                "symbol": opp_symbol,
+                **(readiness_payload or {}),
+            }
         )
 
     return readiness
