@@ -4,7 +4,7 @@ from datetime import datetime
 from typing import Any, Dict, List
 from uuid import UUID
 
-from pydantic import BaseModel, ValidationError, field_validator
+from pydantic import BaseModel, field_validator
 
 from core.arbitrage.feed import QuoteSnapshot
 from core.arbitrage.intelligence.lifecycle import OpportunityState
