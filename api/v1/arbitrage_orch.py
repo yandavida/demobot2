@@ -5,7 +5,7 @@ from typing import List, Optional
 from uuid import UUID
 
 from fastapi import APIRouter
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from core.arbitrage.models import ArbitrageConfig
 from core.portfolio.models import Currency
@@ -50,6 +50,14 @@ class ScanRequest(BaseModel):
     quotes: List[QuoteIn]
 
 
+class QuoteValidationOut(BaseModel):
+    total: int
+    valid: int
+    invalid: int
+    errors: list[dict[str, object]] = Field(default_factory=list)
+    warnings: list[dict[str, object]] = Field(default_factory=list)
+
+
 class OpportunityOut(BaseModel):
     timestamp: str
     opportunity_id: str
@@ -63,6 +71,7 @@ class OpportunityOut(BaseModel):
     edge_bps: float
     execution_readiness: dict[str, object] | None = None
     execution_decision: dict[str, object] | None = None
+    quote_validation: QuoteValidationOut | None = None
 
 
 class HistoryRequest(BaseModel):

@@ -11,6 +11,7 @@ from core.arbitrage.orchestrator import ArbitrageOrchestrator
 from core.fx.converter import FxConverter
 from core.fx.provider import FxRateProvider
 from core.portfolio.models import Currency
+from core.market_data import validate_quotes_payload
 
 _orchestrator = ArbitrageOrchestrator()
 
@@ -112,6 +113,27 @@ def _attach_execution_readiness(
     return summary
 
 
+def _summarize_validations(results: list[Any]) -> dict[str, object]:
+    valid = sum(1 for r in results if getattr(r, "is_valid", False))
+    invalid = len(results) - valid
+
+    def _collect(kind: str) -> list[dict[str, object]]:
+        collected: list[dict[str, object]] = []
+        for idx, result in enumerate(results):
+            messages = getattr(result, kind, None)
+            if messages:
+                collected.append({"index": idx, "messages": list(messages)})
+        return collected
+
+    return {
+        "total": len(results),
+        "valid": valid,
+        "invalid": invalid,
+        "errors": _collect("errors"),
+        "warnings": _collect("warnings"),
+    }
+
+
 def create_arbitrage_session(
     base_currency: Currency,
     config: ArbitrageConfig,
@@ -126,18 +148,25 @@ def ingest_quotes_and_scan(
     fx_rate_usd_ils: float,
 ) -> List[Dict[str, Any]]:
     session = _orchestrator.get_session(session_id)
-    quotes: List[VenueQuote] = [
-        VenueQuote(
-            venue=q["venue"],
-            symbol=q["symbol"],
-            ccy=q.get("ccy", session.base_currency),
-            bid=q.get("bid"),
-            ask=q.get("ask"),
-            size=q.get("size"),
-            fees_bps=q.get("fees_bps", 0.0),
+    validation_results = validate_quotes_payload(quotes_payload)
+    quotes: List[VenueQuote] = []
+    for payload, result in zip(quotes_payload, validation_results):
+        if not getattr(result, "is_valid", False):
+            continue
+
+        source = result.normalized or payload
+        quotes.append(
+            VenueQuote(
+                venue=source.get("venue"),
+                symbol=source.get("symbol"),
+                ccy=source.get("ccy", session.base_currency),
+                bid=source.get("bid"),
+                ask=source.get("ask"),
+                size=source.get("size"),
+                fees_bps=source.get("fees_bps", 0.0),
+                latency_ms=source.get("latency_ms"),
+            )
         )
-        for q in quotes_payload
-    ]
     snapshot = QuoteSnapshot(as_of=datetime.utcnow(), quotes=quotes)
 
     fx_provider = FxRateProvider.from_usd_ils(fx_rate_usd_ils)
@@ -146,6 +175,7 @@ def ingest_quotes_and_scan(
     opportunities = _orchestrator.ingest_snapshot(
         session_id=session_id, snapshot=snapshot, fx_converter=fx_converter
     )
+    validation_summary = _summarize_validations(validation_results)
     return [
         _attach_execution_readiness(
             opp.to_summary(),
@@ -153,6 +183,7 @@ def ingest_quotes_and_scan(
             readiness=opp.execution_readiness,
             decision=opp.execution_decision,
         )
+        | {"quote_validation": validation_summary}
         for opp in opportunities
     ]
 
