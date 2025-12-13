@@ -61,6 +61,7 @@ class OpportunityOut(BaseModel):
     gross_edge_total: float
     currency: str
     edge_bps: float
+    execution_readiness: dict[str, object] | None = None
 
 
 class HistoryRequest(BaseModel):
@@ -86,6 +87,7 @@ class RecommendationOut(BaseModel):
     reasons: list[dict[str, str]]
     signals: dict[str, float]
     economics: dict[str, object]
+    execution_readiness: dict[str, object] | None = None
 
 
 class OpportunityDetailOut(BaseModel):
@@ -93,6 +95,7 @@ class OpportunityDetailOut(BaseModel):
     state: str | None
     signals: dict[str, float]
     reasons: list[dict[str, str]]
+    execution_readiness: dict[str, object] | None = None
 
 
 def check_route_collisions(target_router: APIRouter) -> None:
