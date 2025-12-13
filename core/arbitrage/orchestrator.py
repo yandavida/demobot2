@@ -1,11 +1,9 @@
 from __future__ import annotations
 
-from __future__ import annotations
-
 from collections import deque
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
-from typing import Deque, Dict, List
+from typing import Any, Deque, Dict, List
 from uuid import UUID, uuid4
 
 from core.arbitrage.engine import find_cross_venue_opportunities
@@ -14,8 +12,8 @@ from core.arbitrage.execution.gate import (
     ExecutionDecision,
     evaluate_execution_readiness as evaluate_execution_decision,
 )
-from core.arbitrage.identity import opportunity_id
 from core.arbitrage.feed import QuoteSnapshot
+from core.arbitrage.identity import opportunity_id
 from core.arbitrage.intelligence.events import ArbitrageEvent, ArbitrageEventType
 from core.arbitrage.intelligence.lifecycle import (
     LifecycleState,
@@ -24,17 +22,44 @@ from core.arbitrage.intelligence.lifecycle import (
     update_lifecycle,
 )
 from core.arbitrage.intelligence.limits import SessionLimits
-from core.arbitrage.intelligence.signals import compute_signals
 from core.arbitrage.intelligence.readiness import (
     ExecutionReadiness,
     default_execution_constraints,
     evaluate_execution_readiness,
 )
 from core.arbitrage.intelligence.scoring import RankedRecommendation, to_recommendation
+from core.arbitrage.intelligence.signals import compute_signals
 from core.arbitrage.models import ArbitrageConfig, ArbitrageOpportunity
 from core.fx.converter import FxConverter
 from core.portfolio.models import Currency, Money
-from core.quote_validation import ValidationSummary
+
+try:
+    # Preferred canonical type (if exists in your repo)
+    from core.quote_validation import ValidationSummary  # type: ignore
+except Exception:  # pragma: no cover
+    # Safe fallback to avoid import breakages during merges.
+    @dataclass
+    class ValidationSummary:  # type: ignore[no-redef]
+        as_of: datetime
+        warnings: list[str] = field(default_factory=list)
+        errors: list[str] = field(default_factory=list)
+
+        def to_dict(self) -> dict[str, object]:
+            return {
+                "as_of": self.as_of.isoformat(),
+                "warnings": list(self.warnings),
+                "errors": list(self.errors),
+            }
+
+
+def _serialize_validation_summary(summary: ValidationSummary | None) -> dict[str, object] | None:
+    if summary is None:
+        return None
+    if hasattr(summary, "to_dict"):
+        return summary.to_dict()  # type: ignore[no-any-return]
+    if isinstance(summary, dict):
+        return summary  # type: ignore[return-value]
+    return None
 
 
 @dataclass
@@ -49,6 +74,30 @@ class OpportunityRecord:
     execution_decision: ExecutionDecision | None = None
 
     def to_summary(self) -> dict[str, object]:
+        readiness_payload: dict[str, object] | None = None
+        if self.execution_readiness is not None:
+            readiness_payload = (
+                self.execution_readiness.to_dict()
+                if hasattr(self.execution_readiness, "to_dict")
+                else self.execution_readiness  # type: ignore[assignment]
+            )
+
+        decision_payload: dict[str, object] | None = None
+        if self.execution_decision is not None:
+            decision_payload = {
+                "reason": getattr(self.execution_decision.reason, "value", self.execution_decision.reason),
+                "can_execute": getattr(self.execution_decision, "should_execute", False),
+                "reason_codes": [getattr(self.execution_decision.reason, "value", self.execution_decision.reason)],
+                "metrics": {
+                    "edge_bps": getattr(self.execution_decision, "edge_bps", None),
+                    "spread_bps": getattr(self.execution_decision, "worst_spread_bps", None),
+                    "age_ms": getattr(self.execution_decision, "age_ms", None),
+                    "notional": getattr(self.execution_decision, "notional", None),
+                    "qty": getattr(self.execution_decision, "recommended_qty", None),
+                },
+                "recommended_qty": getattr(self.execution_decision, "recommended_qty", None),
+            }
+
         return {
             "timestamp": self.as_of.isoformat(),
             "opportunity_id": self.opportunity.opportunity_id,
@@ -60,24 +109,8 @@ class OpportunityRecord:
             "gross_edge_per_unit": self.edge_per_unit.amount,
             "gross_edge_total": self.edge_total.amount,
             "currency": self.edge_total.ccy,
-            "execution_readiness": self.execution_readiness.to_dict()
-            if self.execution_readiness
-            else None,
-            "execution_decision": {
-                "reason": self.execution_decision.reason.value,
-                "can_execute": self.execution_decision.should_execute,
-                "reason_codes": [self.execution_decision.reason.value],
-                "metrics": {
-                    "edge_bps": self.execution_decision.edge_bps,
-                    "spread_bps": self.execution_decision.worst_spread_bps,
-                    "age_ms": self.execution_decision.age_ms,
-                    "notional": self.execution_decision.notional,
-                    "qty": self.execution_decision.recommended_qty,
-                },
-                "recommended_qty": self.execution_decision.recommended_qty,
-            }
-            if self.execution_decision
-            else None,
+            "execution_readiness": readiness_payload,
+            "execution_decision": decision_payload,
         }
 
 
@@ -91,8 +124,12 @@ class ArbitrageSessionState:
     opportunities_history: List[OpportunityRecord] = field(default_factory=list)
     opportunity_state: Dict[str, OpportunityState] = field(default_factory=dict)
     events: Deque[ArbitrageEvent] = field(default_factory=deque)
+
+    # Canonical internal object + serialized payload for propagation
+    last_validation_summary: ValidationSummary | None = None
+    validation_summary: dict[str, object] | None = None
+
     last_accessed: datetime = field(default_factory=datetime.utcnow)
-    validation_summary: "ValidationSummary | None" = None
 
 
 @dataclass
@@ -132,26 +169,34 @@ class ArbitrageOrchestrator:
         fx_converter: FxConverter,
     ) -> List[OpportunityRecord]:
         state = self.get_session(session_id)
+
+        # Snapshot-level validation (lightweight). Stored on state for later API propagation.
+        summary = self._validate_snapshot(snapshot)
+        state.last_validation_summary = summary
+        state.validation_summary = _serialize_validation_summary(summary)
+
         expire_stale_states(state.opportunity_state, now=snapshot.as_of, limits=state.limits)
+
         state.snapshots.append(snapshot)
         self._prune_snapshots(state)
+
         state.events.append(
             ArbitrageEvent(as_of=snapshot.as_of, event_type=ArbitrageEventType.SNAPSHOT_INGESTED)
         )
         self._prune_events(state)
 
-        opportunities = find_cross_venue_opportunities(
-            quotes=snapshot.quotes,
-            config=state.config,
-        )
+        opportunities = find_cross_venue_opportunities(quotes=snapshot.quotes, config=state.config)
 
-        constraints = default_execution_constraints(state.config)
+        # “soft” readiness constraints (business rules)
+        soft_constraints = default_execution_constraints(state.config)
 
-        enriched: list[OpportunityRecord] = []
+        # “gate” constraints (execution safety)
         gate_constraints = ExecutionGateConstraints(
             min_edge_bps=state.config.min_edge_bps,
             max_quote_age_ms=state.config.max_latency_ms,
         )
+
+        enriched: list[OpportunityRecord] = []
 
         for opp in opportunities:
             opp.as_of = snapshot.as_of
@@ -163,30 +208,32 @@ class ArbitrageOrchestrator:
                 buy_price_base=fx_converter.to_base(Money(amount=opp.buy.price, ccy=opp.buy.ccy)).amount,
                 sell_price_base=fx_converter.to_base(Money(amount=opp.sell.price, ccy=opp.sell.ccy)).amount,
             )
+
             lifecycle = update_lifecycle(
                 existing=state.opportunity_state.get(opp.opportunity_id),
                 as_of=snapshot.as_of,
                 edge_bps=opp.edge_bps,
                 net_edge_bps=opp.net_edge,
             )
-            lifecycle.opportunity_id = opp.opportunity_id  # type: ignore
+            lifecycle.opportunity_id = opp.opportunity_id  # type: ignore[attr-defined]
             state.opportunity_state[opp.opportunity_id] = lifecycle
 
-            edge_per_unit_money = fx_converter.to_base(
-                Money(amount=opp.net_edge, ccy=opp.ccy)
-            )
-            edge_total_money = fx_converter.to_base(
-                Money(amount=opp.net_edge * opp.size, ccy=opp.ccy)
-            )
+            edge_per_unit_money = fx_converter.to_base(Money(amount=opp.net_edge, ccy=opp.ccy))
+            edge_total_money = fx_converter.to_base(Money(amount=opp.net_edge * opp.size, ccy=opp.ccy))
+
             readiness = evaluate_execution_readiness(
-                edge_bps=opp.edge_bps, size=opp.size, constraints=constraints
+                edge_bps=opp.edge_bps,
+                size=opp.size,
+                constraints=soft_constraints,
             )
+
             decision = evaluate_execution_decision(
                 opportunity=opp,
                 quotes=snapshot.quotes,
                 constraints=gate_constraints,
                 now=snapshot.as_of,
             )
+
             record = OpportunityRecord(
                 as_of=snapshot.as_of,
                 opportunity=opp,
@@ -197,7 +244,9 @@ class ArbitrageOrchestrator:
             )
             state.opportunities_history.append(record)
             enriched.append(record)
+
             self._prune_history(state)
+
             state.events.append(
                 ArbitrageEvent(
                     as_of=snapshot.as_of,
@@ -225,31 +274,50 @@ class ArbitrageOrchestrator:
             return list(state.opportunities_history)
         return [opp for opp in state.opportunities_history if opp.opportunity.symbol == symbol]
 
-    def get_recommendations(self, session_id: UUID, limit: int = 10, symbol: str | None = None) -> List[RankedRecommendation]:
+    def get_recommendations(
+        self,
+        session_id: UUID,
+        limit: int = 10,
+        symbol: str | None = None,
+    ) -> List[RankedRecommendation]:
         state = self.get_session(session_id)
         now = datetime.utcnow()
         expire_stale_states(state.opportunity_state, now=now, limits=state.limits)
+
         history = state.opportunities_history
         recs: list[RankedRecommendation] = []
-        constraints = default_execution_constraints(state.config)
+
+        soft_constraints = default_execution_constraints(state.config)
+
         for record in reversed(history):
             if symbol and record.opportunity.symbol != symbol:
                 continue
+
             opp_state = state.opportunity_state.get(record.opportunity.opportunity_id)
             if not opp_state or opp_state.state == LifecycleState.EXPIRED:
                 continue
-            signals = compute_signals(opportunity=record, state=opp_state, now=now, history=history)
+
+            signals = compute_signals(
+                opportunity=record,
+                state=opp_state,
+                now=now,
+                history=history,
+            )
+
             readiness = evaluate_execution_readiness(
                 edge_bps=record.opportunity.edge_bps,
                 size=record.opportunity.size,
-                constraints=constraints,
+                constraints=soft_constraints,
             )
+
             recommendation = to_recommendation(record, signals, rank=0)
             recommendation.execution_readiness = readiness
             recommendation.execution_decision = record.execution_decision
             recs.append(recommendation)
+
             if len(recs) >= limit:
                 break
+
         ranked = sorted(recs, key=lambda r: r.quality_score, reverse=True)
         for idx, rec in enumerate(ranked, start=1):
             rec.rank = idx
@@ -265,6 +333,20 @@ class ArbitrageOrchestrator:
         for session_id in to_delete:
             del self.sessions[session_id]
 
+    def _validate_snapshot(self, snapshot: QuoteSnapshot) -> ValidationSummary:
+        warnings: list[str] = []
+        errors: list[str] = []
+
+        for quote in snapshot.quotes:
+            if quote.bid is None or quote.ask is None:
+                warnings.append(f"Missing bid/ask for {quote.symbol} on {quote.venue}")
+            if quote.bid is not None and quote.bid <= 0:
+                errors.append(f"Non-positive bid for {quote.symbol} on {quote.venue}")
+            if quote.ask is not None and quote.ask <= 0:
+                errors.append(f"Non-positive ask for {quote.symbol} on {quote.venue}")
+
+        return ValidationSummary(as_of=snapshot.as_of, warnings=warnings, errors=errors)
+
     def _prune_snapshots(self, state: ArbitrageSessionState) -> None:
         ttl = timedelta(seconds=state.limits.ttl_seconds)
         now = datetime.utcnow()
@@ -275,9 +357,7 @@ class ArbitrageOrchestrator:
     def _prune_history(self, state: ArbitrageSessionState) -> None:
         ttl = timedelta(seconds=state.limits.ttl_seconds)
         now = datetime.utcnow()
-        state.opportunities_history = [
-            h for h in state.opportunities_history if now - h.as_of <= ttl
-        ]
+        state.opportunities_history = [h for h in state.opportunities_history if now - h.as_of <= ttl]
         if len(state.opportunities_history) > state.limits.max_snapshots:
             state.opportunities_history = state.opportunities_history[-state.limits.max_snapshots :]
 
