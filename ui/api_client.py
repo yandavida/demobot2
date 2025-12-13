@@ -558,13 +558,19 @@ def create_arbitrage_session(
 
 
 def scan_arbitrage_session(
-    *, session_id: str, fx_rate_usd_ils: float, quotes: List[Dict[str, Any]]
+    *,
+    session_id: str,
+    fx_rate_usd_ils: float,
+    quotes: List[Dict[str, Any]],
+    constraints: Dict[str, Any] | None = None,
 ) -> List[Dict[str, Any]]:
     payload = {
         "session_id": session_id,
         "fx_rate_usd_ils": fx_rate_usd_ils,
         "quotes": quotes,
     }
+    if constraints:
+        payload["constraints"] = constraints
     resp = _request_json(
         method="POST",
         path="/v1/arbitrage/scan",
@@ -591,8 +597,17 @@ def get_arbitrage_top(session_id: str, limit: int = 10, symbol: str | None = Non
     )
 
 
-def get_arbitrage_opportunity_detail(session_id: str, opportunity_id: str) -> Dict[str, Any]:
-    path = f"/v1/arbitrage/opportunities/{opportunity_id}?session_id={session_id}"
+def get_arbitrage_opportunity_detail(
+    session_id: str, opportunity_id: str, constraints: Dict[str, Any] | None = None
+) -> Dict[str, Any]:
+    extra_params = ""
+    if constraints:
+        constraint_params = "&".join(
+            f"{key}={value}" for key, value in constraints.items() if value is not None
+        )
+        if constraint_params:
+            extra_params = "&" + constraint_params
+    path = f"/v1/arbitrage/opportunities/{opportunity_id}?session_id={session_id}{extra_params}"
     return _request_json(method="GET", path=path)
 
 

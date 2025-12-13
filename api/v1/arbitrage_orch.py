@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from typing import List, Optional
 from uuid import UUID
 
@@ -12,12 +13,15 @@ from core.services.arbitrage_orchestration import (
     create_arbitrage_session,
     get_history_window,
     get_opportunity_detail,
+    get_readiness_states,
     get_session_history,
     get_top_recommendations,
     ingest_quotes_and_scan,
 )
 
 router = APIRouter(prefix="/v1/arbitrage", tags=["arbitrage"])
+
+logger = logging.getLogger(__name__)
 
 
 class QuoteIn(BaseModel):
@@ -57,11 +61,23 @@ class OpportunityOut(BaseModel):
     gross_edge_total: float
     currency: str
     edge_bps: float
+    execution_readiness: dict[str, object] | None = None
 
 
 class HistoryRequest(BaseModel):
     session_id: UUID
     symbol: Optional[str] = None
+
+
+class ReadinessOut(BaseModel):
+    opportunity_id: str
+    symbol: str | None = None
+    first_seen: str
+    last_seen: str
+    seen_count: int
+    last_edge_bps: float
+    last_net_edge_bps: float
+    state: str
 
 
 class RecommendationOut(BaseModel):
@@ -71,6 +87,7 @@ class RecommendationOut(BaseModel):
     reasons: list[dict[str, str]]
     signals: dict[str, float]
     economics: dict[str, object]
+    execution_readiness: dict[str, object] | None = None
 
 
 class OpportunityDetailOut(BaseModel):
@@ -78,6 +95,28 @@ class OpportunityDetailOut(BaseModel):
     state: str | None
     signals: dict[str, float]
     reasons: list[dict[str, str]]
+    execution_readiness: dict[str, object] | None = None
+
+
+def check_route_collisions(target_router: APIRouter) -> None:
+    """Ensure there are no duplicate method/path combinations on the router."""
+
+    seen: set[tuple[str, str]] = set()
+    collisions: list[tuple[str, str]] = []
+
+    for route in target_router.routes:
+        for method in route.methods or []:
+            key = (method.upper(), route.path)
+            if key in seen:
+                collisions.append(key)
+            else:
+                seen.add(key)
+
+    if collisions:
+        for method, path in collisions:
+            logger.error("Duplicate route detected: %s %s", method, path)
+        formatted = ", ".join(f"{method} {path}" for method, path in collisions)
+        raise ValueError(f"Duplicate routes detected: {formatted}")
 
 
 @router.post("/sessions", response_model=CreateSessionResponse)
@@ -119,6 +158,12 @@ def top(session_id: UUID, limit: int = 10, symbol: Optional[str] = None) -> List
     return [RecommendationOut(**rec) for rec in recs]
 
 
+@router.get("/readiness", response_model=List[ReadinessOut])
+def readiness(session_id: UUID, symbol: Optional[str] = None) -> List[ReadinessOut]:
+    readiness_states = get_readiness_states(session_id=session_id, symbol=symbol)
+    return [ReadinessOut(**state) for state in readiness_states]
+
+
 @router.get(
     "/opportunities/{opportunity_id}",
     response_model=OpportunityDetailOut,
@@ -134,3 +179,6 @@ def opportunity_detail(session_id: UUID, opportunity_id: str) -> OpportunityDeta
 def history_window(session_id: UUID, limit: int = 200, symbol: Optional[str] = None) -> List[OpportunityOut]:
     hist = get_history_window(session_id=session_id, symbol=symbol, limit=limit)
     return [OpportunityOut(**opp) for opp in hist]
+
+
+check_route_collisions(router)
