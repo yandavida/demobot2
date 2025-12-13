@@ -60,14 +60,15 @@ def test_services_round_trip_history() -> None:
         session_id=session_id, quotes_payload=quotes_payload, fx_rate_usd_ils=3.6
     )
 
-    assert len(scan_result) == 1
-    opp = scan_result[0]
+    assert len(scan_result["opportunities"]) == 1
+    opp = scan_result["opportunities"][0]
     assert opp["symbol"] == "ES"
     assert opp["currency"] == "ILS"
 
     history = get_session_history(session_id=session_id, symbol="ES")
-    assert len(history) == 1
-    assert history[0]["gross_edge_total"] == opp["gross_edge_total"]
+    assert len(history["opportunities"]) == 1
+    assert history["opportunities"][0]["gross_edge_total"] == opp["gross_edge_total"]
+    assert history["validation_summary"] == scan_result["validation_summary"]
 
 
 def test_execution_decision_propagates_across_endpoints() -> None:
@@ -82,15 +83,15 @@ def test_execution_decision_propagates_across_endpoints() -> None:
     scan_result = ingest_quotes_and_scan(
         session_id=session_id, quotes_payload=quotes_payload, fx_rate_usd_ils=3.6
     )
-    assert scan_result
+    assert scan_result["opportunities"]
 
-    first = scan_result[0]
+    first = scan_result["opportunities"][0]
     assert first.get("execution_decision") is not None
     assert first["execution_decision"].get("reason_codes")
     assert "recommended_qty" in first["execution_decision"]
 
     history = get_session_history(session_id=session_id, symbol="ES")
-    assert history[0]["execution_decision"] == first["execution_decision"]
+    assert history["opportunities"][0]["execution_decision"] == first["execution_decision"]
 
     detail = get_opportunity_detail(session_id=session_id, opportunity_id=first["opportunity_id"])
     assert detail is not None

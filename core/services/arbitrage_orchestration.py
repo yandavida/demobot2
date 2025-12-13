@@ -6,13 +6,20 @@ from uuid import UUID
 
 from core.arbitrage.feed import QuoteSnapshot
 from core.arbitrage.intelligence.lifecycle import OpportunityState
-from core.arbitrage.models import ArbitrageConfig, VenueQuote
+from core.arbitrage.models import ArbitrageConfig
 from core.arbitrage.orchestrator import ArbitrageOrchestrator
+from core.arbitrage.quote_validation import MAX_VALIDATION_ISSUES, validate_quotes
 from core.fx.converter import FxConverter
 from core.fx.provider import FxRateProvider
 from core.portfolio.models import Currency
 
 _orchestrator = ArbitrageOrchestrator()
+
+
+class StrictValidationError(Exception):
+    def __init__(self, summary: dict[str, object]):
+        super().__init__("Strict validation failed")
+        self.summary = summary
 
 
 def _normalize_execution_readiness(
@@ -112,6 +119,13 @@ def _attach_execution_readiness(
     return summary
 
 
+def _with_validation_summary(
+    payload: dict[str, Any], summary: dict[str, object] | None
+) -> dict[str, Any]:
+    payload["validation_summary"] = summary
+    return payload
+
+
 def create_arbitrage_session(
     base_currency: Currency,
     config: ArbitrageConfig,
@@ -123,22 +137,22 @@ def create_arbitrage_session(
 def ingest_quotes_and_scan(
     session_id: UUID,
     quotes_payload: List[Dict[str, Any]],
-    fx_rate_usd_ils: float,
-) -> List[Dict[str, Any]]:
+    fx_rate_usd_ils: float = 3.5,
+    strict_validation: bool = False,
+) -> Dict[str, Any]:
     session = _orchestrator.get_session(session_id)
-    quotes: List[VenueQuote] = [
-        VenueQuote(
-            venue=q["venue"],
-            symbol=q["symbol"],
-            ccy=q.get("ccy", session.base_currency),
-            bid=q.get("bid"),
-            ask=q.get("ask"),
-            size=q.get("size"),
-            fees_bps=q.get("fees_bps", 0.0),
-        )
-        for q in quotes_payload
-    ]
-    snapshot = QuoteSnapshot(as_of=datetime.utcnow(), quotes=quotes)
+    valid_quotes, validation_summary = validate_quotes(
+        quotes_payload,
+        max_issues=MAX_VALIDATION_ISSUES,
+        default_ccy=str(session.base_currency),
+    )
+    summary_payload = validation_summary.to_dict()
+    session.validation_summary = summary_payload
+
+    if strict_validation and validation_summary.total_issues:
+        raise StrictValidationError(summary_payload)
+
+    snapshot = QuoteSnapshot(as_of=datetime.utcnow(), quotes=list(valid_quotes))
 
     fx_provider = FxRateProvider.from_usd_ils(fx_rate_usd_ils)
     fx_converter = FxConverter(provider=fx_provider, base_ccy=session.base_currency)
@@ -146,7 +160,7 @@ def ingest_quotes_and_scan(
     opportunities = _orchestrator.ingest_snapshot(
         session_id=session_id, snapshot=snapshot, fx_converter=fx_converter
     )
-    return [
+    payload = [
         _attach_execution_readiness(
             opp.to_summary(),
             session.opportunity_state.get(opp.opportunity.opportunity_id),
@@ -156,15 +170,19 @@ def ingest_quotes_and_scan(
         for opp in opportunities
     ]
 
+    return _with_validation_summary(
+        {"opportunities": payload}, summary=session.validation_summary
+    )
+
 
 def get_session_history(
     session_id: UUID, symbol: str | None = None
-) -> List[Dict[str, Any]]:
+) -> Dict[str, Any]:
     session = _orchestrator.get_session(session_id)
     records = _orchestrator.get_opportunity_time_series(
         session_id=session_id, symbol=symbol
     )
-    return [
+    payload = [
         _attach_execution_readiness(
             record.to_summary(),
             session.opportunity_state.get(record.opportunity.opportunity_id),
@@ -173,11 +191,12 @@ def get_session_history(
         )
         for record in records
     ]
+    return _with_validation_summary({"opportunities": payload}, session.validation_summary)
 
 
 def get_top_recommendations(
     session_id: UUID, limit: int = 10, symbol: str | None = None
-) -> List[Dict[str, Any]]:
+) -> Dict[str, Any]:
     session = _orchestrator.get_session(session_id)
     recs = _orchestrator.get_recommendations(
         session_id=session_id, limit=limit, symbol=symbol
@@ -205,7 +224,7 @@ def get_top_recommendations(
                 else None,
             }
         )
-    return result
+    return _with_validation_summary({"recommendations": result}, session.validation_summary)
 
 
 def get_opportunity_detail(
@@ -249,16 +268,17 @@ def get_opportunity_detail(
             decision=latest.execution_decision,
         ),
         "execution_decision": _serialize_execution_decision(latest.execution_decision),
+        "validation_summary": state.validation_summary,
     }
 
 
 def get_history_window(
     session_id: UUID, symbol: str | None = None, limit: int = 200
-) -> List[Dict[str, Any]]:
+) -> Dict[str, Any]:
     state = _orchestrator.get_session(session_id)
     history = state.opportunities_history
     filtered = [h for h in history if symbol is None or h.opportunity.symbol == symbol]
-    return [
+    payload = [
         _attach_execution_readiness(
             h.to_summary(),
             state.opportunity_state.get(h.opportunity.opportunity_id),
@@ -267,6 +287,7 @@ def get_history_window(
         )
         for h in filtered[-limit:]
     ]
+    return _with_validation_summary({"opportunities": payload}, state.validation_summary)
 
 
 def list_sessions() -> List[Dict[str, Any]]:

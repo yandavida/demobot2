@@ -90,6 +90,7 @@ class ArbitrageSessionState:
     opportunities_history: List[OpportunityRecord] = field(default_factory=list)
     opportunity_state: Dict[str, OpportunityState] = field(default_factory=dict)
     events: Deque[ArbitrageEvent] = field(default_factory=deque)
+    validation_summary: dict[str, object] | None = None
     last_accessed: datetime = field(default_factory=datetime.utcnow)
 
 
