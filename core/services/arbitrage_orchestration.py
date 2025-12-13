@@ -125,3 +125,32 @@ def list_sessions() -> List[Dict[str, Any]]:
         }
         for session in _orchestrator.list_sessions()
     ]
+
+
+def get_readiness_states(session_id: UUID, symbol: str | None = None) -> List[Dict[str, Any]]:
+    state = _orchestrator.get_session(session_id)
+
+    symbol_by_opportunity: dict[str, str] = {}
+    for record in state.opportunities_history:
+        symbol_by_opportunity[record.opportunity.opportunity_id] = record.opportunity.symbol
+
+    readiness: list[Dict[str, Any]] = []
+    for opp_id, lifecycle in state.opportunity_state.items():
+        opp_symbol = symbol_by_opportunity.get(opp_id)
+        if symbol and opp_symbol != symbol:
+            continue
+
+        readiness.append(
+            {
+                "opportunity_id": opp_id,
+                "symbol": opp_symbol,
+                "first_seen": lifecycle.first_seen.isoformat(),
+                "last_seen": lifecycle.last_seen.isoformat(),
+                "seen_count": lifecycle.seen_count,
+                "last_edge_bps": lifecycle.last_edge_bps,
+                "last_net_edge_bps": lifecycle.last_net_edge_bps,
+                "state": lifecycle.state,
+            }
+        )
+
+    return readiness
