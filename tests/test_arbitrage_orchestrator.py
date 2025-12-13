@@ -30,9 +30,7 @@ def test_create_session_and_ingest(base_currency: Currency) -> None:
         VenueQuote(venue="Bravo", symbol="XYZ", ccy="USD", bid=102.0, ask=101.0, size=2),
     ]
     snapshot = QuoteSnapshot(as_of=datetime.utcnow(), quotes=quotes)
-    fx_converter = FxConverter(
-        provider=FxRateProvider.from_usd_ils(3.5), base_ccy=base_currency
-    )
+    fx_converter = FxConverter(provider=FxRateProvider.from_usd_ils(3.5), base_ccy=base_currency)
 
     records = orchestrator.ingest_snapshot(
         session_id=state.session_id, snapshot=snapshot, fx_converter=fx_converter
@@ -113,8 +111,11 @@ def test_ingest_skips_invalid_quotes_and_reports_validation() -> None:
         session_id=session_id, quotes_payload=quotes_payload, fx_rate_usd_ils=3.6
     )
 
-    assert len(scan_result) == 1
-    validation = scan_result[0].get("quote_validation")
+    opps = scan_result.get("opportunities", [])
+    assert len(opps) == 1
+    validation = scan_result.get("quote_validation") or scan_result.get("validation_summary")
+    assert isinstance(validation, dict)
+    assert validation.get("invalid") == 1
     assert validation is not None
     assert validation["total"] == 3
     assert validation["invalid"] == 1
