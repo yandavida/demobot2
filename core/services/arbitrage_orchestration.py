@@ -4,30 +4,54 @@ from datetime import datetime
 from typing import Any, Dict, List
 from uuid import UUID
 
+from pydantic import BaseModel, ValidationError, field_validator
+
 from core.arbitrage.feed import QuoteSnapshot
 from core.arbitrage.intelligence.lifecycle import OpportunityState
 from core.arbitrage.models import ArbitrageConfig, VenueQuote
 from core.arbitrage.orchestrator import ArbitrageOrchestrator
 from core.fx.converter import FxConverter
 from core.fx.provider import FxRateProvider
-from core.portfolio.models import Currency
 from core.market_data import validate_quotes_payload
+from core.portfolio.models import Currency
 
 _orchestrator = ArbitrageOrchestrator()
 
 
-def _normalize_execution_readiness(
-    readiness: Any | None,
-) -> dict[str, object] | None:
+class QuotePayload(BaseModel):
+    """Strict schema for validating incoming quote payloads.
+
+    Notes:
+    - strict_validation=True will use this schema and fail-fast via ValidationError.
+    - Keep fields aligned with VenueQuote + any tolerated metadata (e.g. latency_ms).
+    """
+
+    symbol: str
+    venue: str
+    ccy: str = "USD"
+    bid: float
+    ask: float
+    size: float | None = None
+    fees_bps: float | None = 0.0
+    latency_ms: float | None = None
+
+    @field_validator("bid", "ask")
+    @classmethod
+    def _require_positive(cls, value: float) -> float:
+        if value is None:
+            raise ValueError("Quote must include bid/ask")
+        if value <= 0:
+            raise ValueError("Bid/ask must be positive")
+        return value
+
+
+def _normalize_execution_readiness(readiness: Any | None) -> dict[str, object] | None:
     if readiness is None:
         return None
-
     if hasattr(readiness, "to_dict"):
         return readiness.to_dict()
-
     if isinstance(readiness, dict):
         return readiness
-
     return None
 
 
@@ -142,31 +166,58 @@ def create_arbitrage_session(
     return state.session_id
 
 
+def _validate_quotes_payload_strict(
+    quotes_payload: List[Dict[str, Any]],
+) -> List[Dict[str, Any]]:
+    """Strict validation + normalization.
+
+    Raises:
+        ValidationError: if any quote fails the strict schema.
+    """
+    validated = [QuotePayload.model_validate(quote) for quote in quotes_payload]
+    return [quote.model_dump() for quote in validated]
+
+
 def ingest_quotes_and_scan(
     session_id: UUID,
     quotes_payload: List[Dict[str, Any]],
     fx_rate_usd_ils: float,
-) -> List[Dict[str, Any]]:
+    strict_validation: bool = False,
+) -> Dict[str, Any]:
     session = _orchestrator.get_session(session_id)
-    validation_results = validate_quotes_payload(quotes_payload)
-    quotes: List[VenueQuote] = []
-    for payload, result in zip(quotes_payload, validation_results):
-        if not getattr(result, "is_valid", False):
-            continue
 
-        source = result.normalized or payload
-        quotes.append(
-            VenueQuote(
-                venue=source.get("venue"),
-                symbol=source.get("symbol"),
-                ccy=source.get("ccy", session.base_currency),
-                bid=source.get("bid"),
-                ask=source.get("ask"),
-                size=source.get("size"),
-                fees_bps=source.get("fees_bps", 0.0),
-                latency_ms=source.get("latency_ms"),
-            )
+    quote_validation: dict[str, object] | None = None
+    normalized_payload: List[Dict[str, Any]] = quotes_payload
+
+    if strict_validation:
+        # Fail-fast, let API layer convert ValidationError to HTTP 422.
+        normalized_payload = _validate_quotes_payload_strict(quotes_payload)
+        quote_validation = None
+    else:
+        validation_results = validate_quotes_payload(quotes_payload)
+        quote_validation = _summarize_validations(validation_results)
+
+        normalized_payload = []
+        for payload, result in zip(quotes_payload, validation_results):
+            if not getattr(result, "is_valid", False):
+                continue
+            source = getattr(result, "normalized", None) or payload
+            normalized_payload.append(source)
+
+    quotes: List[VenueQuote] = [
+        VenueQuote(
+            venue=q.get("venue"),
+            symbol=q.get("symbol"),
+            ccy=q.get("ccy", session.base_currency),
+            bid=q.get("bid"),
+            ask=q.get("ask"),
+            size=q.get("size"),
+            fees_bps=q.get("fees_bps", 0.0),
+            latency_ms=q.get("latency_ms"),
         )
+        for q in normalized_payload
+    ]
+
     snapshot = QuoteSnapshot(as_of=datetime.utcnow(), quotes=quotes)
 
     fx_provider = FxRateProvider.from_usd_ils(fx_rate_usd_ils)
@@ -175,17 +226,23 @@ def ingest_quotes_and_scan(
     opportunities = _orchestrator.ingest_snapshot(
         session_id=session_id, snapshot=snapshot, fx_converter=fx_converter
     )
-    validation_summary = _summarize_validations(validation_results)
-    return [
+
+    opp_payload = [
         _attach_execution_readiness(
             opp.to_summary(),
             session.opportunity_state.get(opp.opportunity.opportunity_id),
             readiness=opp.execution_readiness,
             decision=opp.execution_decision,
         )
-        | {"quote_validation": validation_summary}
         for opp in opportunities
     ]
+
+    # Keep legacy key name for compatibility with earlier branch output.
+    return {
+        "opportunities": opp_payload,
+        "quote_validation": quote_validation,
+        "validation_summary": quote_validation,
+    }
 
 
 def get_session_history(
@@ -219,7 +276,9 @@ def get_top_recommendations(
         embedded = getattr(rec, "execution_readiness", None)
         lifecycle = session.opportunity_state.get(rec.opportunity_id)
         execution_readiness = _serialize_execution_readiness(
-            lifecycle, readiness=embedded, decision=getattr(rec, "execution_decision", None)
+            lifecycle,
+            readiness=embedded,
+            decision=getattr(rec, "execution_decision", None),
         )
 
         result.append(
