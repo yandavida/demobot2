@@ -20,6 +20,11 @@ from core.arbitrage.intelligence.lifecycle import (
 )
 from core.arbitrage.intelligence.limits import SessionLimits
 from core.arbitrage.intelligence.signals import compute_signals
+from core.arbitrage.intelligence.readiness import (
+    ExecutionReadiness,
+    default_execution_constraints,
+    evaluate_execution_readiness,
+)
 from core.arbitrage.intelligence.scoring import RankedRecommendation, to_recommendation
 from core.arbitrage.models import ArbitrageConfig, ArbitrageOpportunity
 from core.fx.converter import FxConverter
@@ -34,6 +39,7 @@ class OpportunityRecord:
     opportunity: ArbitrageOpportunity
     edge_per_unit: Money
     edge_total: Money
+    execution_readiness: ExecutionReadiness | None = None
 
     def to_summary(self) -> dict[str, object]:
         return {
@@ -47,6 +53,9 @@ class OpportunityRecord:
             "gross_edge_per_unit": self.edge_per_unit.amount,
             "gross_edge_total": self.edge_total.amount,
             "currency": self.edge_total.ccy,
+            "execution_readiness": self.execution_readiness.to_dict()
+            if self.execution_readiness
+            else None,
         }
 
 
@@ -113,6 +122,8 @@ class ArbitrageOrchestrator:
             config=state.config,
         )
 
+        constraints = default_execution_constraints(state.config)
+
         enriched: list[OpportunityRecord] = []
         for opp in opportunities:
             opp.as_of = snapshot.as_of
@@ -139,11 +150,15 @@ class ArbitrageOrchestrator:
             edge_total_money = fx_converter.to_base(
                 Money(amount=opp.net_edge * opp.size, ccy=opp.ccy)
             )
+            readiness = evaluate_execution_readiness(
+                edge_bps=opp.edge_bps, size=opp.size, constraints=constraints
+            )
             record = OpportunityRecord(
                 as_of=snapshot.as_of,
                 opportunity=opp,
                 edge_per_unit=edge_per_unit_money,
                 edge_total=edge_total_money,
+                execution_readiness=readiness,
             )
             state.opportunities_history.append(record)
             enriched.append(record)
@@ -181,6 +196,7 @@ class ArbitrageOrchestrator:
         expire_stale_states(state.opportunity_state, now=now, limits=state.limits)
         history = state.opportunities_history
         recs: list[RankedRecommendation] = []
+        constraints = default_execution_constraints(state.config)
         for record in reversed(history):
             if symbol and record.opportunity.symbol != symbol:
                 continue
@@ -188,7 +204,14 @@ class ArbitrageOrchestrator:
             if not opp_state or opp_state.state == LifecycleState.EXPIRED:
                 continue
             signals = compute_signals(opportunity=record, state=opp_state, now=now, history=history)
-            recs.append(to_recommendation(record, signals, rank=0))
+            readiness = evaluate_execution_readiness(
+                edge_bps=record.opportunity.edge_bps,
+                size=record.opportunity.size,
+                constraints=constraints,
+            )
+            recommendation = to_recommendation(record, signals, rank=0)
+            recommendation.execution_readiness = readiness
+            recs.append(recommendation)
             if len(recs) >= limit:
                 break
         ranked = sorted(recs, key=lambda r: r.quality_score, reverse=True)

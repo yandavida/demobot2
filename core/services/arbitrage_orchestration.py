@@ -113,7 +113,11 @@ def get_top_recommendations(session_id: UUID, limit: int = 10, symbol: str | Non
                 ],
                 "signals": rec.signals,
                 "economics": rec.economics,
-                "execution_readiness": readiness,
+                "execution_readiness": (
+                    rec.execution_readiness.to_dict()
+                    if getattr(rec, "execution_readiness", None) is not None
+                    else readiness
+                ),
             }
         )
     return result
