@@ -113,13 +113,11 @@ def get_top_recommendations(session_id: UUID, limit: int = 10, symbol: str | Non
                 ],
                 "signals": rec.signals,
                 "economics": rec.economics,
-<<<<<<< HEAD
-                "execution_readiness": readiness,
-=======
-                "execution_readiness": rec.execution_readiness.to_dict()
-                if rec.execution_readiness
-                else None,
->>>>>>> ccaff78 (V2-11.4: Attach execution readiness to orchestration outputs)
+                "execution_readiness": (
+                    rec.execution_readiness.to_dict()
+                    if getattr(rec, "execution_readiness", None) is not None
+                    else readiness
+                ),
             }
         )
     return result
