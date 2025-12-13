@@ -4,12 +4,13 @@ import logging
 from typing import List, Optional
 from uuid import UUID
 
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from core.arbitrage.models import ArbitrageConfig
 from core.portfolio.models import Currency
 from core.services.arbitrage_orchestration import (
+    StrictValidationError,
     create_arbitrage_session,
     get_history_window,
     get_opportunity_detail,
@@ -65,6 +66,22 @@ class OpportunityOut(BaseModel):
     execution_decision: dict[str, object] | None = None
 
 
+class ValidationIssueOut(BaseModel):
+    code: str
+    message: str
+    field: str | None = None
+    symbol: str | None = None
+    venue: str | None = None
+
+
+class ValidationSummaryOut(BaseModel):
+    total_quotes: int
+    invalid_quotes: int
+    total_issues: int
+    capped: bool
+    issues: list[ValidationIssueOut]
+
+
 class HistoryRequest(BaseModel):
     session_id: UUID
     symbol: Optional[str] = None
@@ -92,6 +109,26 @@ class RecommendationOut(BaseModel):
     execution_decision: dict[str, object] | None = None
 
 
+class ScanResponse(BaseModel):
+    opportunities: list[OpportunityOut]
+    validation_summary: ValidationSummaryOut | None = None
+
+
+class HistoryResponse(BaseModel):
+    opportunities: list[OpportunityOut]
+    validation_summary: ValidationSummaryOut | None = None
+
+
+class HistoryWindowResponse(BaseModel):
+    opportunities: list[OpportunityOut]
+    validation_summary: ValidationSummaryOut | None = None
+
+
+class RecommendationResponse(BaseModel):
+    recommendations: list[RecommendationOut]
+    validation_summary: ValidationSummaryOut | None = None
+
+
 class OpportunityDetailOut(BaseModel):
     opportunity: dict[str, object]
     state: str | None
@@ -99,6 +136,7 @@ class OpportunityDetailOut(BaseModel):
     reasons: list[dict[str, str]]
     execution_readiness: dict[str, object] | None = None
     execution_decision: dict[str, object] | None = None
+    validation_summary: dict[str, object] | None = None
 
 
 def check_route_collisions(target_router: APIRouter) -> None:
@@ -136,29 +174,45 @@ def create_session(req: CreateSessionRequest) -> CreateSessionResponse:
     return CreateSessionResponse(session_id=session_id)
 
 
-@router.post("/scan", response_model=List[OpportunityOut])
-def scan(req: ScanRequest) -> List[OpportunityOut]:
-    opportunities = ingest_quotes_and_scan(
-        session_id=req.session_id,
-        quotes_payload=[q.model_dump() for q in req.quotes],
-        fx_rate_usd_ils=req.fx_rate_usd_ils,
+@router.post("/scan", response_model=ScanResponse)
+def scan(req: ScanRequest, strict_validation: bool = False) -> ScanResponse:
+    try:
+        result = ingest_quotes_and_scan(
+            session_id=req.session_id,
+            quotes_payload=[q.model_dump() for q in req.quotes],
+            fx_rate_usd_ils=req.fx_rate_usd_ils,
+            strict_validation=strict_validation,
+        )
+    except StrictValidationError as exc:
+        raise HTTPException(status_code=422, detail={"validation_summary": exc.summary})
+
+    return ScanResponse(
+        opportunities=[OpportunityOut(**opp) for opp in result["opportunities"]],
+        validation_summary=result.get("validation_summary"),
     )
-    return [OpportunityOut(**opp) for opp in opportunities]
 
 
-@router.post("/history", response_model=List[OpportunityOut])
-def history(req: HistoryRequest) -> List[OpportunityOut]:
+@router.post("/history", response_model=HistoryResponse)
+def history(req: HistoryRequest) -> HistoryResponse:
     hist = get_session_history(
         session_id=req.session_id,
         symbol=req.symbol,
     )
-    return [OpportunityOut(**opp) for opp in hist]
+    return HistoryResponse(
+        opportunities=[OpportunityOut(**opp) for opp in hist["opportunities"]],
+        validation_summary=hist.get("validation_summary"),
+    )
 
 
-@router.get("/top", response_model=List[RecommendationOut])
-def top(session_id: UUID, limit: int = 10, symbol: Optional[str] = None) -> List[RecommendationOut]:
+@router.get("/top", response_model=RecommendationResponse)
+def top(
+    session_id: UUID, limit: int = 10, symbol: Optional[str] = None
+) -> RecommendationResponse:
     recs = get_top_recommendations(session_id=session_id, limit=limit, symbol=symbol)
-    return [RecommendationOut(**rec) for rec in recs]
+    return RecommendationResponse(
+        recommendations=[RecommendationOut(**rec) for rec in recs["recommendations"]],
+        validation_summary=recs.get("validation_summary"),
+    )
 
 
 @router.get("/readiness", response_model=List[ReadinessOut])
@@ -178,10 +232,15 @@ def opportunity_detail(session_id: UUID, opportunity_id: str) -> OpportunityDeta
     return OpportunityDetailOut(**detail)
 
 
-@router.get("/history-window", response_model=List[OpportunityOut])
-def history_window(session_id: UUID, limit: int = 200, symbol: Optional[str] = None) -> List[OpportunityOut]:
+@router.get("/history-window", response_model=HistoryWindowResponse)
+def history_window(
+    session_id: UUID, limit: int = 200, symbol: Optional[str] = None
+) -> HistoryWindowResponse:
     hist = get_history_window(session_id=session_id, symbol=symbol, limit=limit)
-    return [OpportunityOut(**opp) for opp in hist]
+    return HistoryWindowResponse(
+        opportunities=[OpportunityOut(**opp) for opp in hist["opportunities"]],
+        validation_summary=hist.get("validation_summary"),
+    )
 
 
 check_route_collisions(router)
