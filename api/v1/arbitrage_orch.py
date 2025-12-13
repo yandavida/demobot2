@@ -4,8 +4,8 @@ import logging
 from typing import List, Optional
 from uuid import UUID
 
-from fastapi import APIRouter
-from pydantic import BaseModel
+from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel, ValidationError
 
 from core.arbitrage.models import ArbitrageConfig
 from core.portfolio.models import Currency
@@ -48,6 +48,11 @@ class ScanRequest(BaseModel):
     session_id: UUID
     fx_rate_usd_ils: float = 3.5
     quotes: List[QuoteIn]
+
+
+class ScanResponse(BaseModel):
+    opportunities: List[OpportunityOut]
+    validation_summary: list[dict[str, object]] | None = None
 
 
 class OpportunityOut(BaseModel):
@@ -136,14 +141,29 @@ def create_session(req: CreateSessionRequest) -> CreateSessionResponse:
     return CreateSessionResponse(session_id=session_id)
 
 
-@router.post("/scan", response_model=List[OpportunityOut])
-def scan(req: ScanRequest) -> List[OpportunityOut]:
-    opportunities = ingest_quotes_and_scan(
-        session_id=req.session_id,
-        quotes_payload=[q.model_dump() for q in req.quotes],
-        fx_rate_usd_ils=req.fx_rate_usd_ils,
+@router.post("/scan", response_model=ScanResponse)
+def scan(req: ScanRequest, strict_validation: bool = False) -> ScanResponse:
+    try:
+        scan_result = ingest_quotes_and_scan(
+            session_id=req.session_id,
+            quotes_payload=[q.model_dump() for q in req.quotes],
+            fx_rate_usd_ils=req.fx_rate_usd_ils,
+            strict_validation=strict_validation,
+        )
+    except ValidationError as exc:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "error": "INVALID_QUOTES",
+                "message": "Quote validation failed",
+                "validation_summary": exc.errors(),
+            },
+        ) from exc
+
+    return ScanResponse(
+        opportunities=[OpportunityOut(**opp) for opp in scan_result["opportunities"]],
+        validation_summary=scan_result.get("validation_summary"),
     )
-    return [OpportunityOut(**opp) for opp in opportunities]
 
 
 @router.post("/history", response_model=List[OpportunityOut])

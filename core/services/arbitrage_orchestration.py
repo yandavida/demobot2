@@ -4,6 +4,8 @@ from datetime import datetime
 from typing import Any, Dict, List
 from uuid import UUID
 
+from pydantic import BaseModel, ValidationError, field_validator
+
 from core.arbitrage.feed import QuoteSnapshot
 from core.arbitrage.intelligence.lifecycle import OpportunityState
 from core.arbitrage.models import ArbitrageConfig, VenueQuote
@@ -13,6 +15,27 @@ from core.fx.provider import FxRateProvider
 from core.portfolio.models import Currency
 
 _orchestrator = ArbitrageOrchestrator()
+
+
+class QuotePayload(BaseModel):
+    """Strict schema for validating incoming quote payloads."""
+
+    symbol: str
+    venue: str
+    ccy: str = "USD"
+    bid: float
+    ask: float
+    size: float | None = None
+    fees_bps: float | None = 0.0
+
+    @field_validator("bid", "ask")
+    @classmethod
+    def _require_positive(cls, value: float) -> float:
+        if value is None:
+            raise ValueError("Quote must include bid/ask")
+        if value <= 0:
+            raise ValueError("Bid/ask must be positive")
+        return value
 
 
 def _normalize_execution_readiness(
@@ -120,12 +143,27 @@ def create_arbitrage_session(
     return state.session_id
 
 
+def _validate_quotes_payload(quotes_payload: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Validate and normalize quotes using the strict schema."""
+
+    validated = [QuotePayload.model_validate(quote) for quote in quotes_payload]
+    return [quote.model_dump() for quote in validated]
+
+
 def ingest_quotes_and_scan(
     session_id: UUID,
     quotes_payload: List[Dict[str, Any]],
     fx_rate_usd_ils: float,
-) -> List[Dict[str, Any]]:
+    strict_validation: bool = False,
+) -> Dict[str, Any]:
     session = _orchestrator.get_session(session_id)
+    validation_summary: list[dict[str, object]] | None = None
+
+    normalized_payload = quotes_payload
+    if strict_validation:
+        normalized_payload = _validate_quotes_payload(quotes_payload)
+        validation_summary = []
+
     quotes: List[VenueQuote] = [
         VenueQuote(
             venue=q["venue"],
@@ -136,7 +174,7 @@ def ingest_quotes_and_scan(
             size=q.get("size"),
             fees_bps=q.get("fees_bps", 0.0),
         )
-        for q in quotes_payload
+        for q in normalized_payload
     ]
     snapshot = QuoteSnapshot(as_of=datetime.utcnow(), quotes=quotes)
 
@@ -146,15 +184,18 @@ def ingest_quotes_and_scan(
     opportunities = _orchestrator.ingest_snapshot(
         session_id=session_id, snapshot=snapshot, fx_converter=fx_converter
     )
-    return [
-        _attach_execution_readiness(
-            opp.to_summary(),
-            session.opportunity_state.get(opp.opportunity.opportunity_id),
-            readiness=opp.execution_readiness,
-            decision=opp.execution_decision,
-        )
-        for opp in opportunities
-    ]
+    return {
+        "opportunities": [
+            _attach_execution_readiness(
+                opp.to_summary(),
+                session.opportunity_state.get(opp.opportunity.opportunity_id),
+                readiness=opp.execution_readiness,
+                decision=opp.execution_decision,
+            )
+            for opp in opportunities
+        ],
+        "validation_summary": validation_summary,
+    }
 
 
 def get_session_history(
