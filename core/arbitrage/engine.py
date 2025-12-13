@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections import defaultdict
-from typing import Iterable, List
+from typing import Iterable, List, cast
 
 from core.arbitrage.models import (
     ArbitrageConfig,
@@ -48,13 +48,13 @@ def find_cross_venue_opportunities(
         if len(symbol_quotes) < 2:
             continue
 
-        best_bid = max(symbol_quotes, key=lambda q: q.bid)
-        best_ask = min(symbol_quotes, key=lambda q: q.ask)
+        best_bid = max(symbol_quotes, key=lambda q: cast(float, q.bid))
+        best_ask = min(symbol_quotes, key=lambda q: cast(float, q.ask))
 
         if not cfg.allow_same_venue and best_bid.venue == best_ask.venue:
             continue
 
-        gross_edge = best_bid.bid - best_ask.ask
+        gross_edge = cast(float, best_bid.bid) - cast(float, best_ask.ask)
         if gross_edge <= 0:
             continue
 
@@ -64,14 +64,16 @@ def find_cross_venue_opportunities(
         buy_leg = ArbitrageLeg(
             action="buy",
             venue=best_ask.venue,
-            price=best_ask.ask,
+            ccy=best_ask.ccy,
+            price=cast(float, best_ask.ask),
             quantity=size,
             fees_bps=best_ask.fees_bps,
         )
         sell_leg = ArbitrageLeg(
             action="sell",
             venue=best_bid.venue,
-            price=best_bid.bid,
+            ccy=best_bid.ccy,
+            price=cast(float, best_bid.bid),
             quantity=size,
             fees_bps=best_bid.fees_bps,
         )
@@ -103,6 +105,7 @@ def find_cross_venue_opportunities(
                 symbol=symbol,
                 buy=buy_leg,
                 sell=sell_leg,
+                ccy=best_ask.ccy,
                 gross_edge=gross_edge,
                 net_edge=net_edge_per_unit,
                 edge_bps=edge_bps,

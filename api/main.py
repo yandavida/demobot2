@@ -6,6 +6,7 @@ from api.logging_config import configure_logging
 from api.routers.fx_router import router as fx_router
 from api.routers.portfolio_router import router as portfolio_router
 from api.routers.strategy_router import router as strategy_router
+from api.v1 import arbitrage_orch
 from api.middleware.errors import ErrorHandlingMiddleware
 
 # להגדיר לוגים לפני יצירת האפליקציה
@@ -20,6 +21,7 @@ app = FastAPI(
 app.include_router(strategy_router)
 app.include_router(fx_router)
 app.include_router(portfolio_router)
+app.include_router(arbitrage_orch.router)
 app.add_middleware(ErrorHandlingMiddleware)
 
 
