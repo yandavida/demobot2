@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections import deque
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
-from typing import Any, Deque, Dict, List
+from typing import Deque, Dict, List
 from uuid import UUID, uuid4
 
 from core.arbitrage.engine import find_cross_venue_opportunities
@@ -345,7 +345,11 @@ class ArbitrageOrchestrator:
             if quote.ask is not None and quote.ask <= 0:
                 errors.append(f"Non-positive ask for {quote.symbol} on {quote.venue}")
 
-        return ValidationSummary(as_of=snapshot.as_of, warnings=warnings, errors=errors)
+        return ValidationSummary(
+            warnings=warnings,
+            errors=errors,
+        )
+
 
     def _prune_snapshots(self, state: ArbitrageSessionState) -> None:
         ttl = timedelta(seconds=state.limits.ttl_seconds)
