@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pandas as pd
 import streamlit as st
-from typing import Callable, Optional
+from typing import Any, Callable, Dict, Optional
 
 from ui.api_client import (
     ApiError,
@@ -36,6 +36,21 @@ def _init_session_state() -> None:
     st.session_state.setdefault("arb_session_id", None)
     st.session_state.setdefault("arb_quotes", DEFAULT_QUOTES)
     st.session_state.setdefault("arb_fx_rate", 3.5)
+    st.session_state.setdefault("arb_min_edge_bps", 10.0)
+    st.session_state.setdefault("arb_max_spread_bps", 15.0)
+    st.session_state.setdefault("arb_max_age_ms", 5_000)
+    st.session_state.setdefault("arb_max_notional", 50_000.0)
+    st.session_state.setdefault("arb_max_qty", 1.0)
+
+
+def _execution_constraints_from_state() -> Dict[str, float | int]:
+    return {
+        "min_edge_bps": st.session_state.get("arb_min_edge_bps"),
+        "max_spread_bps": st.session_state.get("arb_max_spread_bps"),
+        "max_age_ms": st.session_state.get("arb_max_age_ms"),
+        "max_notional": st.session_state.get("arb_max_notional"),
+        "max_qty": st.session_state.get("arb_max_qty"),
+    }
 
 
 def _render_header() -> None:
@@ -50,6 +65,23 @@ def main() -> None:  # pragma: no cover - Streamlit UI
     _render_header()
 
     st.title("Arbitrage Monitor – ניטור הזדמנויות בין-בורסאיות")
+
+    st.sidebar.header("Execution constraints")
+    st.session_state["arb_min_edge_bps"] = st.sidebar.number_input(
+        "Minimum edge (bps)", value=float(st.session_state["arb_min_edge_bps"]), step=0.5
+    )
+    st.session_state["arb_max_spread_bps"] = st.sidebar.number_input(
+        "Max spread (bps)", value=float(st.session_state["arb_max_spread_bps"]), step=1.0
+    )
+    st.session_state["arb_max_age_ms"] = st.sidebar.number_input(
+        "Max quote age (ms)", value=int(st.session_state["arb_max_age_ms"]), step=100
+    )
+    st.session_state["arb_max_notional"] = st.sidebar.number_input(
+        "Max notional", value=float(st.session_state["arb_max_notional"]), step=1_000.0, format="%.2f"
+    )
+    st.session_state["arb_max_qty"] = st.sidebar.number_input(
+        "Max quantity", value=float(st.session_state["arb_max_qty"]), step=0.1
+    )
 
     if st.button("צור Session חדש לארביטראז'"):
         try:
@@ -83,6 +115,7 @@ def main() -> None:  # pragma: no cover - Streamlit UI
                 session_id=session_id,
                 fx_rate_usd_ils=st.session_state["arb_fx_rate"],
                 quotes=edited_quotes,
+                constraints=_execution_constraints_from_state(),
             )
             if not opportunities:
                 st.info("לא נמצאו הזדמנויות העומדות בסף המינימלי.")
@@ -118,15 +151,55 @@ def main() -> None:  # pragma: no cover - Streamlit UI
 
     if recs:
         df_recs = pd.DataFrame(recs)
-        st.dataframe(df_recs[["rank", "opportunity_id", "quality_score"] + list(df_recs.columns.difference(["rank", "opportunity_id", "quality_score", "reasons", "signals", "economics"]))])
+        core_cols = ["rank", "opportunity_id", "quality_score"]
+        hidden_cols = {"rank", "opportunity_id", "quality_score", "reasons", "signals", "economics"}
+        extra_cols = [col for col in df_recs.columns if col not in hidden_cols]
+        st.dataframe(df_recs[core_cols + extra_cols])
         selected = st.selectbox(
             "בחר Opportunity להצגת פרטים",
             options=[r["opportunity_id"] for r in recs],
             index=0,
         )
         if selected:
-            detail = get_arbitrage_opportunity_detail(session_id=session_id, opportunity_id=selected)
+            detail = get_arbitrage_opportunity_detail(
+                session_id=session_id,
+                opportunity_id=selected,
+                constraints=_execution_constraints_from_state(),
+            )
             st.write("Lifecycle state:", detail.get("state"))
+            readiness = detail.get("execution") or detail.get("execution_readiness") or {}
+            can_execute = bool(
+                readiness.get("can_execute")
+                or readiness.get("should_execute")
+                or readiness.get("executable")
+                or readiness.get("is_executable")
+            )
+
+            badge_color = "#16a34a" if can_execute else "#b91c1c"
+            badge_label = "EXECUTABLE" if can_execute else "NOT EXECUTABLE"
+            st.markdown(
+                f"<div style='display:inline-block;padding:0.25rem 0.75rem;border-radius:999px;"
+                f"background:{badge_color};color:white;font-weight:700;'>{badge_label}</div>",
+                unsafe_allow_html=True,
+            )
+
+            metrics: Dict[str, Any] = {}
+            metrics.update(readiness.get("metrics", {}))
+            for key in ["edge_bps", "spread_bps", "worst_spread_bps", "age_ms", "notional"]:
+                if key in readiness:
+                    metrics.setdefault(key, readiness.get(key))
+            if "recommended_qty" in readiness:
+                metrics.setdefault("recommended_qty", readiness.get("recommended_qty"))
+
+            if metrics:
+                cols = st.columns(min(3, len(metrics)))
+                for idx, (metric_name, metric_value) in enumerate(metrics.items()):
+                    cols[idx % len(cols)].metric(metric_name.replace("_", " ").title(), f"{metric_value}")
+
+            reasons = readiness.get("reason_codes") or readiness.get("reasons") or []
+            if reasons:
+                st.write("Execution reasons:")
+                st.write("\n".join(f"• {reason}" for reason in reasons))
             st.write("Signals:")
             st.json(detail.get("signals", {}))
             st.write("Reasons:")
