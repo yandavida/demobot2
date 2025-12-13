@@ -97,3 +97,26 @@ def test_execution_decision_propagates_across_endpoints() -> None:
     assert detail["execution_decision"]["reason"] == first["execution_decision"]["reason"]
     readiness = detail["execution_readiness"]
     assert readiness["decision"]["can_execute"] == detail["execution_decision"]["can_execute"]
+
+
+def test_ingest_skips_invalid_quotes_and_reports_validation() -> None:
+    config = ArbitrageConfig(min_edge_bps=0.0, default_size=1.0)
+    session_id = create_arbitrage_session(base_currency="ILS", config=config)
+
+    quotes_payload = [
+        {"symbol": "ES", "venue": "EX_A", "ccy": "USD", "bid": 4998.0, "ask": 4999.0},
+        {"symbol": "ES", "venue": "EX_B", "ccy": "USD", "bid": 5002.0, "ask": 5002.5},
+        {"symbol": "ES", "venue": "BROKEN", "ccy": "USD", "bid": 5100.0, "ask": 5090.0},
+    ]
+
+    scan_result = ingest_quotes_and_scan(
+        session_id=session_id, quotes_payload=quotes_payload, fx_rate_usd_ils=3.6
+    )
+
+    assert len(scan_result) == 1
+    validation = scan_result[0].get("quote_validation")
+    assert validation is not None
+    assert validation["total"] == 3
+    assert validation["invalid"] == 1
+    assert validation["valid"] == 2
+    assert validation["errors"]

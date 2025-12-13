@@ -5,7 +5,7 @@ from typing import List, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel, ValidationError
+from pydantic import BaseModel, Field, ValidationError
 
 from core.arbitrage.models import ArbitrageConfig
 from core.portfolio.models import Currency
@@ -32,6 +32,7 @@ class QuoteIn(BaseModel):
     ask: float | None = None
     size: float | None = None
     fees_bps: float | None = 0.0
+    latency_ms: float | None = None
 
 
 class CreateSessionRequest(BaseModel):
@@ -50,9 +51,12 @@ class ScanRequest(BaseModel):
     quotes: List[QuoteIn]
 
 
-class ScanResponse(BaseModel):
-    opportunities: List[OpportunityOut]
-    validation_summary: list[dict[str, object]] | None = None
+class QuoteValidationOut(BaseModel):
+    total: int
+    valid: int
+    invalid: int
+    errors: list[dict[str, object]] = Field(default_factory=list)
+    warnings: list[dict[str, object]] = Field(default_factory=list)
 
 
 class OpportunityOut(BaseModel):
@@ -68,6 +72,12 @@ class OpportunityOut(BaseModel):
     edge_bps: float
     execution_readiness: dict[str, object] | None = None
     execution_decision: dict[str, object] | None = None
+    quote_validation: QuoteValidationOut | None = None
+
+
+class ScanResponse(BaseModel):
+    opportunities: List[OpportunityOut]
+    quote_validation: QuoteValidationOut | None = None
 
 
 class HistoryRequest(BaseModel):
@@ -108,7 +118,6 @@ class OpportunityDetailOut(BaseModel):
 
 def check_route_collisions(target_router: APIRouter) -> None:
     """Ensure there are no duplicate method/path combinations on the router."""
-
     seen: set[tuple[str, str]] = set()
     collisions: list[tuple[str, str]] = []
 
@@ -151,32 +160,43 @@ def scan(req: ScanRequest, strict_validation: bool = False) -> ScanResponse:
             strict_validation=strict_validation,
         )
     except ValidationError as exc:
+        # strict_validation=True path: fail-fast schema errors
         raise HTTPException(
-            status_code=400,
+            status_code=422,
             detail={
                 "error": "INVALID_QUOTES",
                 "message": "Quote validation failed",
-                "validation_summary": exc.errors(),
+                "details": exc.errors(),
             },
         ) from exc
 
-    return ScanResponse(
-        opportunities=[OpportunityOut(**opp) for opp in scan_result["opportunities"]],
-        validation_summary=scan_result.get("validation_summary"),
+    quote_validation_raw = scan_result.get("quote_validation") or scan_result.get("validation_summary")
+    quote_validation = (
+        QuoteValidationOut(**quote_validation_raw) if isinstance(quote_validation_raw, dict) else None
     )
+
+    opportunities: list[OpportunityOut] = []
+    for opp in scan_result.get("opportunities", []):
+        payload = dict(opp)
+        if quote_validation is not None:
+            payload["quote_validation"] = quote_validation.model_dump()
+        opportunities.append(OpportunityOut(**payload))
+
+    return ScanResponse(opportunities=opportunities, quote_validation=quote_validation)
 
 
 @router.post("/history", response_model=List[OpportunityOut])
 def history(req: HistoryRequest) -> List[OpportunityOut]:
-    hist = get_session_history(
-        session_id=req.session_id,
-        symbol=req.symbol,
-    )
+    hist = get_session_history(session_id=req.session_id, symbol=req.symbol)
     return [OpportunityOut(**opp) for opp in hist]
 
 
 @router.get("/top", response_model=List[RecommendationOut])
-def top(session_id: UUID, limit: int = 10, symbol: Optional[str] = None) -> List[RecommendationOut]:
+def top(
+    session_id: UUID,
+    limit: int = 10,
+    symbol: Optional[str] = None,
+) -> List[RecommendationOut]:
     recs = get_top_recommendations(session_id=session_id, limit=limit, symbol=symbol)
     return [RecommendationOut(**rec) for rec in recs]
 
@@ -187,10 +207,7 @@ def readiness(session_id: UUID, symbol: Optional[str] = None) -> List[ReadinessO
     return [ReadinessOut(**state) for state in readiness_states]
 
 
-@router.get(
-    "/opportunities/{opportunity_id}",
-    response_model=OpportunityDetailOut,
-)
+@router.get("/opportunities/{opportunity_id}", response_model=OpportunityDetailOut)
 def opportunity_detail(session_id: UUID, opportunity_id: str) -> OpportunityDetailOut:
     detail = get_opportunity_detail(session_id=session_id, opportunity_id=opportunity_id)
     if detail is None:
@@ -199,7 +216,11 @@ def opportunity_detail(session_id: UUID, opportunity_id: str) -> OpportunityDeta
 
 
 @router.get("/history-window", response_model=List[OpportunityOut])
-def history_window(session_id: UUID, limit: int = 200, symbol: Optional[str] = None) -> List[OpportunityOut]:
+def history_window(
+    session_id: UUID,
+    limit: int = 200,
+    symbol: Optional[str] = None,
+) -> List[OpportunityOut]:
     hist = get_history_window(session_id=session_id, symbol=symbol, limit=limit)
     return [OpportunityOut(**opp) for opp in hist]
 
