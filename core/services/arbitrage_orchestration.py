@@ -4,8 +4,8 @@ from datetime import datetime
 from typing import Any, Dict, List
 from uuid import UUID
 
-from core.arbitrage.intelligence.lifecycle import OpportunityState
 from core.arbitrage.feed import QuoteSnapshot
+from core.arbitrage.intelligence.lifecycle import OpportunityState
 from core.arbitrage.models import ArbitrageConfig, VenueQuote
 from core.arbitrage.orchestrator import ArbitrageOrchestrator
 from core.fx.converter import FxConverter
@@ -82,9 +82,13 @@ def ingest_quotes_and_scan(
     ]
 
 
-def get_session_history(session_id: UUID, symbol: str | None = None) -> List[Dict[str, Any]]:
+def get_session_history(
+    session_id: UUID, symbol: str | None = None
+) -> List[Dict[str, Any]]:
     session = _orchestrator.get_session(session_id)
-    records = _orchestrator.get_opportunity_time_series(session_id=session_id, symbol=symbol)
+    records = _orchestrator.get_opportunity_time_series(
+        session_id=session_id, symbol=symbol
+    )
     return [
         _attach_execution_readiness(
             record.to_summary(),
@@ -94,69 +98,84 @@ def get_session_history(session_id: UUID, symbol: str | None = None) -> List[Dic
     ]
 
 
-def get_top_recommendations(session_id: UUID, limit: int = 10, symbol: str | None = None) -> List[Dict[str, Any]]:
+def get_top_recommendations(
+    session_id: UUID, limit: int = 10, symbol: str | None = None
+) -> List[Dict[str, Any]]:
     session = _orchestrator.get_session(session_id)
-    recs = _orchestrator.get_recommendations(session_id=session_id, limit=limit, symbol=symbol)
+    recs = _orchestrator.get_recommendations(
+        session_id=session_id, limit=limit, symbol=symbol
+    )
+
     result: list[Dict[str, Any]] = []
     for rec in recs:
-        readiness = _serialize_execution_readiness(
+        lifecycle_readiness = _serialize_execution_readiness(
             session.opportunity_state.get(rec.opportunity_id)
         )
+
+        # Newer recommendation objects may embed a richer execution readiness object.
+        embedded = getattr(rec, "execution_readiness", None)
+        execution_readiness: dict[str, Any] | None
+        if embedded is not None:
+            execution_readiness = embedded.to_dict()
+        else:
+            execution_readiness = lifecycle_readiness
+
         result.append(
             {
                 "opportunity_id": rec.opportunity_id,
                 "rank": rec.rank,
                 "quality_score": rec.quality_score,
-                "reasons": [
-                    {"code": r.code, "detail": r.detail}
-                    for r in rec.reasons
-                ],
+                "reasons": [{"code": r.code, "detail": r.detail} for r in rec.reasons],
                 "signals": rec.signals,
                 "economics": rec.economics,
-                "execution_readiness": (
-                    rec.execution_readiness.to_dict()
-                    if getattr(rec, "execution_readiness", None) is not None
-                    else readiness
-                ),
+                "execution_readiness": execution_readiness,
             }
         )
     return result
 
 
-def get_opportunity_detail(session_id: UUID, opportunity_id: str) -> Dict[str, Any] | None:
+def get_opportunity_detail(
+    session_id: UUID, opportunity_id: str
+) -> Dict[str, Any] | None:
     state = _orchestrator.get_session(session_id)
-    history = [r for r in state.opportunities_history if r.opportunity.opportunity_id == opportunity_id]
+    history = [
+        r
+        for r in state.opportunities_history
+        if r.opportunity.opportunity_id == opportunity_id
+    ]
     if not history:
         return None
+
     latest = history[-1]
     opp_state = state.opportunity_state.get(opportunity_id)
-    signals = None
-    reasons = None
+
+    signals: dict[str, float] = {}
+    reasons: list[Any] = []
+
     if opp_state:
         recs = _orchestrator.get_recommendations(
             session_id=session_id,
             limit=len(state.opportunities_history),
             symbol=None,
         )
-        signals_map: dict[str, float] | None = None
         for rec in recs:
             if rec.opportunity_id == opportunity_id:
-                signals_map = rec.signals
-                reasons = rec.reasons
+                signals = rec.signals or {}
+                reasons = rec.reasons or []
                 break
-        signals = signals_map or {}
+
     return {
         "opportunity": latest.to_summary(),
         "state": opp_state.state if opp_state else None,
-        "signals": signals or {},
-        "reasons": [
-            {"code": r.code, "detail": r.detail} for r in reasons or []
-        ],
+        "signals": signals,
+        "reasons": [{"code": r.code, "detail": r.detail} for r in reasons],
         "execution_readiness": _serialize_execution_readiness(opp_state),
     }
 
 
-def get_history_window(session_id: UUID, symbol: str | None = None, limit: int = 200) -> List[Dict[str, Any]]:
+def get_history_window(
+    session_id: UUID, symbol: str | None = None, limit: int = 200
+) -> List[Dict[str, Any]]:
     state = _orchestrator.get_session(session_id)
     history = state.opportunities_history
     filtered = [h for h in history if symbol is None or h.opportunity.symbol == symbol]
@@ -180,7 +199,9 @@ def list_sessions() -> List[Dict[str, Any]]:
     ]
 
 
-def get_readiness_states(session_id: UUID, symbol: str | None = None) -> List[Dict[str, Any]]:
+def get_readiness_states(
+    session_id: UUID, symbol: str | None = None
+) -> List[Dict[str, Any]]:
     state = _orchestrator.get_session(session_id)
 
     symbol_by_opportunity: dict[str, str] = {}
