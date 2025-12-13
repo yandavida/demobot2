@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Dict, Iterable, List
 
+from core.arbitrage.execution.gate import ExecutionDecision
 from core.arbitrage.intelligence.reasons import Reason, classify_reasons
 from core.arbitrage.intelligence.readiness import ExecutionReadiness
 from core.arbitrage.intelligence.signals import OpportunitySignals
@@ -20,6 +21,7 @@ class RankedRecommendation:
     signals: Dict[str, float]
     economics: dict[str, object]
     execution_readiness: ExecutionReadiness | None = None
+    execution_decision: ExecutionDecision | None = None
 
 
 def score_signals(signals: dict[str, float]) -> float:

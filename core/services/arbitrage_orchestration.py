@@ -15,27 +15,100 @@ from core.portfolio.models import Currency
 _orchestrator = ArbitrageOrchestrator()
 
 
-def _serialize_execution_readiness(
-    state: OpportunityState | None,
+def _normalize_execution_readiness(
+    readiness: Any | None,
 ) -> dict[str, object] | None:
-    if state is None:
+    if readiness is None:
         return None
-    return {
-        "state": state.state.value,
-        "first_seen": state.first_seen.isoformat(),
-        "last_seen": state.last_seen.isoformat(),
-        "seen_count": state.seen_count,
-        "last_edge_bps": state.last_edge_bps,
-        "last_net_edge_bps": state.last_net_edge_bps,
-    }
+
+    if hasattr(readiness, "to_dict"):
+        return readiness.to_dict()
+
+    if isinstance(readiness, dict):
+        return readiness
+
+    return None
+
+
+def _serialize_execution_decision(decision: Any | None) -> dict[str, object] | None:
+    if decision is None:
+        return None
+
+    if hasattr(decision, "reason"):
+        return {
+            "reason": getattr(decision.reason, "value", decision.reason),
+            "can_execute": getattr(decision, "should_execute", False),
+            "reason_codes": [getattr(decision.reason, "value", decision.reason)],
+            "metrics": {
+                "edge_bps": getattr(decision, "edge_bps", None),
+                "spread_bps": getattr(decision, "worst_spread_bps", None),
+                "age_ms": getattr(decision, "age_ms", None),
+                "notional": getattr(decision, "notional", None),
+                "qty": getattr(decision, "recommended_qty", None),
+            },
+            "recommended_qty": getattr(decision, "recommended_qty", None),
+        }
+
+    if isinstance(decision, dict):
+        return decision
+
+    return None
+
+
+def _serialize_execution_readiness(
+    lifecycle: OpportunityState | None,
+    readiness: Any | None = None,
+    decision: Any | None = None,
+) -> dict[str, object] | None:
+    lifecycle_payload: dict[str, object] | None = None
+    if lifecycle is not None:
+        lifecycle_payload = {
+            "state": lifecycle.state.value,
+            "first_seen": lifecycle.first_seen.isoformat(),
+            "last_seen": lifecycle.last_seen.isoformat(),
+            "seen_count": lifecycle.seen_count,
+            "last_edge_bps": lifecycle.last_edge_bps,
+            "last_net_edge_bps": lifecycle.last_net_edge_bps,
+        }
+
+    readiness_payload = _normalize_execution_readiness(readiness)
+    decision_payload = _serialize_execution_decision(decision)
+
+    if lifecycle_payload is None and readiness_payload is None and decision_payload is None:
+        return None
+
+    payload: dict[str, object] = {}
+    if decision_payload:
+        payload["decision"] = decision_payload
+        payload.setdefault("can_execute", decision_payload.get("can_execute"))
+        payload.setdefault("reason_codes", decision_payload.get("reason_codes"))
+        if "metrics" in decision_payload:
+            payload.setdefault("metrics", decision_payload["metrics"])
+        if "recommended_qty" in decision_payload:
+            payload.setdefault("recommended_qty", decision_payload["recommended_qty"])
+    if readiness_payload:
+        payload.update(readiness_payload)
+    if lifecycle_payload:
+        payload.update(lifecycle_payload)
+    return payload
 
 
 def _attach_execution_readiness(
-    summary: dict[str, Any], state: OpportunityState | None
+    summary: dict[str, Any],
+    lifecycle: OpportunityState | None,
+    readiness: Any | None = None,
+    decision: Any | None = None,
 ) -> dict[str, Any]:
-    readiness = _serialize_execution_readiness(state)
-    if readiness is not None:
-        summary["execution_readiness"] = readiness
+    readiness_payload = _serialize_execution_readiness(
+        lifecycle, readiness=readiness, decision=decision
+    )
+    decision_payload = readiness_payload.get("decision") if readiness_payload else None
+    if readiness_payload is not None:
+        summary["execution_readiness"] = readiness_payload
+    if decision_payload is None:
+        decision_payload = _serialize_execution_decision(decision)
+    if decision_payload is not None:
+        summary["execution_decision"] = decision_payload
     return summary
 
 
@@ -77,6 +150,8 @@ def ingest_quotes_and_scan(
         _attach_execution_readiness(
             opp.to_summary(),
             session.opportunity_state.get(opp.opportunity.opportunity_id),
+            readiness=opp.execution_readiness,
+            decision=opp.execution_decision,
         )
         for opp in opportunities
     ]
@@ -93,6 +168,8 @@ def get_session_history(
         _attach_execution_readiness(
             record.to_summary(),
             session.opportunity_state.get(record.opportunity.opportunity_id),
+            readiness=record.execution_readiness,
+            decision=record.execution_decision,
         )
         for record in records
     ]
@@ -108,17 +185,11 @@ def get_top_recommendations(
 
     result: list[Dict[str, Any]] = []
     for rec in recs:
-        lifecycle_readiness = _serialize_execution_readiness(
-            session.opportunity_state.get(rec.opportunity_id)
-        )
-
-        # Newer recommendation objects may embed a richer execution readiness object.
         embedded = getattr(rec, "execution_readiness", None)
-        execution_readiness: dict[str, Any] | None
-        if embedded is not None:
-            execution_readiness = embedded.to_dict()
-        else:
-            execution_readiness = lifecycle_readiness
+        lifecycle = session.opportunity_state.get(rec.opportunity_id)
+        execution_readiness = _serialize_execution_readiness(
+            lifecycle, readiness=embedded, decision=getattr(rec, "execution_decision", None)
+        )
 
         result.append(
             {
@@ -129,6 +200,9 @@ def get_top_recommendations(
                 "signals": rec.signals,
                 "economics": rec.economics,
                 "execution_readiness": execution_readiness,
+                "execution_decision": execution_readiness.get("decision")
+                if execution_readiness
+                else None,
             }
         )
     return result
@@ -169,7 +243,12 @@ def get_opportunity_detail(
         "state": opp_state.state if opp_state else None,
         "signals": signals,
         "reasons": [{"code": r.code, "detail": r.detail} for r in reasons],
-        "execution_readiness": _serialize_execution_readiness(opp_state),
+        "execution_readiness": _serialize_execution_readiness(
+            opp_state,
+            readiness=latest.execution_readiness,
+            decision=latest.execution_decision,
+        ),
+        "execution_decision": _serialize_execution_decision(latest.execution_decision),
     }
 
 
@@ -181,7 +260,10 @@ def get_history_window(
     filtered = [h for h in history if symbol is None or h.opportunity.symbol == symbol]
     return [
         _attach_execution_readiness(
-            h.to_summary(), state.opportunity_state.get(h.opportunity.opportunity_id)
+            h.to_summary(),
+            state.opportunity_state.get(h.opportunity.opportunity_id),
+            readiness=h.execution_readiness,
+            decision=h.execution_decision,
         )
         for h in filtered[-limit:]
     ]
@@ -208,22 +290,32 @@ def get_readiness_states(
     for record in state.opportunities_history:
         symbol_by_opportunity[record.opportunity.opportunity_id] = record.opportunity.symbol
 
+    readiness_by_opportunity: dict[str, Any | None] = {}
+    decision_by_opportunity: dict[str, Any | None] = {}
+    for record in state.opportunities_history:
+        readiness_by_opportunity[record.opportunity.opportunity_id] = (
+            record.execution_readiness
+        )
+        decision_by_opportunity[record.opportunity.opportunity_id] = (
+            record.execution_decision
+        )
+
     readiness: list[Dict[str, Any]] = []
     for opp_id, lifecycle in state.opportunity_state.items():
         opp_symbol = symbol_by_opportunity.get(opp_id)
         if symbol and opp_symbol != symbol:
             continue
 
+        readiness_payload = _serialize_execution_readiness(
+            lifecycle,
+            readiness=readiness_by_opportunity.get(opp_id),
+            decision=decision_by_opportunity.get(opp_id),
+        )
         readiness.append(
             {
                 "opportunity_id": opp_id,
                 "symbol": opp_symbol,
-                "first_seen": lifecycle.first_seen.isoformat(),
-                "last_seen": lifecycle.last_seen.isoformat(),
-                "seen_count": lifecycle.seen_count,
-                "last_edge_bps": lifecycle.last_edge_bps,
-                "last_net_edge_bps": lifecycle.last_net_edge_bps,
-                "state": lifecycle.state,
+                **(readiness_payload or {}),
             }
         )
 
