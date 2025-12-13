@@ -4,6 +4,7 @@ from datetime import datetime
 from typing import Any, Dict, List
 from uuid import UUID
 
+from core.arbitrage.intelligence.lifecycle import OpportunityState
 from core.arbitrage.feed import QuoteSnapshot
 from core.arbitrage.models import ArbitrageConfig, VenueQuote
 from core.arbitrage.orchestrator import ArbitrageOrchestrator
@@ -12,6 +13,30 @@ from core.fx.provider import FxRateProvider
 from core.portfolio.models import Currency
 
 _orchestrator = ArbitrageOrchestrator()
+
+
+def _serialize_execution_readiness(
+    state: OpportunityState | None,
+) -> dict[str, object] | None:
+    if state is None:
+        return None
+    return {
+        "state": state.state.value,
+        "first_seen": state.first_seen.isoformat(),
+        "last_seen": state.last_seen.isoformat(),
+        "seen_count": state.seen_count,
+        "last_edge_bps": state.last_edge_bps,
+        "last_net_edge_bps": state.last_net_edge_bps,
+    }
+
+
+def _attach_execution_readiness(
+    summary: dict[str, Any], state: OpportunityState | None
+) -> dict[str, Any]:
+    readiness = _serialize_execution_readiness(state)
+    if readiness is not None:
+        summary["execution_readiness"] = readiness
+    return summary
 
 
 def create_arbitrage_session(
@@ -48,18 +73,35 @@ def ingest_quotes_and_scan(
     opportunities = _orchestrator.ingest_snapshot(
         session_id=session_id, snapshot=snapshot, fx_converter=fx_converter
     )
-    return [opp.to_summary() for opp in opportunities]
+    return [
+        _attach_execution_readiness(
+            opp.to_summary(),
+            session.opportunity_state.get(opp.opportunity.opportunity_id),
+        )
+        for opp in opportunities
+    ]
 
 
 def get_session_history(session_id: UUID, symbol: str | None = None) -> List[Dict[str, Any]]:
+    session = _orchestrator.get_session(session_id)
     records = _orchestrator.get_opportunity_time_series(session_id=session_id, symbol=symbol)
-    return [record.to_summary() for record in records]
+    return [
+        _attach_execution_readiness(
+            record.to_summary(),
+            session.opportunity_state.get(record.opportunity.opportunity_id),
+        )
+        for record in records
+    ]
 
 
 def get_top_recommendations(session_id: UUID, limit: int = 10, symbol: str | None = None) -> List[Dict[str, Any]]:
+    session = _orchestrator.get_session(session_id)
     recs = _orchestrator.get_recommendations(session_id=session_id, limit=limit, symbol=symbol)
     result: list[Dict[str, Any]] = []
     for rec in recs:
+        readiness = _serialize_execution_readiness(
+            session.opportunity_state.get(rec.opportunity_id)
+        )
         result.append(
             {
                 "opportunity_id": rec.opportunity_id,
@@ -71,6 +113,7 @@ def get_top_recommendations(session_id: UUID, limit: int = 10, symbol: str | Non
                 ],
                 "signals": rec.signals,
                 "economics": rec.economics,
+                "execution_readiness": readiness,
             }
         )
     return result
@@ -105,6 +148,7 @@ def get_opportunity_detail(session_id: UUID, opportunity_id: str) -> Dict[str, A
         "reasons": [
             {"code": r.code, "detail": r.detail} for r in reasons or []
         ],
+        "execution_readiness": _serialize_execution_readiness(opp_state),
     }
 
 
@@ -112,7 +156,12 @@ def get_history_window(session_id: UUID, symbol: str | None = None, limit: int =
     state = _orchestrator.get_session(session_id)
     history = state.opportunities_history
     filtered = [h for h in history if symbol is None or h.opportunity.symbol == symbol]
-    return [h.to_summary() for h in filtered[-limit:]]
+    return [
+        _attach_execution_readiness(
+            h.to_summary(), state.opportunity_state.get(h.opportunity.opportunity_id)
+        )
+        for h in filtered[-limit:]
+    ]
 
 
 def list_sessions() -> List[Dict[str, Any]]:
@@ -125,3 +174,32 @@ def list_sessions() -> List[Dict[str, Any]]:
         }
         for session in _orchestrator.list_sessions()
     ]
+
+
+def get_readiness_states(session_id: UUID, symbol: str | None = None) -> List[Dict[str, Any]]:
+    state = _orchestrator.get_session(session_id)
+
+    symbol_by_opportunity: dict[str, str] = {}
+    for record in state.opportunities_history:
+        symbol_by_opportunity[record.opportunity.opportunity_id] = record.opportunity.symbol
+
+    readiness: list[Dict[str, Any]] = []
+    for opp_id, lifecycle in state.opportunity_state.items():
+        opp_symbol = symbol_by_opportunity.get(opp_id)
+        if symbol and opp_symbol != symbol:
+            continue
+
+        readiness.append(
+            {
+                "opportunity_id": opp_id,
+                "symbol": opp_symbol,
+                "first_seen": lifecycle.first_seen.isoformat(),
+                "last_seen": lifecycle.last_seen.isoformat(),
+                "seen_count": lifecycle.seen_count,
+                "last_edge_bps": lifecycle.last_edge_bps,
+                "last_net_edge_bps": lifecycle.last_net_edge_bps,
+                "state": lifecycle.state,
+            }
+        )
+
+    return readiness
