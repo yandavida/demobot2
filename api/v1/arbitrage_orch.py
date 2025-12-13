@@ -12,6 +12,7 @@ from core.services.arbitrage_orchestration import (
     create_arbitrage_session,
     get_history_window,
     get_opportunity_detail,
+    get_readiness_states,
     get_session_history,
     get_top_recommendations,
     ingest_quotes_and_scan,
@@ -62,6 +63,17 @@ class OpportunityOut(BaseModel):
 class HistoryRequest(BaseModel):
     session_id: UUID
     symbol: Optional[str] = None
+
+
+class ReadinessOut(BaseModel):
+    opportunity_id: str
+    symbol: str | None = None
+    first_seen: str
+    last_seen: str
+    seen_count: int
+    last_edge_bps: float
+    last_net_edge_bps: float
+    state: str
 
 
 class RecommendationOut(BaseModel):
@@ -117,6 +129,12 @@ def history(req: HistoryRequest) -> List[OpportunityOut]:
 def top(session_id: UUID, limit: int = 10, symbol: Optional[str] = None) -> List[RecommendationOut]:
     recs = get_top_recommendations(session_id=session_id, limit=limit, symbol=symbol)
     return [RecommendationOut(**rec) for rec in recs]
+
+
+@router.get("/readiness", response_model=List[ReadinessOut])
+def readiness(session_id: UUID, symbol: Optional[str] = None) -> List[ReadinessOut]:
+    readiness_states = get_readiness_states(session_id=session_id, symbol=symbol)
+    return [ReadinessOut(**state) for state in readiness_states]
 
 
 @router.get(
