@@ -4,79 +4,54 @@ from datetime import datetime
 from typing import Any, Dict, List
 from uuid import UUID
 
+from pydantic import BaseModel, ValidationError, field_validator
+
 from core.arbitrage.feed import QuoteSnapshot
 from core.arbitrage.intelligence.lifecycle import OpportunityState
 from core.arbitrage.models import ArbitrageConfig, VenueQuote
 from core.arbitrage.orchestrator import ArbitrageOrchestrator
 from core.fx.converter import FxConverter
 from core.fx.provider import FxRateProvider
+from core.market_data import validate_quotes_payload
 from core.portfolio.models import Currency
 
 _orchestrator = ArbitrageOrchestrator()
 
 
-class ValidationError(Exception):
-    """Raised when incoming quotes fail strict validation."""
+class QuotePayload(BaseModel):
+    """Strict schema for validating incoming quote payloads.
+
+    Notes:
+    - strict_validation=True will use this schema and fail-fast via ValidationError.
+    - Keep fields aligned with VenueQuote + any tolerated metadata (e.g. latency_ms).
+    """
+
+    symbol: str
+    venue: str
+    ccy: str = "USD"
+    bid: float
+    ask: float
+    size: float | None = None
+    fees_bps: float | None = 0.0
+    latency_ms: float | None = None
+
+    @field_validator("bid", "ask")
+    @classmethod
+    def _require_positive(cls, value: float) -> float:
+        if value is None:
+            raise ValueError("Quote must include bid/ask")
+        if value <= 0:
+            raise ValueError("Bid/ask must be positive")
+        return value
 
 
-def _validate_quotes_payload(
-    quotes_payload: List[Dict[str, Any]], default_ccy: Currency
-) -> tuple[List[Dict[str, Any]], Dict[str, Any]]:
-    valid: list[Dict[str, Any]] = []
-    invalid: list[Dict[str, Any]] = []
-
-    for idx, quote in enumerate(quotes_payload):
-        errors: list[str] = []
-        if not isinstance(quote, dict):
-            errors.append("Quote must be a dictionary")
-        else:
-            venue = quote.get("venue")
-            symbol = quote.get("symbol")
-            if not venue:
-                errors.append("Missing venue")
-            if not symbol:
-                errors.append("Missing symbol")
-
-            for field in ("bid", "ask"):
-                value = quote.get(field)
-                if value is None:
-                    continue
-                try:
-                    float(value)
-                except Exception:
-                    errors.append(f"Invalid {field} value")
-
-            ccy = quote.get("ccy", default_ccy)
-            if ccy is None:
-                errors.append("Missing currency")
-
-        if errors:
-            invalid.append({"index": idx, "quote": quote, "errors": errors})
-        else:
-            valid.append(quote)
-
-    summary: Dict[str, Any] = {
-        "received_count": len(quotes_payload),
-        "valid_count": len(valid),
-        "invalid_count": len(invalid),
-        "invalid_quotes": invalid,
-    }
-
-    return valid, summary
-
-
-def _normalize_execution_readiness(
-    readiness: Any | None,
-) -> dict[str, object] | None:
+def _normalize_execution_readiness(readiness: Any | None) -> dict[str, object] | None:
     if readiness is None:
         return None
-
     if hasattr(readiness, "to_dict"):
         return readiness.to_dict()
-
     if isinstance(readiness, dict):
         return readiness
-
     return None
 
 
@@ -162,6 +137,27 @@ def _attach_execution_readiness(
     return summary
 
 
+def _summarize_validations(results: list[Any]) -> dict[str, object]:
+    valid = sum(1 for r in results if getattr(r, "is_valid", False))
+    invalid = len(results) - valid
+
+    def _collect(kind: str) -> list[dict[str, object]]:
+        collected: list[dict[str, object]] = []
+        for idx, result in enumerate(results):
+            messages = getattr(result, kind, None)
+            if messages:
+                collected.append({"index": idx, "messages": list(messages)})
+        return collected
+
+    return {
+        "total": len(results),
+        "valid": valid,
+        "invalid": invalid,
+        "errors": _collect("errors"),
+        "warnings": _collect("warnings"),
+    }
+
+
 def create_arbitrage_session(
     base_currency: Currency,
     config: ArbitrageConfig,
@@ -170,33 +166,58 @@ def create_arbitrage_session(
     return state.session_id
 
 
+def _validate_quotes_payload_strict(
+    quotes_payload: List[Dict[str, Any]],
+) -> List[Dict[str, Any]]:
+    """Strict validation + normalization.
+
+    Raises:
+        ValidationError: if any quote fails the strict schema.
+    """
+    validated = [QuotePayload.model_validate(quote) for quote in quotes_payload]
+    return [quote.model_dump() for quote in validated]
+
+
 def ingest_quotes_and_scan(
     session_id: UUID,
     quotes_payload: List[Dict[str, Any]],
     fx_rate_usd_ils: float,
     strict_validation: bool = False,
-) -> List[Dict[str, Any]]:
+) -> Dict[str, Any]:
     session = _orchestrator.get_session(session_id)
-    valid_quotes, validation_summary = _validate_quotes_payload(
-        quotes_payload, default_ccy=session.base_currency
-    )
-    session.validation_summary = validation_summary
 
-    if validation_summary["invalid_count"] and strict_validation:
-        raise ValidationError("Invalid quotes in payload")
+    quote_validation: dict[str, object] | None = None
+    normalized_payload: List[Dict[str, Any]] = quotes_payload
+
+    if strict_validation:
+        # Fail-fast, let API layer convert ValidationError to HTTP 422.
+        normalized_payload = _validate_quotes_payload_strict(quotes_payload)
+        quote_validation = None
+    else:
+        validation_results = validate_quotes_payload(quotes_payload)
+        quote_validation = _summarize_validations(validation_results)
+
+        normalized_payload = []
+        for payload, result in zip(quotes_payload, validation_results):
+            if not getattr(result, "is_valid", False):
+                continue
+            source = getattr(result, "normalized", None) or payload
+            normalized_payload.append(source)
 
     quotes: List[VenueQuote] = [
         VenueQuote(
-            venue=q["venue"],
-            symbol=q["symbol"],
+            venue=q.get("venue"),
+            symbol=q.get("symbol"),
             ccy=q.get("ccy", session.base_currency),
             bid=q.get("bid"),
             ask=q.get("ask"),
             size=q.get("size"),
             fees_bps=q.get("fees_bps", 0.0),
+            latency_ms=q.get("latency_ms"),
         )
-        for q in valid_quotes
+        for q in normalized_payload
     ]
+
     snapshot = QuoteSnapshot(as_of=datetime.utcnow(), quotes=quotes)
 
     fx_provider = FxRateProvider.from_usd_ils(fx_rate_usd_ils)
@@ -205,7 +226,8 @@ def ingest_quotes_and_scan(
     opportunities = _orchestrator.ingest_snapshot(
         session_id=session_id, snapshot=snapshot, fx_converter=fx_converter
     )
-    summaries = [
+
+    opp_payload = [
         _attach_execution_readiness(
             opp.to_summary(),
             session.opportunity_state.get(opp.opportunity.opportunity_id),
@@ -215,22 +237,19 @@ def ingest_quotes_and_scan(
         for opp in opportunities
     ]
 
-    if not summaries:
-        return [{"validation_summary": validation_summary}]
-
-    for summary in summaries:
-        summary["validation_summary"] = validation_summary
-
-    return summaries
+    # Keep legacy key name for compatibility with earlier branch output.
+    return {
+        "opportunities": opp_payload,
+        "quote_validation": quote_validation,
+        "validation_summary": quote_validation,
+    }
 
 
 def get_session_history(
     session_id: UUID, symbol: str | None = None
 ) -> List[Dict[str, Any]]:
     session = _orchestrator.get_session(session_id)
-    records = _orchestrator.get_opportunity_time_series(
-        session_id=session_id, symbol=symbol
-    )
+    records = _orchestrator.get_opportunity_time_series(session_id=session_id, symbol=symbol)
     return [
         _attach_execution_readiness(
             record.to_summary(),
@@ -246,16 +265,16 @@ def get_top_recommendations(
     session_id: UUID, limit: int = 10, symbol: str | None = None
 ) -> List[Dict[str, Any]]:
     session = _orchestrator.get_session(session_id)
-    recs = _orchestrator.get_recommendations(
-        session_id=session_id, limit=limit, symbol=symbol
-    )
+    recs = _orchestrator.get_recommendations(session_id=session_id, limit=limit, symbol=symbol)
 
     result: list[Dict[str, Any]] = []
     for rec in recs:
         embedded = getattr(rec, "execution_readiness", None)
         lifecycle = session.opportunity_state.get(rec.opportunity_id)
         execution_readiness = _serialize_execution_readiness(
-            lifecycle, readiness=embedded, decision=getattr(rec, "execution_decision", None)
+            lifecycle,
+            readiness=embedded,
+            decision=getattr(rec, "execution_decision", None),
         )
 
         result.append(
@@ -267,9 +286,7 @@ def get_top_recommendations(
                 "signals": rec.signals,
                 "economics": rec.economics,
                 "execution_readiness": execution_readiness,
-                "execution_decision": execution_readiness.get("decision")
-                if execution_readiness
-                else None,
+                "execution_decision": execution_readiness.get("decision") if execution_readiness else None,
             }
         )
     return result
@@ -279,11 +296,7 @@ def get_opportunity_detail(
     session_id: UUID, opportunity_id: str
 ) -> Dict[str, Any] | None:
     state = _orchestrator.get_session(session_id)
-    history = [
-        r
-        for r in state.opportunities_history
-        if r.opportunity.opportunity_id == opportunity_id
-    ]
+    history = [r for r in state.opportunities_history if r.opportunity.opportunity_id == opportunity_id]
     if not history:
         return None
 
@@ -360,12 +373,8 @@ def get_readiness_states(
     readiness_by_opportunity: dict[str, Any | None] = {}
     decision_by_opportunity: dict[str, Any | None] = {}
     for record in state.opportunities_history:
-        readiness_by_opportunity[record.opportunity.opportunity_id] = (
-            record.execution_readiness
-        )
-        decision_by_opportunity[record.opportunity.opportunity_id] = (
-            record.execution_decision
-        )
+        readiness_by_opportunity[record.opportunity.opportunity_id] = record.execution_readiness
+        decision_by_opportunity[record.opportunity.opportunity_id] = record.execution_decision
 
     readiness: list[Dict[str, Any]] = []
     for opp_id, lifecycle in state.opportunity_state.items():

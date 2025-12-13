@@ -37,6 +37,20 @@ from core.portfolio.models import Currency, Money
 
 
 @dataclass
+class ValidationSummary:
+    as_of: datetime
+    warnings: list[str] = field(default_factory=list)
+    errors: list[str] = field(default_factory=list)
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "as_of": self.as_of.isoformat(),
+            "warnings": list(self.warnings),
+            "errors": list(self.errors),
+        }
+
+
+@dataclass
 class OpportunityRecord:
     """Enriched opportunity with monetary values converted to base currency."""
 
@@ -90,6 +104,7 @@ class ArbitrageSessionState:
     opportunities_history: List[OpportunityRecord] = field(default_factory=list)
     opportunity_state: Dict[str, OpportunityState] = field(default_factory=dict)
     events: Deque[ArbitrageEvent] = field(default_factory=deque)
+    last_validation_summary: ValidationSummary | None = None
     last_accessed: datetime = field(default_factory=datetime.utcnow)
     validation_summary: Dict[str, Any] | None = None
 
@@ -131,6 +146,8 @@ class ArbitrageOrchestrator:
         fx_converter: FxConverter,
     ) -> List[OpportunityRecord]:
         state = self.get_session(session_id)
+        validation_summary = self._validate_snapshot(snapshot)
+        state.last_validation_summary = validation_summary
         expire_stale_states(state.opportunity_state, now=snapshot.as_of, limits=state.limits)
         state.snapshots.append(snapshot)
         self._prune_snapshots(state)
@@ -263,6 +280,20 @@ class ArbitrageOrchestrator:
                 to_delete.append(session_id)
         for session_id in to_delete:
             del self.sessions[session_id]
+
+    def _validate_snapshot(self, snapshot: QuoteSnapshot) -> ValidationSummary:
+        warnings: list[str] = []
+        errors: list[str] = []
+
+        for quote in snapshot.quotes:
+            if quote.bid is None or quote.ask is None:
+                warnings.append(f"Missing bid/ask for {quote.symbol} on {quote.venue}")
+            if quote.bid is not None and quote.ask is not None and quote.bid <= 0:
+                errors.append(f"Non-positive bid for {quote.symbol} on {quote.venue}")
+            if quote.bid is not None and quote.ask is not None and quote.ask <= 0:
+                errors.append(f"Non-positive ask for {quote.symbol} on {quote.venue}")
+
+        return ValidationSummary(as_of=snapshot.as_of, warnings=warnings, errors=errors)
 
     def _prune_snapshots(self, state: ArbitrageSessionState) -> None:
         ttl = timedelta(seconds=state.limits.ttl_seconds)
