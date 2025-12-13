@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from datetime import datetime
 from typing import Literal
 
 
@@ -67,6 +68,8 @@ class ArbitrageOpportunity:
     size: float
     ccy: str = "USD"
     notes: list[str] = field(default_factory=list)
+    opportunity_id: str = ""
+    as_of: datetime | None = None
 
     @property
     def expected_profit(self) -> float:

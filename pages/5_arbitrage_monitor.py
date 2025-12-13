@@ -8,6 +8,8 @@ from ui.api_client import (
     ApiError,
     create_arbitrage_session,
     get_arbitrage_history,
+    get_arbitrage_opportunity_detail,
+    get_arbitrage_top,
     scan_arbitrage_session,
 )
 
@@ -106,6 +108,31 @@ def main() -> None:  # pragma: no cover - Streamlit UI
             st.line_chart(chart_df)
     else:
         st.info("טרם נאספו הזדמנויות עבור Session זה.")
+
+    st.subheader("Top Recommendations")
+    try:
+        recs = get_arbitrage_top(session_id=session_id, limit=10)
+    except ApiError as exc:  # pragma: no cover - network
+        st.error(f"שגיאת API בעת הבאת המלצות: {exc}")
+        recs = []
+
+    if recs:
+        df_recs = pd.DataFrame(recs)
+        st.dataframe(df_recs[["rank", "opportunity_id", "quality_score"] + list(df_recs.columns.difference(["rank", "opportunity_id", "quality_score", "reasons", "signals", "economics"]))])
+        selected = st.selectbox(
+            "בחר Opportunity להצגת פרטים",
+            options=[r["opportunity_id"] for r in recs],
+            index=0,
+        )
+        if selected:
+            detail = get_arbitrage_opportunity_detail(session_id=session_id, opportunity_id=selected)
+            st.write("Lifecycle state:", detail.get("state"))
+            st.write("Signals:")
+            st.json(detail.get("signals", {}))
+            st.write("Reasons:")
+            st.json(detail.get("reasons", []))
+    else:
+        st.info("אין עדיין המלצות מדורגות ל-Session זה.")
 
 
 if __name__ == "__main__":
