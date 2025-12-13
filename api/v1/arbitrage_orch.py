@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from typing import List, Optional
 from uuid import UUID
 
@@ -19,6 +20,8 @@ from core.services.arbitrage_orchestration import (
 )
 
 router = APIRouter(prefix="/v1/arbitrage", tags=["arbitrage"])
+
+logger = logging.getLogger(__name__)
 
 
 class QuoteIn(BaseModel):
@@ -92,6 +95,27 @@ class OpportunityDetailOut(BaseModel):
     reasons: list[dict[str, str]]
 
 
+def check_route_collisions(target_router: APIRouter) -> None:
+    """Ensure there are no duplicate method/path combinations on the router."""
+
+    seen: set[tuple[str, str]] = set()
+    collisions: list[tuple[str, str]] = []
+
+    for route in target_router.routes:
+        for method in route.methods or []:
+            key = (method.upper(), route.path)
+            if key in seen:
+                collisions.append(key)
+            else:
+                seen.add(key)
+
+    if collisions:
+        for method, path in collisions:
+            logger.error("Duplicate route detected: %s %s", method, path)
+        formatted = ", ".join(f"{method} {path}" for method, path in collisions)
+        raise ValueError(f"Duplicate routes detected: {formatted}")
+
+
 @router.post("/sessions", response_model=CreateSessionResponse)
 def create_session(req: CreateSessionRequest) -> CreateSessionResponse:
     config = ArbitrageConfig(
@@ -152,3 +176,6 @@ def opportunity_detail(session_id: UUID, opportunity_id: str) -> OpportunityDeta
 def history_window(session_id: UUID, limit: int = 200, symbol: Optional[str] = None) -> List[OpportunityOut]:
     hist = get_history_window(session_id=session_id, symbol=symbol, limit=limit)
     return [OpportunityOut(**opp) for opp in hist]
+
+
+check_route_collisions(router)
