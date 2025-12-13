@@ -71,6 +71,9 @@ def get_top_recommendations(session_id: UUID, limit: int = 10, symbol: str | Non
                 ],
                 "signals": rec.signals,
                 "economics": rec.economics,
+                "execution_readiness": rec.execution_readiness.to_dict()
+                if rec.execution_readiness
+                else None,
             }
         )
     return result

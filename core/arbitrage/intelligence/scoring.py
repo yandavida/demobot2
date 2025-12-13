@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Dict, Iterable, List
 
 from core.arbitrage.intelligence.reasons import Reason, classify_reasons
+from core.arbitrage.intelligence.readiness import ExecutionReadiness
 from core.arbitrage.intelligence.signals import OpportunitySignals
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -18,6 +19,7 @@ class RankedRecommendation:
     reasons: List[Reason]
     signals: Dict[str, float]
     economics: dict[str, object]
+    execution_readiness: ExecutionReadiness | None = None
 
 
 def score_signals(signals: dict[str, float]) -> float:
