@@ -11,6 +11,7 @@ class VenueQuote:
     Attributes:
         venue: Name of the venue or broker.
         symbol: Instrument identifier.
+        ccy: Currency of the quote (e.g., "USD", "ILS").
         bid: Best bid available at the venue.
         ask: Best ask available at the venue.
         size: Maximum executable size at the quoted levels (optional).
@@ -20,8 +21,9 @@ class VenueQuote:
 
     venue: str
     symbol: str
-    bid: float
-    ask: float
+    bid: float | None
+    ask: float | None
+    ccy: str = "USD"
     size: float | None = None
     fees_bps: float = 0.0
     latency_ms: float | None = None
@@ -40,6 +42,7 @@ class ArbitrageLeg:
     venue: str
     price: float
     quantity: float
+    ccy: str = "USD"
     fees_bps: float = 0.0
 
     @property
@@ -62,6 +65,7 @@ class ArbitrageOpportunity:
     net_edge: float
     edge_bps: float
     size: float
+    ccy: str = "USD"
     notes: list[str] = field(default_factory=list)
 
     @property

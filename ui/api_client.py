@@ -534,3 +534,51 @@ def valuate_portfolio_raw(payload: Dict[str, Any]) -> Dict[str, Any]:
         json=payload,
         timeout=30,
     )
+
+
+# =====================================================
+# Arbitrage orchestration helpers
+# =====================================================
+
+
+def create_arbitrage_session(
+    base_currency: str = "ILS", min_edge_bps: float = 5.0, max_quantity: float = 1.0
+) -> str:
+    payload = {
+        "base_currency": base_currency,
+        "min_edge_bps": min_edge_bps,
+        "max_quantity": max_quantity,
+    }
+    resp = _request_json(
+        method="POST",
+        path="/v1/arbitrage/sessions",
+        json=payload,
+    )
+    return resp["session_id"]
+
+
+def scan_arbitrage_session(
+    *, session_id: str, fx_rate_usd_ils: float, quotes: List[Dict[str, Any]]
+) -> List[Dict[str, Any]]:
+    payload = {
+        "session_id": session_id,
+        "fx_rate_usd_ils": fx_rate_usd_ils,
+        "quotes": quotes,
+    }
+    resp = _request_json(
+        method="POST",
+        path="/v1/arbitrage/scan",
+        json=payload,
+    )
+    return resp
+
+
+def get_arbitrage_history(session_id: str, symbol: str | None = None) -> List[Dict[str, Any]]:
+    payload: Dict[str, Any] = {"session_id": session_id}
+    if symbol:
+        payload["symbol"] = symbol
+    return _request_json(
+        method="POST",
+        path="/v1/arbitrage/history",
+        json=payload,
+    )
