@@ -11,6 +11,7 @@ from core.portfolio.models import Currency
 from core.services.arbitrage_orchestration import (
     create_arbitrage_session,
     get_session_history,
+    get_opportunity_detail,
     ingest_quotes_and_scan,
 )
 
@@ -67,3 +68,32 @@ def test_services_round_trip_history() -> None:
     history = get_session_history(session_id=session_id, symbol="ES")
     assert len(history) == 1
     assert history[0]["gross_edge_total"] == opp["gross_edge_total"]
+
+
+def test_execution_decision_propagates_across_endpoints() -> None:
+    config = ArbitrageConfig(min_edge_bps=0.0, default_size=1.0)
+    session_id = create_arbitrage_session(base_currency="ILS", config=config)
+
+    quotes_payload = [
+        {"symbol": "ES", "venue": "EX_A", "ccy": "USD", "bid": 4998.0, "ask": 4999.0},
+        {"symbol": "ES", "venue": "EX_B", "ccy": "USD", "bid": 5002.0, "ask": 5002.5},
+    ]
+
+    scan_result = ingest_quotes_and_scan(
+        session_id=session_id, quotes_payload=quotes_payload, fx_rate_usd_ils=3.6
+    )
+    assert scan_result
+
+    first = scan_result[0]
+    assert first.get("execution_decision") is not None
+    assert first["execution_decision"].get("reason_codes")
+    assert "recommended_qty" in first["execution_decision"]
+
+    history = get_session_history(session_id=session_id, symbol="ES")
+    assert history[0]["execution_decision"] == first["execution_decision"]
+
+    detail = get_opportunity_detail(session_id=session_id, opportunity_id=first["opportunity_id"])
+    assert detail is not None
+    assert detail["execution_decision"]["reason"] == first["execution_decision"]["reason"]
+    readiness = detail["execution_readiness"]
+    assert readiness["decision"]["can_execute"] == detail["execution_decision"]["can_execute"]

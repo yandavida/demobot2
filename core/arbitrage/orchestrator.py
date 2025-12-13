@@ -9,6 +9,11 @@ from typing import Deque, Dict, List
 from uuid import UUID, uuid4
 
 from core.arbitrage.engine import find_cross_venue_opportunities
+from core.arbitrage.execution.gate import (
+    ExecutionConstraints as ExecutionGateConstraints,
+    ExecutionDecision,
+    evaluate_execution_readiness as evaluate_execution_decision,
+)
 from core.arbitrage.identity import opportunity_id
 from core.arbitrage.feed import QuoteSnapshot
 from core.arbitrage.intelligence.events import ArbitrageEvent, ArbitrageEventType
@@ -40,6 +45,7 @@ class OpportunityRecord:
     edge_per_unit: Money
     edge_total: Money
     execution_readiness: ExecutionReadiness | None = None
+    execution_decision: ExecutionDecision | None = None
 
     def to_summary(self) -> dict[str, object]:
         return {
@@ -55,6 +61,21 @@ class OpportunityRecord:
             "currency": self.edge_total.ccy,
             "execution_readiness": self.execution_readiness.to_dict()
             if self.execution_readiness
+            else None,
+            "execution_decision": {
+                "reason": self.execution_decision.reason.value,
+                "can_execute": self.execution_decision.should_execute,
+                "reason_codes": [self.execution_decision.reason.value],
+                "metrics": {
+                    "edge_bps": self.execution_decision.edge_bps,
+                    "spread_bps": self.execution_decision.worst_spread_bps,
+                    "age_ms": self.execution_decision.age_ms,
+                    "notional": self.execution_decision.notional,
+                    "qty": self.execution_decision.recommended_qty,
+                },
+                "recommended_qty": self.execution_decision.recommended_qty,
+            }
+            if self.execution_decision
             else None,
         }
 
@@ -125,6 +146,11 @@ class ArbitrageOrchestrator:
         constraints = default_execution_constraints(state.config)
 
         enriched: list[OpportunityRecord] = []
+        gate_constraints = ExecutionGateConstraints(
+            min_edge_bps=state.config.min_edge_bps,
+            max_quote_age_ms=state.config.max_latency_ms,
+        )
+
         for opp in opportunities:
             opp.as_of = snapshot.as_of
             opp.opportunity_id = opportunity_id(
@@ -153,12 +179,19 @@ class ArbitrageOrchestrator:
             readiness = evaluate_execution_readiness(
                 edge_bps=opp.edge_bps, size=opp.size, constraints=constraints
             )
+            decision = evaluate_execution_decision(
+                opportunity=opp,
+                quotes=snapshot.quotes,
+                constraints=gate_constraints,
+                now=snapshot.as_of,
+            )
             record = OpportunityRecord(
                 as_of=snapshot.as_of,
                 opportunity=opp,
                 edge_per_unit=edge_per_unit_money,
                 edge_total=edge_total_money,
                 execution_readiness=readiness,
+                execution_decision=decision,
             )
             state.opportunities_history.append(record)
             enriched.append(record)
@@ -211,6 +244,7 @@ class ArbitrageOrchestrator:
             )
             recommendation = to_recommendation(record, signals, rank=0)
             recommendation.execution_readiness = readiness
+            recommendation.execution_decision = record.execution_decision
             recs.append(recommendation)
             if len(recs) >= limit:
                 break

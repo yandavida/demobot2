@@ -168,38 +168,63 @@ def main() -> None:  # pragma: no cover - Streamlit UI
             )
             st.write("Lifecycle state:", detail.get("state"))
             readiness = detail.get("execution") or detail.get("execution_readiness") or {}
-            can_execute = bool(
-                readiness.get("can_execute")
-                or readiness.get("should_execute")
-                or readiness.get("executable")
-                or readiness.get("is_executable")
-            )
+            decision = detail.get("execution_decision") or readiness.get("decision") or {}
+
+            can_execute = decision.get("can_execute")
+            if can_execute is None:
+                can_execute = bool(
+                    readiness.get("can_execute")
+                    or readiness.get("should_execute")
+                    or readiness.get("executable")
+                    or readiness.get("is_executable")
+                )
 
             badge_color = "#16a34a" if can_execute else "#b91c1c"
-            badge_label = "EXECUTABLE" if can_execute else "NOT EXECUTABLE"
+            badge_label = "EXECUTABLE" if can_execute else "BLOCKED"
             st.markdown(
                 f"<div style='display:inline-block;padding:0.25rem 0.75rem;border-radius:999px;"
                 f"background:{badge_color};color:white;font-weight:700;'>{badge_label}</div>",
                 unsafe_allow_html=True,
             )
 
+            reasons = (
+                decision.get("reason_codes")
+                or readiness.get("reason_codes")
+                or readiness.get("reasons")
+                or []
+            )
+            if reasons and not can_execute:
+                st.info(f"Primary block reason: {reasons[0]}")
+
             metrics: Dict[str, Any] = {}
+            metrics.update(decision.get("metrics", {}))
             metrics.update(readiness.get("metrics", {}))
             for key in ["edge_bps", "spread_bps", "worst_spread_bps", "age_ms", "notional"]:
                 if key in readiness:
                     metrics.setdefault(key, readiness.get(key))
-            if "recommended_qty" in readiness:
-                metrics.setdefault("recommended_qty", readiness.get("recommended_qty"))
+                if key in decision:
+                    metrics.setdefault(key, decision.get(key))
+
+            recommended_qty = decision.get("recommended_qty") or readiness.get("recommended_qty")
+            if recommended_qty is not None:
+                metrics.setdefault("recommended_qty", recommended_qty)
 
             if metrics:
                 cols = st.columns(min(3, len(metrics)))
                 for idx, (metric_name, metric_value) in enumerate(metrics.items()):
                     cols[idx % len(cols)].metric(metric_name.replace("_", " ").title(), f"{metric_value}")
 
-            reasons = readiness.get("reason_codes") or readiness.get("reasons") or []
             if reasons:
                 st.write("Execution reasons:")
                 st.write("\n".join(f"• {reason}" for reason in reasons))
+
+            with st.expander("Execution details (advanced)", expanded=False):
+                st.json(
+                    {
+                        "execution_decision": decision,
+                        "execution_readiness": readiness,
+                    }
+                )
             st.write("Signals:")
             st.json(detail.get("signals", {}))
             st.write("Reasons:")
