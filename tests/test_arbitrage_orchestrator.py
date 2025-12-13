@@ -60,8 +60,8 @@ def test_services_round_trip_history() -> None:
         session_id=session_id, quotes_payload=quotes_payload, fx_rate_usd_ils=3.6
     )
 
-    assert len(scan_result) == 1
-    opp = scan_result[0]
+    assert len(scan_result["opportunities"]) == 1
+    opp = scan_result["opportunities"][0]
     assert opp["symbol"] == "ES"
     assert opp["currency"] == "ILS"
 
@@ -82,9 +82,9 @@ def test_execution_decision_propagates_across_endpoints() -> None:
     scan_result = ingest_quotes_and_scan(
         session_id=session_id, quotes_payload=quotes_payload, fx_rate_usd_ils=3.6
     )
-    assert scan_result
+    assert scan_result["opportunities"]
 
-    first = scan_result[0]
+    first = scan_result["opportunities"][0]
     assert first.get("execution_decision") is not None
     assert first["execution_decision"].get("reason_codes")
     assert "recommended_qty" in first["execution_decision"]
