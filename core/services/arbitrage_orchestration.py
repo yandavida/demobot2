@@ -249,9 +249,7 @@ def get_session_history(
     session_id: UUID, symbol: str | None = None
 ) -> List[Dict[str, Any]]:
     session = _orchestrator.get_session(session_id)
-    records = _orchestrator.get_opportunity_time_series(
-        session_id=session_id, symbol=symbol
-    )
+    records = _orchestrator.get_opportunity_time_series(session_id=session_id, symbol=symbol)
     return [
         _attach_execution_readiness(
             record.to_summary(),
@@ -267,9 +265,7 @@ def get_top_recommendations(
     session_id: UUID, limit: int = 10, symbol: str | None = None
 ) -> List[Dict[str, Any]]:
     session = _orchestrator.get_session(session_id)
-    recs = _orchestrator.get_recommendations(
-        session_id=session_id, limit=limit, symbol=symbol
-    )
+    recs = _orchestrator.get_recommendations(session_id=session_id, limit=limit, symbol=symbol)
 
     result: list[Dict[str, Any]] = []
     for rec in recs:
@@ -290,9 +286,7 @@ def get_top_recommendations(
                 "signals": rec.signals,
                 "economics": rec.economics,
                 "execution_readiness": execution_readiness,
-                "execution_decision": execution_readiness.get("decision")
-                if execution_readiness
-                else None,
+                "execution_decision": execution_readiness.get("decision") if execution_readiness else None,
             }
         )
     return result
@@ -302,11 +296,7 @@ def get_opportunity_detail(
     session_id: UUID, opportunity_id: str
 ) -> Dict[str, Any] | None:
     state = _orchestrator.get_session(session_id)
-    history = [
-        r
-        for r in state.opportunities_history
-        if r.opportunity.opportunity_id == opportunity_id
-    ]
+    history = [r for r in state.opportunities_history if r.opportunity.opportunity_id == opportunity_id]
     if not history:
         return None
 
@@ -383,12 +373,8 @@ def get_readiness_states(
     readiness_by_opportunity: dict[str, Any | None] = {}
     decision_by_opportunity: dict[str, Any | None] = {}
     for record in state.opportunities_history:
-        readiness_by_opportunity[record.opportunity.opportunity_id] = (
-            record.execution_readiness
-        )
-        decision_by_opportunity[record.opportunity.opportunity_id] = (
-            record.execution_decision
-        )
+        readiness_by_opportunity[record.opportunity.opportunity_id] = record.execution_readiness
+        decision_by_opportunity[record.opportunity.opportunity_id] = record.execution_decision
 
     readiness: list[Dict[str, Any]] = []
     for opp_id, lifecycle in state.opportunity_state.items():
