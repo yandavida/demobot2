@@ -7,7 +7,7 @@ from uuid import UUID
 from core.arbitrage.feed import QuoteSnapshot
 from core.arbitrage.intelligence.lifecycle import OpportunityState
 from core.arbitrage.models import ArbitrageConfig, VenueQuote
-from core.arbitrage.orchestrator import ArbitrageOrchestrator
+from core.arbitrage.orchestrator import ArbitrageOrchestrator, ValidationSummary
 from core.fx.converter import FxConverter
 from core.fx.provider import FxRateProvider
 from core.portfolio.models import Currency
@@ -51,6 +51,19 @@ def _serialize_execution_decision(decision: Any | None) -> dict[str, object] | N
 
     if isinstance(decision, dict):
         return decision
+
+    return None
+
+
+def _serialize_validation_summary(summary: ValidationSummary | dict[str, Any] | None) -> dict[str, Any] | None:
+    if summary is None:
+        return None
+
+    if isinstance(summary, dict):
+        return summary
+
+    if hasattr(summary, "to_dict"):
+        return summary.to_dict()  # type: ignore[no-any-return]
 
     return None
 
@@ -112,6 +125,13 @@ def _attach_execution_readiness(
     return summary
 
 
+def _attach_validation_summary(
+    payload: dict[str, Any], summary: ValidationSummary | dict[str, Any] | None
+) -> dict[str, Any]:
+    payload["validation_summary"] = _serialize_validation_summary(summary)
+    return payload
+
+
 def create_arbitrage_session(
     base_currency: Currency,
     config: ArbitrageConfig,
@@ -146,12 +166,16 @@ def ingest_quotes_and_scan(
     opportunities = _orchestrator.ingest_snapshot(
         session_id=session_id, snapshot=snapshot, fx_converter=fx_converter
     )
+    validation_summary = _serialize_validation_summary(session.last_validation_summary)
     return [
-        _attach_execution_readiness(
-            opp.to_summary(),
-            session.opportunity_state.get(opp.opportunity.opportunity_id),
-            readiness=opp.execution_readiness,
-            decision=opp.execution_decision,
+        _attach_validation_summary(
+            _attach_execution_readiness(
+                opp.to_summary(),
+                session.opportunity_state.get(opp.opportunity.opportunity_id),
+                readiness=opp.execution_readiness,
+                decision=opp.execution_decision,
+            ),
+            validation_summary,
         )
         for opp in opportunities
     ]
@@ -164,12 +188,16 @@ def get_session_history(
     records = _orchestrator.get_opportunity_time_series(
         session_id=session_id, symbol=symbol
     )
+    validation_summary = _serialize_validation_summary(session.last_validation_summary)
     return [
-        _attach_execution_readiness(
-            record.to_summary(),
-            session.opportunity_state.get(record.opportunity.opportunity_id),
-            readiness=record.execution_readiness,
-            decision=record.execution_decision,
+        _attach_validation_summary(
+            _attach_execution_readiness(
+                record.to_summary(),
+                session.opportunity_state.get(record.opportunity.opportunity_id),
+                readiness=record.execution_readiness,
+                decision=record.execution_decision,
+            ),
+            validation_summary,
         )
         for record in records
     ]
@@ -184,6 +212,7 @@ def get_top_recommendations(
     )
 
     result: list[Dict[str, Any]] = []
+    validation_summary = _serialize_validation_summary(session.last_validation_summary)
     for rec in recs:
         embedded = getattr(rec, "execution_readiness", None)
         lifecycle = session.opportunity_state.get(rec.opportunity_id)
@@ -192,18 +221,23 @@ def get_top_recommendations(
         )
 
         result.append(
-            {
-                "opportunity_id": rec.opportunity_id,
-                "rank": rec.rank,
-                "quality_score": rec.quality_score,
-                "reasons": [{"code": r.code, "detail": r.detail} for r in rec.reasons],
-                "signals": rec.signals,
-                "economics": rec.economics,
-                "execution_readiness": execution_readiness,
-                "execution_decision": execution_readiness.get("decision")
-                if execution_readiness
-                else None,
-            }
+            _attach_validation_summary(
+                {
+                    "opportunity_id": rec.opportunity_id,
+                    "rank": rec.rank,
+                    "quality_score": rec.quality_score,
+                    "reasons": [
+                        {"code": r.code, "detail": r.detail} for r in rec.reasons
+                    ],
+                    "signals": rec.signals,
+                    "economics": rec.economics,
+                    "execution_readiness": execution_readiness,
+                    "execution_decision": execution_readiness.get("decision")
+                    if execution_readiness
+                    else None,
+                },
+                validation_summary,
+            )
         )
     return result
 
@@ -222,6 +256,7 @@ def get_opportunity_detail(
 
     latest = history[-1]
     opp_state = state.opportunity_state.get(opportunity_id)
+    validation_summary = _serialize_validation_summary(state.last_validation_summary)
 
     signals: dict[str, float] = {}
     reasons: list[Any] = []
@@ -249,6 +284,7 @@ def get_opportunity_detail(
             decision=latest.execution_decision,
         ),
         "execution_decision": _serialize_execution_decision(latest.execution_decision),
+        "validation_summary": validation_summary,
     }
 
 
@@ -258,12 +294,16 @@ def get_history_window(
     state = _orchestrator.get_session(session_id)
     history = state.opportunities_history
     filtered = [h for h in history if symbol is None or h.opportunity.symbol == symbol]
+    validation_summary = _serialize_validation_summary(state.last_validation_summary)
     return [
-        _attach_execution_readiness(
-            h.to_summary(),
-            state.opportunity_state.get(h.opportunity.opportunity_id),
-            readiness=h.execution_readiness,
-            decision=h.execution_decision,
+        _attach_validation_summary(
+            _attach_execution_readiness(
+                h.to_summary(),
+                state.opportunity_state.get(h.opportunity.opportunity_id),
+                readiness=h.execution_readiness,
+                decision=h.execution_decision,
+            ),
+            validation_summary,
         )
         for h in filtered[-limit:]
     ]
@@ -285,6 +325,7 @@ def get_readiness_states(
     session_id: UUID, symbol: str | None = None
 ) -> List[Dict[str, Any]]:
     state = _orchestrator.get_session(session_id)
+    validation_summary = _serialize_validation_summary(state.last_validation_summary)
 
     symbol_by_opportunity: dict[str, str] = {}
     for record in state.opportunities_history:
@@ -312,11 +353,14 @@ def get_readiness_states(
             decision=decision_by_opportunity.get(opp_id),
         )
         readiness.append(
-            {
-                "opportunity_id": opp_id,
-                "symbol": opp_symbol,
-                **(readiness_payload or {}),
-            }
+            _attach_validation_summary(
+                {
+                    "opportunity_id": opp_id,
+                    "symbol": opp_symbol,
+                    **(readiness_payload or {}),
+                },
+                validation_summary,
+            )
         )
 
     return readiness
