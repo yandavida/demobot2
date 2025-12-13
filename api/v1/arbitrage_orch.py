@@ -5,10 +5,11 @@ from typing import List, Optional
 from uuid import UUID
 
 from fastapi import APIRouter
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from core.arbitrage.models import ArbitrageConfig
 from core.portfolio.models import Currency
+from core.quote_validation import QuoteValidationError
 from core.services.arbitrage_orchestration import (
     create_arbitrage_session,
     get_history_window,
@@ -48,6 +49,19 @@ class ScanRequest(BaseModel):
     session_id: UUID
     fx_rate_usd_ils: float = 3.5
     quotes: List[QuoteIn]
+    strict_validation: bool = False
+
+
+class ValidationSummaryOut(BaseModel):
+    errors: list[str] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
+    error_count: int = 0
+    warning_count: int = 0
+
+
+class ScanResponse(BaseModel):
+    opportunities: List[OpportunityOut]
+    validation_summary: ValidationSummaryOut | None = None
 
 
 class OpportunityOut(BaseModel):
@@ -68,6 +82,11 @@ class OpportunityOut(BaseModel):
 class HistoryRequest(BaseModel):
     session_id: UUID
     symbol: Optional[str] = None
+
+
+class OpportunitiesWithValidationResponse(BaseModel):
+    opportunities: List[OpportunityOut]
+    validation_summary: ValidationSummaryOut | None = None
 
 
 class ReadinessOut(BaseModel):
@@ -136,23 +155,39 @@ def create_session(req: CreateSessionRequest) -> CreateSessionResponse:
     return CreateSessionResponse(session_id=session_id)
 
 
-@router.post("/scan", response_model=List[OpportunityOut])
-def scan(req: ScanRequest) -> List[OpportunityOut]:
-    opportunities = ingest_quotes_and_scan(
-        session_id=req.session_id,
-        quotes_payload=[q.model_dump() for q in req.quotes],
-        fx_rate_usd_ils=req.fx_rate_usd_ils,
+@router.post("/scan", response_model=ScanResponse)
+def scan(req: ScanRequest) -> ScanResponse:
+    try:
+        result = ingest_quotes_and_scan(
+            session_id=req.session_id,
+            quotes_payload=[q.model_dump() for q in req.quotes],
+            fx_rate_usd_ils=req.fx_rate_usd_ils,
+            strict_validation=req.strict_validation,
+            include_validation_summary=True,
+        )
+    except QuoteValidationError as exc:
+        from fastapi import HTTPException
+
+        raise HTTPException(status_code=400, detail=exc.summary.to_dict()) from exc
+
+    opportunities, validation_summary = result
+    return ScanResponse(
+        opportunities=[OpportunityOut(**opp) for opp in opportunities],
+        validation_summary=validation_summary.to_dict() if validation_summary else None,
     )
-    return [OpportunityOut(**opp) for opp in opportunities]
 
 
-@router.post("/history", response_model=List[OpportunityOut])
-def history(req: HistoryRequest) -> List[OpportunityOut]:
-    hist = get_session_history(
+@router.post("/history", response_model=OpportunitiesWithValidationResponse)
+def history(req: HistoryRequest) -> OpportunitiesWithValidationResponse:
+    hist, validation_summary = get_session_history(
         session_id=req.session_id,
         symbol=req.symbol,
+        include_validation_summary=True,
     )
-    return [OpportunityOut(**opp) for opp in hist]
+    return OpportunitiesWithValidationResponse(
+        opportunities=[OpportunityOut(**opp) for opp in hist],
+        validation_summary=validation_summary.to_dict() if validation_summary else None,
+    )
 
 
 @router.get("/top", response_model=List[RecommendationOut])
@@ -178,10 +213,17 @@ def opportunity_detail(session_id: UUID, opportunity_id: str) -> OpportunityDeta
     return OpportunityDetailOut(**detail)
 
 
-@router.get("/history-window", response_model=List[OpportunityOut])
-def history_window(session_id: UUID, limit: int = 200, symbol: Optional[str] = None) -> List[OpportunityOut]:
-    hist = get_history_window(session_id=session_id, symbol=symbol, limit=limit)
-    return [OpportunityOut(**opp) for opp in hist]
+@router.get("/history-window", response_model=OpportunitiesWithValidationResponse)
+def history_window(
+    session_id: UUID, limit: int = 200, symbol: Optional[str] = None
+) -> OpportunitiesWithValidationResponse:
+    hist, validation_summary = get_history_window(
+        session_id=session_id, symbol=symbol, limit=limit, include_validation_summary=True
+    )
+    return OpportunitiesWithValidationResponse(
+        opportunities=[OpportunityOut(**opp) for opp in hist],
+        validation_summary=validation_summary.to_dict() if validation_summary else None,
+    )
 
 
 check_route_collisions(router)

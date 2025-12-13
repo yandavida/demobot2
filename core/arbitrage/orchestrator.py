@@ -34,6 +34,7 @@ from core.arbitrage.intelligence.scoring import RankedRecommendation, to_recomme
 from core.arbitrage.models import ArbitrageConfig, ArbitrageOpportunity
 from core.fx.converter import FxConverter
 from core.portfolio.models import Currency, Money
+from core.quote_validation import ValidationSummary
 
 
 @dataclass
@@ -91,6 +92,7 @@ class ArbitrageSessionState:
     opportunity_state: Dict[str, OpportunityState] = field(default_factory=dict)
     events: Deque[ArbitrageEvent] = field(default_factory=deque)
     last_accessed: datetime = field(default_factory=datetime.utcnow)
+    validation_summary: "ValidationSummary | None" = None
 
 
 @dataclass

@@ -11,6 +11,11 @@ from core.arbitrage.orchestrator import ArbitrageOrchestrator
 from core.fx.converter import FxConverter
 from core.fx.provider import FxRateProvider
 from core.portfolio.models import Currency
+from core.quote_validation import (
+    QuoteValidationError,
+    ValidationSummary,
+    validate_quotes_payload,
+)
 
 _orchestrator = ArbitrageOrchestrator()
 
@@ -124,8 +129,15 @@ def ingest_quotes_and_scan(
     session_id: UUID,
     quotes_payload: List[Dict[str, Any]],
     fx_rate_usd_ils: float,
-) -> List[Dict[str, Any]]:
+    *,
+    strict_validation: bool = False,
+    include_validation_summary: bool = False,
+) -> List[Dict[str, Any]] | tuple[List[Dict[str, Any]], ValidationSummary]:
     session = _orchestrator.get_session(session_id)
+    validation_summary = validate_quotes_payload(quotes_payload)
+    session.validation_summary = validation_summary
+    if strict_validation and validation_summary.has_errors:
+        raise QuoteValidationError(validation_summary)
     quotes: List[VenueQuote] = [
         VenueQuote(
             venue=q["venue"],
@@ -146,7 +158,7 @@ def ingest_quotes_and_scan(
     opportunities = _orchestrator.ingest_snapshot(
         session_id=session_id, snapshot=snapshot, fx_converter=fx_converter
     )
-    return [
+    serialized = [
         _attach_execution_readiness(
             opp.to_summary(),
             session.opportunity_state.get(opp.opportunity.opportunity_id),
@@ -156,15 +168,23 @@ def ingest_quotes_and_scan(
         for opp in opportunities
     ]
 
+    if include_validation_summary:
+        return serialized, validation_summary
+
+    return serialized
+
 
 def get_session_history(
-    session_id: UUID, symbol: str | None = None
-) -> List[Dict[str, Any]]:
+    session_id: UUID,
+    symbol: str | None = None,
+    *,
+    include_validation_summary: bool = False,
+) -> List[Dict[str, Any]] | tuple[List[Dict[str, Any]], ValidationSummary | None]:
     session = _orchestrator.get_session(session_id)
     records = _orchestrator.get_opportunity_time_series(
         session_id=session_id, symbol=symbol
     )
-    return [
+    history = [
         _attach_execution_readiness(
             record.to_summary(),
             session.opportunity_state.get(record.opportunity.opportunity_id),
@@ -173,6 +193,11 @@ def get_session_history(
         )
         for record in records
     ]
+
+    if include_validation_summary:
+        return history, getattr(session, "validation_summary", None)
+
+    return history
 
 
 def get_top_recommendations(
@@ -253,12 +278,16 @@ def get_opportunity_detail(
 
 
 def get_history_window(
-    session_id: UUID, symbol: str | None = None, limit: int = 200
-) -> List[Dict[str, Any]]:
+    session_id: UUID,
+    symbol: str | None = None,
+    limit: int = 200,
+    *,
+    include_validation_summary: bool = False,
+) -> List[Dict[str, Any]] | tuple[List[Dict[str, Any]], ValidationSummary | None]:
     state = _orchestrator.get_session(session_id)
     history = state.opportunities_history
     filtered = [h for h in history if symbol is None or h.opportunity.symbol == symbol]
-    return [
+    window = [
         _attach_execution_readiness(
             h.to_summary(),
             state.opportunity_state.get(h.opportunity.opportunity_id),
@@ -267,6 +296,11 @@ def get_history_window(
         )
         for h in filtered[-limit:]
     ]
+
+    if include_validation_summary:
+        return window, getattr(state, "validation_summary", None)
+
+    return window
 
 
 def list_sessions() -> List[Dict[str, Any]]:
