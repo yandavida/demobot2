@@ -56,6 +56,65 @@ def get_session_history(session_id: UUID, symbol: str | None = None) -> List[Dic
     return [record.to_summary() for record in records]
 
 
+def get_top_recommendations(session_id: UUID, limit: int = 10, symbol: str | None = None) -> List[Dict[str, Any]]:
+    recs = _orchestrator.get_recommendations(session_id=session_id, limit=limit, symbol=symbol)
+    result: list[Dict[str, Any]] = []
+    for rec in recs:
+        result.append(
+            {
+                "opportunity_id": rec.opportunity_id,
+                "rank": rec.rank,
+                "quality_score": rec.quality_score,
+                "reasons": [
+                    {"code": r.code, "detail": r.detail}
+                    for r in rec.reasons
+                ],
+                "signals": rec.signals,
+                "economics": rec.economics,
+            }
+        )
+    return result
+
+
+def get_opportunity_detail(session_id: UUID, opportunity_id: str) -> Dict[str, Any] | None:
+    state = _orchestrator.get_session(session_id)
+    history = [r for r in state.opportunities_history if r.opportunity.opportunity_id == opportunity_id]
+    if not history:
+        return None
+    latest = history[-1]
+    opp_state = state.opportunity_state.get(opportunity_id)
+    signals = None
+    reasons = None
+    if opp_state:
+        recs = _orchestrator.get_recommendations(
+            session_id=session_id,
+            limit=len(state.opportunities_history),
+            symbol=None,
+        )
+        signals_map: dict[str, float] | None = None
+        for rec in recs:
+            if rec.opportunity_id == opportunity_id:
+                signals_map = rec.signals
+                reasons = rec.reasons
+                break
+        signals = signals_map or {}
+    return {
+        "opportunity": latest.to_summary(),
+        "state": opp_state.state if opp_state else None,
+        "signals": signals or {},
+        "reasons": [
+            {"code": r.code, "detail": r.detail} for r in reasons or []
+        ],
+    }
+
+
+def get_history_window(session_id: UUID, symbol: str | None = None, limit: int = 200) -> List[Dict[str, Any]]:
+    state = _orchestrator.get_session(session_id)
+    history = state.opportunities_history
+    filtered = [h for h in history if symbol is None or h.opportunity.symbol == symbol]
+    return [h.to_summary() for h in filtered[-limit:]]
+
+
 def list_sessions() -> List[Dict[str, Any]]:
     return [
         {

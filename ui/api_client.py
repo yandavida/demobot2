@@ -582,3 +582,24 @@ def get_arbitrage_history(session_id: str, symbol: str | None = None) -> List[Di
         path="/v1/arbitrage/history",
         json=payload,
     )
+
+
+def get_arbitrage_top(session_id: str, limit: int = 10, symbol: str | None = None) -> List[Dict[str, Any]]:
+    return _request_json(
+        method="GET",
+        path=f"/v1/arbitrage/top?session_id={session_id}&limit={limit}" + (f"&symbol={symbol}" if symbol else ""),
+    )
+
+
+def get_arbitrage_opportunity_detail(session_id: str, opportunity_id: str) -> Dict[str, Any]:
+    path = f"/v1/arbitrage/opportunities/{opportunity_id}?session_id={session_id}"
+    return _request_json(method="GET", path=path)
+
+
+def get_arbitrage_history_window(
+    session_id: str, limit: int = 200, symbol: str | None = None
+) -> List[Dict[str, Any]]:
+    path = f"/v1/arbitrage/history-window?session_id={session_id}&limit={limit}"
+    if symbol:
+        path += f"&symbol={symbol}"
+    return _request_json(method="GET", path=path)
