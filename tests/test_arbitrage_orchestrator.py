@@ -60,8 +60,8 @@ def test_services_round_trip_history() -> None:
         session_id=session_id, quotes_payload=quotes_payload, fx_rate_usd_ils=3.6
     )
 
-    assert len(scan_result) == 1
-    opp = scan_result[0]
+    assert len(scan_result["opportunities"]) == 1
+    opp = scan_result["opportunities"][0]
     assert opp["symbol"] == "ES"
     assert opp["currency"] == "ILS"
 
@@ -82,9 +82,9 @@ def test_execution_decision_propagates_across_endpoints() -> None:
     scan_result = ingest_quotes_and_scan(
         session_id=session_id, quotes_payload=quotes_payload, fx_rate_usd_ils=3.6
     )
-    assert scan_result
+    assert scan_result["opportunities"]
 
-    first = scan_result[0]
+    first = scan_result["opportunities"][0]
     assert first.get("execution_decision") is not None
     assert first["execution_decision"].get("reason_codes")
     assert "recommended_qty" in first["execution_decision"]
@@ -97,3 +97,26 @@ def test_execution_decision_propagates_across_endpoints() -> None:
     assert detail["execution_decision"]["reason"] == first["execution_decision"]["reason"]
     readiness = detail["execution_readiness"]
     assert readiness["decision"]["can_execute"] == detail["execution_decision"]["can_execute"]
+
+
+def test_ingest_skips_invalid_quotes_and_reports_validation() -> None:
+    config = ArbitrageConfig(min_edge_bps=0.0, default_size=1.0)
+    session_id = create_arbitrage_session(base_currency="ILS", config=config)
+
+    quotes_payload = [
+        {"symbol": "ES", "venue": "EX_A", "ccy": "USD", "bid": 4998.0, "ask": 4999.0},
+        {"symbol": "ES", "venue": "EX_B", "ccy": "USD", "bid": 5002.0, "ask": 5002.5},
+        {"symbol": "ES", "venue": "BROKEN", "ccy": "USD", "bid": 5100.0, "ask": 5090.0},
+    ]
+
+    scan_result = ingest_quotes_and_scan(
+        session_id=session_id, quotes_payload=quotes_payload, fx_rate_usd_ils=3.6
+    )
+
+    assert len(scan_result) == 1
+    validation = scan_result[0].get("quote_validation")
+    assert validation is not None
+    assert validation["total"] == 3
+    assert validation["invalid"] == 1
+    assert validation["valid"] == 2
+    assert validation["errors"]
