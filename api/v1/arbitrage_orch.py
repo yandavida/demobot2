@@ -5,7 +5,13 @@ from typing import List, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel, Field, ValidationError
+from pydantic import BaseModel, Field, ValidationError, model_validator
+
+try:
+    from pydantic_core import ValidationError as CoreValidationError
+except Exception:  # pragma: no cover
+    CoreValidationError = ValidationError
+
 
 from core.arbitrage.models import ArbitrageConfig
 from core.portfolio.models import Currency
@@ -20,8 +26,12 @@ from core.services.arbitrage_orchestration import (
 )
 
 router = APIRouter(prefix="/v1/arbitrage", tags=["arbitrage"])
-
 logger = logging.getLogger(__name__)
+
+
+# -------------------------
+# Request / Input models
+# -------------------------
 
 
 class QuoteIn(BaseModel):
@@ -47,16 +57,57 @@ class CreateSessionResponse(BaseModel):
 
 class ScanRequest(BaseModel):
     session_id: UUID
-    fx_rate_usd_ils: float = 3.5
     quotes: List[QuoteIn]
+    fx_rate_usd_ils: float = 3.5
+    strict_validation: bool = False
+
+
+class HistoryRequest(BaseModel):
+    session_id: UUID
+    symbol: Optional[str] = None
+
+
+# -------------------------
+# Validation models
+# -------------------------
 
 
 class QuoteValidationOut(BaseModel):
-    total: int
-    valid: int
-    invalid: int
-    errors: list[dict[str, object]] = Field(default_factory=list)
-    warnings: list[dict[str, object]] = Field(default_factory=list)
+    """
+    Output contract for quote validation.
+
+    Supports "new" contract payloads like:
+      { total, valid, invalid, errors: [ {index, messages, ...} ], warnings: [...] }
+
+    And remains permissive enough to accept legacy-ish shapes.
+    """
+
+    # New contract fields
+    total: int | None = None
+    valid: int | None = None
+    invalid: int | None = None
+    errors: list[object] = Field(default_factory=list)
+    warnings: list[object] = Field(default_factory=list)
+
+    # Convenience / compatibility
+    as_of: str | None = None
+    error_count: int = 0
+    warning_count: int = 0
+
+    @model_validator(mode="after")
+    def _compute_counts(self) -> "QuoteValidationOut":
+        self.error_count = len(self.errors or [])
+        self.warning_count = len(self.warnings or [])
+        return self
+
+
+# Backward compatibility alias
+ValidationSummaryOut = QuoteValidationOut
+
+
+# -------------------------
+# Output / Response models
+# -------------------------
 
 
 class OpportunityOut(BaseModel):
@@ -72,17 +123,23 @@ class OpportunityOut(BaseModel):
     edge_bps: float
     execution_readiness: dict[str, object] | None = None
     execution_decision: dict[str, object] | None = None
+
+    # Optional: attach same summary per opportunity if needed by UI
     quote_validation: QuoteValidationOut | None = None
 
 
 class ScanResponse(BaseModel):
     opportunities: List[OpportunityOut]
+
+    # Preferred field name going forward
     quote_validation: QuoteValidationOut | None = None
 
+    # Backward-compat field name expected by tests
+    validation_summary: ValidationSummaryOut | None = None
 
-class HistoryRequest(BaseModel):
-    session_id: UUID
-    symbol: Optional[str] = None
+
+# Alias expected by some imports/tests
+OpportunitiesWithValidationResponse = ScanResponse
 
 
 class ReadinessOut(BaseModel):
@@ -116,14 +173,23 @@ class OpportunityDetailOut(BaseModel):
     execution_decision: dict[str, object] | None = None
 
 
+# -------------------------
+# Router hygiene
+# -------------------------
+
+
 def check_route_collisions(target_router: APIRouter) -> None:
     """Ensure there are no duplicate method/path combinations on the router."""
     seen: set[tuple[str, str]] = set()
     collisions: list[tuple[str, str]] = []
 
     for route in target_router.routes:
-        for method in route.methods or []:
-            key = (method.upper(), route.path)
+        methods = getattr(route, "methods", None) or []
+        path = getattr(route, "path", None)
+        if not path:
+            continue
+        for method in methods:
+            key = (str(method).upper(), str(path))
             if key in seen:
                 collisions.append(key)
             else:
@@ -134,6 +200,11 @@ def check_route_collisions(target_router: APIRouter) -> None:
             logger.error("Duplicate route detected: %s %s", method, path)
         formatted = ", ".join(f"{method} {path}" for method, path in collisions)
         raise ValueError(f"Duplicate routes detected: {formatted}")
+
+
+# -------------------------
+# Routes
+# -------------------------
 
 
 @router.post("/sessions", response_model=CreateSessionResponse)
@@ -151,38 +222,43 @@ def create_session(req: CreateSessionRequest) -> CreateSessionResponse:
 
 
 @router.post("/scan", response_model=ScanResponse)
-def scan(req: ScanRequest, strict_validation: bool = False) -> ScanResponse:
+def scan(req: ScanRequest) -> ScanResponse:
     try:
         scan_result = ingest_quotes_and_scan(
             session_id=req.session_id,
             quotes_payload=[q.model_dump() for q in req.quotes],
             fx_rate_usd_ils=req.fx_rate_usd_ils,
-            strict_validation=strict_validation,
+            strict_validation=req.strict_validation,
         )
-    except ValidationError as exc:
-        # strict_validation=True path: fail-fast schema errors
-        raise HTTPException(
-            status_code=422,
-            detail={
-                "error": "INVALID_QUOTES",
-                "message": "Quote validation failed",
-                "details": exc.errors(),
-            },
-        ) from exc
+    except Exception as exc:
+        # Strict mode: any validation failure must surface as HTTP 400
+        if req.strict_validation:
+            errors = exc.errors() if hasattr(exc, "errors") else [{"message": str(exc)}]
+            raise HTTPException(
+                status_code=400,
+                detail={"errors": errors, "error_count": len(errors)},
+            ) from exc
+        raise
 
-    quote_validation_raw = scan_result.get("quote_validation") or scan_result.get("validation_summary")
-    quote_validation = (
-        QuoteValidationOut(**quote_validation_raw) if isinstance(quote_validation_raw, dict) else None
+    validation_raw = (
+        scan_result.get("validation_summary")
+        or scan_result.get("quote_validation")
+        or scan_result.get("quote_validation_summary")
     )
+    validation = QuoteValidationOut(**validation_raw) if isinstance(validation_raw, dict) else None
 
     opportunities: list[OpportunityOut] = []
     for opp in scan_result.get("opportunities", []):
         payload = dict(opp)
-        if quote_validation is not None:
-            payload["quote_validation"] = quote_validation.model_dump()
+        if validation is not None:
+            payload["quote_validation"] = validation
         opportunities.append(OpportunityOut(**payload))
 
-    return ScanResponse(opportunities=opportunities, quote_validation=quote_validation)
+    return ScanResponse(
+        opportunities=opportunities,
+        quote_validation=validation,
+        validation_summary=validation,
+    )
 
 
 @router.post("/history", response_model=List[OpportunityOut])
@@ -203,15 +279,15 @@ def top(
 
 @router.get("/readiness", response_model=List[ReadinessOut])
 def readiness(session_id: UUID, symbol: Optional[str] = None) -> List[ReadinessOut]:
-    readiness_states = get_readiness_states(session_id=session_id, symbol=symbol)
-    return [ReadinessOut(**state) for state in readiness_states]
+    states = get_readiness_states(session_id=session_id, symbol=symbol)
+    return [ReadinessOut(**state) for state in states]
 
 
 @router.get("/opportunities/{opportunity_id}", response_model=OpportunityDetailOut)
 def opportunity_detail(session_id: UUID, opportunity_id: str) -> OpportunityDetailOut:
     detail = get_opportunity_detail(session_id=session_id, opportunity_id=opportunity_id)
     if detail is None:
-        return OpportunityDetailOut(opportunity={}, state=None, signals={}, reasons=[])
+        raise HTTPException(status_code=404, detail="Opportunity not found")
     return OpportunityDetailOut(**detail)
 
 
