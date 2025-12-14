@@ -5,7 +5,13 @@ from typing import List, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, ValidationError, model_validator
+
+try:
+    from pydantic_core import ValidationError as CoreValidationError
+except Exception:  # pragma: no cover
+    CoreValidationError = ValidationError
+
 
 from core.arbitrage.models import ArbitrageConfig
 from core.portfolio.models import Currency
@@ -68,12 +74,12 @@ class HistoryRequest(BaseModel):
 
 class QuoteValidationOut(BaseModel):
     """
-    Contract output for quote validation.
+    Output contract for quote validation.
 
-    Supports the "new" contract:
+    Supports "new" contract payloads like:
       { total, valid, invalid, errors: [ {index, messages, ...} ], warnings: [...] }
 
-    Also supports legacy-style payloads by being permissive on fields/types.
+    And remains permissive enough to accept legacy-ish shapes.
     """
 
     # New contract fields
@@ -83,20 +89,19 @@ class QuoteValidationOut(BaseModel):
     errors: list[object] = Field(default_factory=list)
     warnings: list[object] = Field(default_factory=list)
 
-    # Backward-compat fields (some older code/tests expected these)
+    # Convenience / compatibility
     as_of: str | None = None
     error_count: int = 0
     warning_count: int = 0
 
     @model_validator(mode="after")
     def _compute_counts(self) -> "QuoteValidationOut":
-        # If counts exist (new contract), keep them; also compute error_count/warning_count
         self.error_count = len(self.errors or [])
         self.warning_count = len(self.warnings or [])
         return self
 
 
-# Backward compatibility alias (older tests may import this name)
+# Backward compatibility alias
 ValidationSummaryOut = QuoteValidationOut
 
 
@@ -119,7 +124,7 @@ class OpportunityOut(BaseModel):
     execution_readiness: dict[str, object] | None = None
     execution_decision: dict[str, object] | None = None
 
-    # Optional attach validation on each opportunity (useful for UI)
+    # Optional: attach same summary per opportunity if needed by UI
     quote_validation: QuoteValidationOut | None = None
 
 
@@ -129,11 +134,11 @@ class ScanResponse(BaseModel):
     # Preferred field name going forward
     quote_validation: QuoteValidationOut | None = None
 
-    # Backward-compat field name (some tests used validation_summary)
-    validation_summary: QuoteValidationOut | None = None
+    # Backward-compat field name expected by tests
+    validation_summary: ValidationSummaryOut | None = None
 
 
-# Alias expected by some tests/imports
+# Alias expected by some imports/tests
 OpportunitiesWithValidationResponse = ScanResponse
 
 
@@ -218,32 +223,41 @@ def create_session(req: CreateSessionRequest) -> CreateSessionResponse:
 
 @router.post("/scan", response_model=ScanResponse)
 def scan(req: ScanRequest) -> ScanResponse:
-    scan_result = ingest_quotes_and_scan(
-        session_id=req.session_id,
-        quotes_payload=[q.model_dump() for q in req.quotes],
-        fx_rate_usd_ils=req.fx_rate_usd_ils,
-        strict_validation=req.strict_validation,
-    )
+    try:
+        scan_result = ingest_quotes_and_scan(
+            session_id=req.session_id,
+            quotes_payload=[q.model_dump() for q in req.quotes],
+            fx_rate_usd_ils=req.fx_rate_usd_ils,
+            strict_validation=req.strict_validation,
+        )
+    except Exception as exc:
+        # Strict mode: any validation failure must surface as HTTP 400
+        if req.strict_validation:
+            errors = exc.errors() if hasattr(exc, "errors") else [{"message": str(exc)}]
+            raise HTTPException(
+                status_code=400,
+                detail={"errors": errors, "error_count": len(errors)},
+            ) from exc
+        raise
 
-    # We accept either key name to be defensive across refactors
-    validation_raw = scan_result.get("quote_validation") or scan_result.get("validation_summary")
-
-    quote_validation = (
-        QuoteValidationOut(**validation_raw) if isinstance(validation_raw, dict) else None
+    validation_raw = (
+        scan_result.get("validation_summary")
+        or scan_result.get("quote_validation")
+        or scan_result.get("quote_validation_summary")
     )
+    validation = QuoteValidationOut(**validation_raw) if isinstance(validation_raw, dict) else None
 
     opportunities: list[OpportunityOut] = []
     for opp in scan_result.get("opportunities", []):
         payload = dict(opp)
-        # Attach validation to each opportunity (optional)
-        if quote_validation is not None:
-            payload["quote_validation"] = quote_validation
+        if validation is not None:
+            payload["quote_validation"] = validation
         opportunities.append(OpportunityOut(**payload))
 
     return ScanResponse(
         opportunities=opportunities,
-        quote_validation=quote_validation,
-        validation_summary=quote_validation,  # backward compat
+        quote_validation=validation,
+        validation_summary=validation,
     )
 
 
