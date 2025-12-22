@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Mapping, Sequence, Dict, Any
+from typing import Mapping, Sequence, Dict, Any, cast
 
 from core.market_data.types import FxRateQuote
 from core.portfolio.models import Currency
@@ -58,7 +58,8 @@ class FxConverter:
             if not isinstance(prov_rates, Mapping):
                 raise TypeError("legacy provider must expose a mapping of pair->rate via `.rates` or `.to_mapping()`")
 
-            for k, v in prov_rates.items():
+            prov_rates_map = cast(Mapping[str, float], prov_rates)
+            for k, v in prov_rates_map.items():
                 rate = float(v)
                 if not (rate > 0):
                     raise InvalidFxRateError(f"fx rate for {k} must be > 0")
@@ -66,7 +67,7 @@ class FxConverter:
 
         # store simple mapping pair->float
         self._rates: Dict[str, float] = dict(rates)
-        self._base_ccy: Currency | None = base_ccy
+        self._base_ccy = base_ccy
 
     def convert(self, amount: float, from_ccy: Currency, to_ccy: Currency, *, strict: bool = True) -> float:
         if from_ccy == to_ccy:
@@ -107,8 +108,12 @@ class FxConverter:
             amt = money.amount
             frm = money.ccy
         else:
-            amt = float(amount)
-            frm = from_ccy
+            if from_ccy is None:
+                raise TypeError("from_ccy must be provided when passing numeric amount to to_base()")
+            from typing import cast
+
+            amt = float(cast(float, amount))
+            frm = cast(Currency, from_ccy)
 
         converted = self.convert(amt, frm, self.base_ccy, strict=strict)
         return Money(amount=converted, ccy=self.base_ccy)

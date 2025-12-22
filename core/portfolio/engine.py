@@ -28,12 +28,15 @@ class PortfolioEngine:
         market = self.market_data.get_snapshot(symbols=symbols)
         total_value = 0.0
 
+        base_ccy = portfolio.normalized_base_currency()
+
         for position in portfolio.positions:
             price = self.pricing_router.price(position, market, fx_converter=self.fx)
-            price_base = self.fx.to_base(price)
-            total_value += price_base.amount
+            # `price` is a Money; convert to portfolio base currency using new FxConverter API
+            converted = self.fx.convert(price.amount, price.ccy, base_ccy, strict=True)
+            total_value += float(converted)
 
-        return Money(amount=total_value, ccy=self.fx.base_ccy)
+        return Money(amount=total_value, ccy=base_ccy)
 
     def build_pl_surface(self, portfolio: Portfolio) -> dict:
         # TODO: implement P&L surface construction leveraging scenario pricing

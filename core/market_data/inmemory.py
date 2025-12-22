@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Mapping, Sequence, Dict
+from typing import Mapping, Sequence, Dict, cast
+from collections.abc import Mapping as AbcMapping, Sequence as AbcSequence
 
 from core.market_data.types import PriceQuote, FxRateQuote, MarketSnapshot
 from core.market_data.errors import MissingQuoteError, MissingFxRateError
@@ -21,28 +22,30 @@ class InMemoryMarketDataProvider:
     ) -> None:
         # Normalize prices
         prices_dict: Dict[str, PriceQuote] = {}
-        if isinstance(prices, Mapping):
-            for k, v in prices.items():
-                if not (v.price > 0):
+        if isinstance(prices, AbcMapping):
+            prices_map = cast(Mapping[str, PriceQuote], prices)
+            for pk, pq in prices_map.items():
+                if not (pq.price > 0):
                     raise ValueError("price must be > 0")
-                prices_dict[str(k)] = v
+                prices_dict[str(pk)] = pq
         else:
-            for v in prices:
-                if not (v.price > 0):
+            for pq in cast(AbcSequence[PriceQuote], prices):
+                if not (pq.price > 0):
                     raise ValueError("price must be > 0")
-                prices_dict[str(v.asset)] = v
+                prices_dict[str(pq.asset)] = pq
 
         fx_dict: Dict[str, FxRateQuote] = {}
-        if isinstance(fx_rates, Mapping):
-            for k, v in fx_rates.items():
-                if not (v.rate > 0):
+        if isinstance(fx_rates, AbcMapping):
+            fx_map = cast(Mapping[str, FxRateQuote], fx_rates)
+            for fk, fq in fx_map.items():
+                if not (fq.rate > 0):
                     raise ValueError("fx rate must be > 0")
-                fx_dict[str(k)] = v
+                fx_dict[str(fk)] = fq
         else:
-            for v in fx_rates:
-                if not (v.rate > 0):
+            for fq in cast(AbcSequence[FxRateQuote], fx_rates):
+                if not (fq.rate > 0):
                     raise ValueError("fx rate must be > 0")
-                fx_dict[str(v.pair)] = v
+                fx_dict[str(fq.pair)] = fq
 
         object.__setattr__(self, "_prices", prices_dict)
         object.__setattr__(self, "_fx", fx_dict)
