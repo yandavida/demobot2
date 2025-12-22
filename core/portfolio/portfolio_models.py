@@ -118,8 +118,27 @@ def build_portfolio_snapshot(state: PortfolioState) -> PortfolioSnapshot:
     position_count = len(state.positions)
     gross_quantity = sum(float(p.quantity) for p in state.positions)
     totals = PortfolioTotals(position_count=position_count, gross_quantity=gross_quantity)
-    exposure = tuple()
-    return PortfolioSnapshot(state=state, totals=totals, exposure_by_currency=exposure, fees_total=0.0, slippage_total=0.0)
+    # Defer to aggregators for deterministic, market-data-agnostic aggregates
+    try:
+        from core.portfolio.aggregators import aggregate_portfolio
+
+        ag = aggregate_portfolio(state)
+        return PortfolioSnapshot(
+            state=state,
+            totals=totals,
+            exposure_by_currency=tuple((k, v) for k, v in ag.exposure_by_currency),
+            fees_total=ag.total_fees,
+            slippage_total=ag.total_slippage,
+        )
+    except Exception:
+        # Aggregation is best-effort; fall back to minimal snapshot if anything goes wrong
+        return PortfolioSnapshot(
+            state=state,
+            totals=totals,
+            exposure_by_currency=tuple(),
+            fees_total=0.0,
+            slippage_total=0.0,
+        )
 
 
 __all__ = [
