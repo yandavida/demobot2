@@ -18,10 +18,7 @@ class SimpleSpotPricingEngine(PricingEngine):
         if sym is None:
             raise PricingError("execution has no symbol")
 
-        qty = getattr(execution, "size", None)
-        if qty is None:
-            raise PricingError("execution has no size/quantity")
-
+        # Pricing returns PV per ONE unit. Position layer will multiply by quantity.
         # find price in snapshot
         price: float | None = None
         currency = None
@@ -34,9 +31,9 @@ class SimpleSpotPricingEngine(PricingEngine):
         if price is None or currency is None:
             raise PricingError(f"missing market price for {sym}")
 
-        pv = float(price) * float(qty)
-        breakdown = {"price": float(price), "quantity": float(qty)}
-        return PriceResult(pv=pv, currency=currency, breakdown=breakdown)
+        pv_per_unit = float(price)
+        breakdown = {"price": float(price)}
+        return PriceResult(pv=pv_per_unit, currency=currency, breakdown=breakdown)
 
 
 __all__ = ["SimpleSpotPricingEngine"]
