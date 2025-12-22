@@ -5,6 +5,7 @@ from typing import Mapping
 
 from core.pricing.types import PriceResult, PricingError
 from core.pricing.option_types import EuropeanOption
+from core.vol.provider import VolProvider
 
 
 SQRT2 = math.sqrt(2.0)
@@ -120,10 +121,21 @@ class BlackScholesPricingEngine:
             if spot is None:
                 raise PricingError(f"missing spot for {opt.underlying}")
 
-            vol = getattr(opt, "vol", None)
-            # allow vol provided on option or passed separately via context.market (not available yet)
+            # Prefer vol from context.vol_provider when available
+            vol = None
+            if getattr(context, "vol_provider", None) is not None:
+                vp: VolProvider = context.vol_provider
+                vol = vp.get_vol(
+                    underlying=opt.underlying,
+                    expiry_t=float(opt.expiry_t),
+                    strike=float(opt.strike),
+                    option_type=opt.option_type,
+                    strict=True,
+                )
+            else:
+                vol = getattr(opt, "vol", None)
             if vol is None:
-                raise PricingError("option missing vol parameter")
+                raise PricingError("Missing vol input")
 
             price = bs_price(opt.option_type, spot, opt.strike, 0.0, 0.0, float(vol), float(opt.expiry_t))
             greeks = bs_greeks(opt.option_type, spot, opt.strike, 0.0, 0.0, float(vol), float(opt.expiry_t))
@@ -139,9 +151,24 @@ class BlackScholesPricingEngine:
             strike = float(getattr(execution, "strike"))
             opttype = getattr(execution, "option_type")
             expiry_t = float(getattr(execution, "expiry_t"))
-            vol = float(getattr(execution, "vol"))
         except Exception:
             raise PricingError("unsupported execution type for BlackScholesPricingEngine")
+
+        # resolve vol: prefer provider if available, else take execution.vol
+        vol = None
+        if getattr(context, "vol_provider", None) is not None:
+            vp: VolProvider = context.vol_provider
+            vol = vp.get_vol(
+                underlying=underlying,
+                expiry_t=expiry_t,
+                strike=strike,
+                option_type=opttype,
+                strict=True,
+            )
+        else:
+            vol = getattr(execution, "vol", None)
+        if vol is None:
+            raise PricingError("Missing vol input")
 
         spot = None
         for q in context.market.quotes:
@@ -151,8 +178,8 @@ class BlackScholesPricingEngine:
         if spot is None:
             raise PricingError(f"missing spot for {underlying}")
 
-        price = bs_price(opttype, spot, strike, 0.0, 0.0, vol, expiry_t)
-        greeks = bs_greeks(opttype, spot, strike, 0.0, 0.0, vol, expiry_t)
+        price = bs_price(opttype, spot, strike, 0.0, 0.0, float(vol), expiry_t)
+        greeks = bs_greeks(opttype, spot, strike, 0.0, 0.0, float(vol), expiry_t)
         return PriceResult(pv=float(price), currency=getattr(execution, "currency", "USD"), breakdown={k: float(v) for k, v in greeks.items()})
 
 
