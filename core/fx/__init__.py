@@ -1,4 +1,6 @@
-from core.fx.converter import FxConverter
-from core.fx.provider import FxRateProvider
+from __future__ import annotations
 
-__all__ = ["FxConverter", "FxRateProvider"]
+from core.fx.converter import FxConverter
+from core.fx.errors import FxError, MissingFxRateError, InvalidFxRateError
+
+__all__ = ["FxConverter", "FxError", "MissingFxRateError", "InvalidFxRateError"]

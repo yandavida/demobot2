@@ -55,11 +55,17 @@ def valuate_positions(
         # Multiply per-unit PV by position.quantity
         pv = float(pr.pv) * float(p.quantity)
 
-        # Ensure currency matches context.base_currency
+        # Convert to base currency if needed
+        pv_converted = float(pv)
         if pr.currency != context.base_currency:
-            raise PricingError(f"currency mismatch for position {p.key}: {pr.currency} != {context.base_currency}")
+            conv = getattr(context, "fx_converter", None)
+            if conv is None:
+                raise PricingError(
+                    f"missing FxConverter in context for currency conversion {pr.currency} -> {context.base_currency}"
+                )
+            pv_converted = float(conv.convert(pv_converted, pr.currency, context.base_currency, strict=True))
 
-        vals.append(PositionValuation(key=p.key, pv=pv, currency=pr.currency))
+        vals.append(PositionValuation(key=p.key, pv=pv_converted, currency=context.base_currency))
 
     # Ensure deterministic ordering by key
     vals.sort(key=lambda v: _key_sort_value(v.key))
