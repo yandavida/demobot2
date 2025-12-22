@@ -14,6 +14,7 @@ from core.backtest.timeline import BacktestTimeline
 from core.portfolio.aggregators import validate_portfolio_economics_present
 from core.portfolio.constraints import ConstraintSpec, evaluate_constraints, PortfolioConstraintError, ConstraintReport
 from core.portfolio.portfolio_models import _key_sort_value
+from core.risk.portfolio import valuate_and_risk_positions, aggregate_portfolio_risk, PortfolioRiskSnapshot
 
 
 @dataclass(frozen=True)
@@ -150,6 +151,26 @@ def run_portfolio_backtest(
 
     final = steps[-1] if steps else None
     return PortfolioBacktestResult(steps=tuple(steps), final=final)
+
+
+def run_portfolio_risk_backtest(
+    candidate: PortfolioCandidate,
+    timeline: BacktestTimeline,
+    pricing_engine: PricingEngine,
+    constraint_specs: Sequence[ConstraintSpec],
+    *,
+    base_currency: str = "USD",
+    strict_constraints: bool = False,
+) -> Tuple[PortfolioRiskSnapshot, ...]:
+    state = build_portfolio_state_from_candidate(candidate, base_currency=base_currency)
+    snapshots: list[PortfolioRiskSnapshot] = []
+
+    for tp in timeline.points:
+        positions = valuate_and_risk_positions(state, pricing_engine, tp.snapshot, base_currency=base_currency)
+        snap = aggregate_portfolio_risk(positions, base_currency=base_currency)
+        snapshots.append(snap)
+
+    return tuple(snapshots)
 
 
 __all__ = [
