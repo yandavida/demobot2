@@ -1,15 +1,20 @@
 from __future__ import annotations
 
+from .models import CanonicalKey, EconomicsBreakdown, ExecutionOption, Provenance
 from .ranking import (
-    RankingConfig,
     ParetoDim,
-    pareto_frontier,
+    RankingConfig,
     dominates,
-    rank_execution_options,
     explain_ranking,
+    pareto_frontier,
+    rank_execution_options,
 )
 
 __all__ = [
+    "CanonicalKey",
+    "EconomicsBreakdown",
+    "ExecutionOption",
+    "Provenance",
     "RankingConfig",
     "ParetoDim",
     "pareto_frontier",
