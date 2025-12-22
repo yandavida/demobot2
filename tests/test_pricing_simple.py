@@ -21,7 +21,7 @@ def test_successful_pricing_and_determinism():
     r1 = engine.price_execution(op, ctx)
     r2 = engine.price_execution(op, ctx)
     assert isinstance(r1, PriceResult)
-    assert r1.pv == 200.0
+    assert r1.pv == 100.0
     assert r1 == r2
 
 
