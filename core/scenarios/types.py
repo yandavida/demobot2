@@ -25,6 +25,7 @@ class Shock:
 class Scenario:
     name: str
     shocks_by_symbol: Tuple[Tuple[str, Shock], ...] = tuple()
+    fx_shocks_by_pair: Tuple[Tuple[str, float], ...] = tuple()
 
     def __post_init__(self) -> None:
         if not self.name:
@@ -32,6 +33,24 @@ class Scenario:
         # ensure deterministic ordering of shocks
         sorted_pairs = tuple(sorted(self.shocks_by_symbol, key=lambda kv: str(kv[0])))
         object.__setattr__(self, "shocks_by_symbol", sorted_pairs)
+        # validate and normalize fx shocks
+        def _validate_pair(pair: str) -> str:
+            if "/" not in pair:
+                raise ValueError("fx shock pair must be in format 'AAA/BBB'")
+            a, b = pair.split("/", 1)
+            if not a.isalpha() or not b.isalpha() or not a or not b:
+                raise ValueError("fx shock pair must be alphabetic codes like 'USD/ILS'")
+            return f"{a.upper()}/{b.upper()}"
+
+        fx_pairs = []
+        for pr, mult in self.fx_shocks_by_pair:
+            if not (isinstance(mult, (int, float)) and mult > 0.0):
+                raise ValueError("fx shock multiplier must be > 0")
+            np = _validate_pair(pr)
+            fx_pairs.append((np, float(mult)))
+
+        sorted_fx = tuple(sorted(fx_pairs, key=lambda kv: kv[0]))
+        object.__setattr__(self, "fx_shocks_by_pair", sorted_fx)
 
 
 @dataclass(frozen=True)
