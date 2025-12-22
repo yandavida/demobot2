@@ -2,16 +2,16 @@ from __future__ import annotations
 
 from typing import Mapping
 
-from core.market_data.types import MarketSnapshot, PriceQuote
+from core.market_data.types import MarketSnapshot, PriceQuote, FxRateQuote
 from core.pricing.context import PricingContext
 from core.scenarios.types import Scenario, Shock
+from core.fx.errors import MissingFxRateError
 from core.vol.provider import VolProvider
 
 
 def apply_shock_to_snapshot(snapshot: MarketSnapshot, scenario: Scenario) -> MarketSnapshot:
     # Build mapping of shocks
     shocks: Mapping[str, Shock] = {k: v for k, v in scenario.shocks_by_symbol}
-
     new_quotes = []
     for q in snapshot.quotes:
         sh = shocks.get(q.asset)
@@ -21,7 +21,44 @@ def apply_shock_to_snapshot(snapshot: MarketSnapshot, scenario: Scenario) -> Mar
             new_price = float(q.price) * (1.0 + float(sh.spot_pct))
             new_quotes.append(PriceQuote(asset=q.asset, price=new_price, currency=q.currency))
 
-    return MarketSnapshot(quotes=tuple(new_quotes), fx_rates=tuple(snapshot.fx_rates), as_of=snapshot.as_of)
+    # apply FX shocks
+    fx_shocks: Mapping[str, float] = {p: m for p, m in scenario.fx_shocks_by_pair}
+    new_fx: list[FxRateQuote] = []
+
+    # Build lookup for existing pairs for quick access
+    existing = {f.pair: float(f.rate) for f in snapshot.fx_rates}
+
+    # apply multiplicative updates where possible; if a pair is missing but inverse present,
+    # adjust inverse accordingly. If neither present and strict behavior is expected, raise.
+    for f in snapshot.fx_rates:
+        pair = f.pair
+        rate = float(f.rate)
+        if pair in fx_shocks:
+            mult = float(fx_shocks[pair])
+            new_rate = rate * mult
+        else:
+            # check inverse
+            a, b = pair.split("/", 1)
+            inv = f"{b}/{a}"
+            if inv in fx_shocks:
+                mult = float(fx_shocks[inv])
+                # if inverse shocked by mult, the current pair rate is divided by mult
+                new_rate = rate / mult
+            else:
+                new_rate = rate
+
+        if new_rate <= 0.0:
+            raise ValueError(f"invalid shocked fx rate for {pair}: {new_rate}")
+        new_fx.append(FxRateQuote(pair=pair, rate=float(new_rate)))
+
+    # If scenario provided shocks for pairs not present in snapshot, enforce strict behavior
+    missing_pairs = [p for p, _ in scenario.fx_shocks_by_pair if p not in existing and (p.split('/',1)[1] + '/' + p.split('/',1)[0]) not in existing]
+    if missing_pairs:
+        # reuse existing fx error type
+        raise MissingFxRateError(f"FX rate(s) for {missing_pairs} not found in snapshot")
+
+    # deterministic ordering enforced by MarketSnapshot
+    return MarketSnapshot(quotes=tuple(new_quotes), fx_rates=tuple(new_fx), as_of=snapshot.as_of)
 
 
 class ShockedVolProvider(VolProvider):
