@@ -4,5 +4,13 @@ from core.pricing.context import PricingContext
 from core.pricing.types import PriceResult, PricingError
 from core.pricing.engine import PricingEngine
 from core.pricing.simple import SimpleSpotPricingEngine
+from core.pricing.bs import BlackScholesPricingEngine
 
-__all__ = ["PricingContext", "PriceResult", "PricingEngine", "PricingError", "SimpleSpotPricingEngine"]
+__all__ = [
+	"PricingContext",
+	"PriceResult",
+	"PricingEngine",
+	"PricingError",
+	"SimpleSpotPricingEngine",
+	"BlackScholesPricingEngine",
+]
