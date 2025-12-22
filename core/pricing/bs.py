@@ -6,6 +6,7 @@ from typing import Mapping
 from core.pricing.types import PriceResult, PricingError
 from core.pricing.option_types import EuropeanOption
 from core.vol.provider import VolProvider
+from core.pricing.context import PricingContext
 
 
 SQRT2 = math.sqrt(2.0)
@@ -108,7 +109,7 @@ class BlackScholesPricingEngine:
     Returns `PriceResult` with pv per unit and breakdown containing greeks.
     """
 
-    def price_execution(self, execution: object, context: object) -> PriceResult:
+    def price_execution(self, execution: object, context: PricingContext) -> PriceResult:
         # Accept EuropeanOption directly
         if isinstance(execution, EuropeanOption):
             opt = execution
@@ -123,9 +124,10 @@ class BlackScholesPricingEngine:
 
             # Prefer vol from context.vol_provider when available
             vol = None
-            if getattr(context, "vol_provider", None) is not None:
-                vp: VolProvider = context.vol_provider
-                vol = vp.get_vol(
+            vp_ctx = getattr(context, "vol_provider", None)
+            if vp_ctx is not None:
+                vp1: VolProvider = vp_ctx
+                vol = vp1.get_vol(
                     underlying=opt.underlying,
                     expiry_t=float(opt.expiry_t),
                     strike=float(opt.strike),
@@ -156,9 +158,10 @@ class BlackScholesPricingEngine:
 
         # resolve vol: prefer provider if available, else take execution.vol
         vol = None
-        if getattr(context, "vol_provider", None) is not None:
-            vp: VolProvider = context.vol_provider
-            vol = vp.get_vol(
+        vp_ctx2 = getattr(context, "vol_provider", None)
+        if vp_ctx2 is not None:
+            vp2: VolProvider = vp_ctx2
+            vol = vp2.get_vol(
                 underlying=underlying,
                 expiry_t=expiry_t,
                 strike=strike,

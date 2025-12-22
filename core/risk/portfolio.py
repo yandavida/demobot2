@@ -8,6 +8,7 @@ from core.pricing.types import PriceResult, PricingError
 from core.pricing.engine import PricingEngine
 from core.market_data.types import MarketSnapshot
 from core.fx.converter import FxConverter
+from core.pricing.context import PricingContext
 
 
 @dataclass(frozen=True)
@@ -74,20 +75,34 @@ def normalize_money(amount: float, from_ccy: str, to_ccy: str, snapshot: MarketS
 
 
 def valuate_and_risk_positions(
-    state: PortfolioState, pricing_engine: PricingEngine, snapshot: MarketSnapshot, *, base_currency: str = "USD"
+    state: PortfolioState,
+    pricing_engine: PricingEngine,
+    snapshot: MarketSnapshot,
+    *,
+    base_currency: str = "USD",
+    context: "PricingContext" | None = None,
 ) -> Tuple[PositionRisk, ...]:
+    """Valuate positions and compute Greeks for a given market snapshot.
+
+    If `context` is provided it will be used for pricing (this allows callers
+    to pass a pre-built `PricingContext` containing e.g. a shocked market and
+    a shocked `vol_provider`). Otherwise a context will be constructed from
+    the supplied snapshot.
+    """
     conv = _build_fx_conv(snapshot)
     positions: list[PositionRisk] = []
 
     for p in state.positions:
-        # build context with converter if available
+        # build context with converter if available unless caller supplied one
         from core.pricing.context import PricingContext
 
-        context = PricingContext(market=snapshot, base_currency=base_currency, fx_converter=conv)
+        ctx = context
+        if ctx is None:
+            ctx = PricingContext(market=snapshot, base_currency=base_currency, fx_converter=conv)
 
         pr: PriceResult
         try:
-            pr = pricing_engine.price_execution(p.execution, context)
+            pr = pricing_engine.price_execution(p.execution, ctx)
         except Exception:
             raise
 
