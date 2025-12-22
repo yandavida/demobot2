@@ -7,6 +7,7 @@ from core.portfolio.portfolio_models import PortfolioState, CanonicalKey
 from core.portfolio.wiring import PortfolioCandidate, build_portfolio_state_from_candidate
 from core.pricing.engine import PricingEngine
 from core.pricing.context import PricingContext
+from core.fx.converter import FxConverter
 from core.pricing.types import PriceResult, PricingError
 from core.market_data.types import MarketSnapshot
 from core.backtest.timeline import BacktestTimeline
@@ -82,7 +83,17 @@ def build_portfolio_valuation_step(
     base_currency: str = "USD",
     strict_constraints: bool = False,
 ) -> PortfolioValuationStep:
-    context = PricingContext(market=snapshot, base_currency=base_currency)
+    # Build FxConverter from snapshot if FX rates are present to allow conversion
+    fx_conv = None
+    try:
+        fx_rates = tuple(snapshot.fx_rates) if snapshot.fx_rates else tuple()
+    except Exception:
+        fx_rates = tuple()
+
+    if fx_rates:
+        fx_conv = FxConverter(fx_rates=fx_rates)
+
+    context = PricingContext(market=snapshot, base_currency=base_currency, fx_converter=fx_conv)
 
     valuations = valuate_positions(state, pricing_engine, context)
     total_pv = sum(v.pv for v in valuations)
