@@ -23,17 +23,21 @@ class RiskScenarioReport:
     best_case_by_pv: RiskScenarioResult
     max_loss: float
     max_gain: float
+    risk_context: RiskContext | None = None
 
 
 def _greeks_diff(a: Greeks, b: Greeks) -> Greeks:
     return Greeks(delta=a.delta - b.delta, gamma=a.gamma - b.gamma, vega=a.vega - b.vega, theta=a.theta - b.theta, rho=a.rho - b.rho)
 
 
+from core.risk.semantics import RiskContext, default_risk_context
+
 def build_risk_scenario_report(
     state: PortfolioState,
     base_ctx: PricingContext,
     pricing_engine: PricingEngine,
     scenarios: ScenarioSet,
+    risk_context: RiskContext | None = None,
 ) -> RiskScenarioReport:
     # Base valuation
     base_currency = base_ctx.base_currency
@@ -98,6 +102,7 @@ def build_risk_scenario_report(
     max_loss = float(base_total - worst.scenario_total_pv)
     max_gain = float(best.scenario_total_pv - base_total)
 
+    ctx = risk_context or default_risk_context()
     return RiskScenarioReport(
         base_snapshot=base_agg,
         results=results,
@@ -105,6 +110,7 @@ def build_risk_scenario_report(
         best_case_by_pv=best,
         max_loss=max_loss,
         max_gain=max_gain,
+        risk_context=ctx,
     )
 
 
