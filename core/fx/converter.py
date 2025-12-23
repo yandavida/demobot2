@@ -17,10 +17,20 @@ class FxConverter:
     ) -> None:
         """Compatibility constructor supporting new and legacy call-sites.
 
+        Preferred construction paths:
+          - `FxConverter(fx_rates=sequence_of_FxRateQuote)`
+          - `FxConverter(fx_rates=mapping_pair_to_rate_or_FxRateQuote)`
+
+        Legacy/compat constructor:
+          - `FxConverter(provider=legacy_provider, base_ccy=...)`
+            DEPRECATED: this path exists for backward compatibility with older
+            code that supplied a `provider` object exposing `.rates` or a
+            `to_mapping()` helper. New code should pass `fx_rates=` instead.
+
         Args:
             fx_rates: sequence of `FxRateQuote` or mapping pair->FxRateQuote or pair->float
-            provider: legacy provider object exposing `.rates` mapping or `.to_mapping()` method
-            base_ccy: legacy convenience base currency
+            provider: legacy provider object exposing `.rates` mapping or `.to_mapping()` method (DEPRECATED)
+            base_ccy: legacy convenience base currency (DEPRECATED)
         """
         rates: Dict[str, float] = {}
 

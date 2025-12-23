@@ -5,6 +5,7 @@ import math
 from core.pricing.bs import bs_price, bs_greeks, BlackScholesPricingEngine
 from core.pricing.option_types import EuropeanOption
 from core.market_data.types import MarketSnapshot, PriceQuote
+from core.pricing.context import PricingContext
 from core.pricing.types import PricingError
 
 
@@ -67,12 +68,8 @@ def test_engine_prices_european_option():
 
     snap = MarketSnapshot(quotes=(PriceQuote(asset="ABC", price=12.0, currency="USD"),), fx_rates=(), as_of="t")
     engine = BlackScholesPricingEngine()
-    # context-like object with market attribute
-    class Ctx:
-        def __init__(self, market):
-            self.market = market
-
-    ctx = Ctx(snap)
+    # Use real PricingContext (tests should use the contract)
+    ctx = PricingContext(market=snap, vol_provider=None, fx_converter=None, base_currency="USD")
     res = engine.price_execution(opt, ctx)
     assert res.pv > 0.0
 
@@ -80,11 +77,7 @@ def test_engine_prices_european_option():
 def test_engine_missing_spot_or_vol_raises():
     opt = EuropeanOption(underlying="NOPE", option_type="call", strike=10.0, expiry_t=0.5, currency="USD")
     engine = BlackScholesPricingEngine()
-    class Ctx:
-        def __init__(self, market):
-            self.market = market
-
-    ctx = Ctx(MarketSnapshot(quotes=(), fx_rates=(), as_of=None))
+    ctx = PricingContext(market=MarketSnapshot(quotes=(), fx_rates=(), as_of=None), vol_provider=None, fx_converter=None, base_currency="USD")
     try:
         engine.price_execution(opt, ctx)
         assert False, "expected PricingError for missing vol or spot"
