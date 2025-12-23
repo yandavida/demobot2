@@ -14,7 +14,7 @@ def create_session():
 def test_quote_ingest_command_happy_path():
     session_id = create_session()
     cmd = QuoteIngestCommand(payload={"bid": 1.23, "ask": 1.25})
-    resp = client.post(f"/api/v2/sessions/{session_id}/events", json=cmd.dict())
+    resp = client.post(f"/api/v2/sessions/{session_id}/events", json=cmd.model_dump())
     assert resp.status_code == 201
     data = resp.json()
     assert data["session_id"] == session_id
