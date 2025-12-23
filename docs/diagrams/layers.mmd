@@ -1,0 +1,10 @@
+%% Mermaid diagram: V1 Phase 4 layers (actual, not future)
+flowchart TD
+    A[Input Layer\nPortfolioState, MarketSnapshot, ScenarioSet] --> B[Validation\nStrict, deterministic]
+    B --> C[Core Math Layer\nPricing, Greeks, Scenario, VaR/CVaR]
+    C --> D[Output Layer\nUnifiedPortfolioRiskReport]
+
+    style A fill:#e0eaff,stroke:#333,stroke-width:2px
+    style B fill:#eaffea,stroke:#333,stroke-width:2px
+    style C fill:#fffbe0,stroke:#333,stroke-width:2px
+    style D fill:#ffe0e0,stroke:#333,stroke-width:2px
