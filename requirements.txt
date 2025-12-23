@@ -17,3 +17,5 @@ fastapi
 uvicorn[standard]
 fastapi
 uvicorn[standard]
+httpx>=0.24
+
