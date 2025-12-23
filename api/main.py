@@ -51,7 +51,7 @@ app.include_router(strategy_router)
 app.include_router(fx_router)
 app.include_router(portfolio_router)
 app.include_router(arbitrage_orch.router)
-app.include_router(v2_router)
+app.include_router(v2_router, prefix="/api/v2")
 app.add_middleware(ErrorHandlingMiddleware)
 
 

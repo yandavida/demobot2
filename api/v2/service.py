@@ -1,10 +1,8 @@
 from __future__ import annotations
-
 from datetime import datetime
 from typing import Any, Tuple
 import uuid
 from fastapi import HTTPException
-
 import os
 from core.v2.models import EventType, Snapshot, V2Event, hash_payload
 from core.v2.snapshot_policy import EveryNSnapshotPolicy
@@ -14,6 +12,7 @@ if V2_PERSISTENCE_BACKEND == "sqlite":
 else:
     from core.v2.event_store import InMemoryEventStore
     from core.v2.orchestrator import V2RuntimeOrchestrator
+
     from core.v2.snapshot_store import InMemorySnapshotStore
 
 
@@ -45,6 +44,16 @@ if V2_PERSISTENCE_BACKEND == "sqlite":
     v2_service = V2ServiceImpl()
 else:
     class V2Service:
+        def create_snapshot(self, session_id: str) -> Snapshot:
+            self._require_session(session_id)
+            snap = self.orchestrator.build_snapshot(session_id)
+            self.snapshot_store.save(snap)
+            return snap
+        def session_exists(self, session_id: str) -> bool:
+            # True if any event or snapshot exists for session_id
+            has_events = bool(self.event_store.list(session_id))
+            has_snapshot = self.snapshot_store.latest(session_id) is not None
+            return has_events or has_snapshot
         def __init__(self) -> None:
             self.event_store = InMemoryEventStore()
             self.snapshot_store = InMemorySnapshotStore()
