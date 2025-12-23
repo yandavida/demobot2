@@ -1,16 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from typing import Mapping
-
-from core.portfolio.models import Currency
-
-
-@dataclass(frozen=True)
-class PriceResult:
-    pv: float
-    currency: Currency
-    breakdown: Mapping[str, float] = field(default_factory=dict)
+from core.contracts.risk_types import PriceResult
 
 
 class PricingError(Exception):

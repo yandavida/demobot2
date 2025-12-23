@@ -5,19 +5,11 @@ from typing import Tuple, Sequence
 
 from core.portfolio.portfolio_models import CanonicalKey, PortfolioState
 from core.pricing.types import PriceResult, PricingError
+from core.contracts.risk_types import Greeks, PortfolioRiskSnapshot
 from core.pricing.engine import PricingEngine
 from core.market_data.types import MarketSnapshot
 from core.fx.converter import FxConverter
 from core.pricing.context import PricingContext
-
-
-@dataclass(frozen=True)
-class Greeks:
-    delta: float
-    gamma: float
-    vega: float
-    theta: float
-    rho: float
 
 
 @dataclass(frozen=True)
@@ -27,14 +19,6 @@ class PositionRisk:
     currency: str
     greeks: Greeks
     breakdown: Tuple[Tuple[str, float], ...] = tuple()
-
-
-@dataclass(frozen=True)
-class PortfolioRiskSnapshot:
-    total_pv: float
-    currency: str
-    greeks: Greeks
-    positions: Tuple[PositionRisk, ...]
 
 
 def extract_greeks(price_result: PriceResult) -> Greeks:

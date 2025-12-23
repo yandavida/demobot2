@@ -10,21 +10,9 @@ from core.scenarios.types import ScenarioSet
 from core.risk.portfolio import (
     valuate_and_risk_positions,
     aggregate_portfolio_risk,
-    Greeks,
-    PortfolioRiskSnapshot,
 )
+from core.contracts.risk_types import Greeks, PortfolioRiskSnapshot, RiskScenarioResult
 from core.scenarios.apply import build_shocked_context
-
-
-@dataclass(frozen=True)
-class RiskScenarioResult:
-    scenario_name: str
-    base_total_pv: float
-    scenario_total_pv: float
-    delta_pv_abs: float
-    delta_pv_pct: float
-    per_symbol_delta_pv: Tuple[Tuple[str, float], ...]
-    per_symbol_delta_greeks: Tuple[Tuple[str, Greeks], ...]
 
 
 @dataclass(frozen=True)
@@ -48,16 +36,17 @@ def build_risk_scenario_report(
     scenarios: ScenarioSet,
 ) -> RiskScenarioReport:
     # Base valuation
-    base_positions = valuate_and_risk_positions(state=state, pricing_engine=pricing_engine, snapshot=base_ctx.market, base_currency=state.base_currency, context=base_ctx)
-    base_agg = aggregate_portfolio_risk(base_positions, base_currency=state.base_currency)
+    base_currency = base_ctx.base_currency
+    base_positions = valuate_and_risk_positions(state=state, pricing_engine=pricing_engine, snapshot=base_ctx.market, base_currency=base_currency, context=base_ctx)
+    base_agg = aggregate_portfolio_risk(base_positions, base_currency=base_currency)
     base_total = float(base_agg.total_pv)
 
     results_list: list[RiskScenarioResult] = []
 
     for sc in scenarios.scenarios:
         ctx = build_shocked_context(base_ctx, sc)
-        sc_positions = valuate_and_risk_positions(state=state, pricing_engine=pricing_engine, snapshot=ctx.market, base_currency=state.base_currency, context=ctx)
-        sc_agg = aggregate_portfolio_risk(sc_positions, base_currency=state.base_currency)
+        sc_positions = valuate_and_risk_positions(state=state, pricing_engine=pricing_engine, snapshot=ctx.market, base_currency=base_currency, context=ctx)
+        sc_agg = aggregate_portfolio_risk(sc_positions, base_currency=base_currency)
         sc_total = float(sc_agg.total_pv)
 
         delta_abs = sc_total - base_total
