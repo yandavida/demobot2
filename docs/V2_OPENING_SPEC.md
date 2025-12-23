@@ -66,6 +66,15 @@ V2 introduces stateful runtime, streaming, persistence, and performance features
 - How to version contracts and migrations for future V2+?
 - What are the performance/caching boundaries for reproducibility?
 
+## Implementation Mapping
+- PR2 = skeleton (typed models, event store, orchestrator, invariants tests)
+- All V2 code lives under core/v2/
+- In-memory only: no persistence, no API, no V1 math
+- Tests: tests/v2/test_v2_invariants.py (determinism, idempotency, replayability, ordering)
+- No changes to V1 contracts, math, or API
+- No new dependencies
+- See ADRs for design decisions
+
 ---
 
 See ADRs for detailed design decisions.
