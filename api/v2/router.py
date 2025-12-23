@@ -1,7 +1,9 @@
+
 import logging
 logger = logging.getLogger("demobot.v2")
 from fastapi import APIRouter, Request, Response, status, HTTPException, Depends
-
+from api.v2.read_models import list_events, get_snapshot_metadata, list_compute_requests
+from api.v2.read_models_schemas import EventsListResponse, SnapshotMetadataResponse, ComputeRequestsListResponse
 from api.v2.schemas import CreateSessionResponse, IngestEventResponse, SnapshotResponse
 from api.v2.commands import V2IngestCommand
 from api.v2.validators import validate_quote_payload, validate_compute_payload
@@ -10,7 +12,52 @@ from api.v2.correlation import get_or_create_correlation_id, attach_correlation_
 from api.v2.logging import log_request
 from time import perf_counter
 
-router = APIRouter(prefix="/api/v2")
+
+router = APIRouter()
+
+# תלות ל-correlation id (חייב להיות לפני כל שימוש)
+async def correlation_id_dep(request: Request, response: Response):
+    cid = get_or_create_correlation_id(request)
+    attach_correlation_id(response, cid)
+    return cid
+
+# יצירת snapshot מפורש (לצורך בדיקות ו-API)
+@router.post("/sessions/{session_id}/snapshot", response_model=SnapshotResponse)
+async def create_snapshot(session_id: str, request: Request, response: Response, cid: str = Depends(correlation_id_dep)):
+    t0 = perf_counter()
+    try:
+        snap = v2_service.create_snapshot(session_id)
+    except HTTPException:
+        elapsed = (perf_counter() - t0) * 1000
+        log_request("POST", f"/api/v2/sessions/{session_id}/snapshot", session_id, cid, 404, elapsed)
+        raise
+    except Exception:
+        elapsed = (perf_counter() - t0) * 1000
+        log_request("POST", f"/api/v2/sessions/{session_id}/snapshot", session_id, cid, 500, elapsed)
+        raise HTTPException(status_code=500, detail="Internal Server Error")
+    elapsed = (perf_counter() - t0) * 1000
+    log_request("POST", f"/api/v2/sessions/{session_id}/snapshot", session_id, cid, 201, elapsed)
+    response.status_code = status.HTTP_201_CREATED
+    return SnapshotResponse(
+        session_id=snap.session_id,
+        version=snap.version,
+        state_hash=snap.state_hash,
+        data=snap.data,
+        correlation_id=cid,
+    )
+
+# --- Read-only endpoints ---
+@router.get("/sessions/{session_id}/events", response_model=EventsListResponse)
+async def get_events_list(session_id: str, limit: int = 200, include_payload: bool = False):
+    return list_events(session_id, limit=limit, include_payload=include_payload)
+
+@router.get("/sessions/{session_id}/snapshot/metadata", response_model=SnapshotMetadataResponse)
+async def get_snapshot_metadata_view(session_id: str):
+    return get_snapshot_metadata(session_id)
+
+@router.get("/sessions/{session_id}/compute/requests", response_model=ComputeRequestsListResponse)
+async def get_compute_requests(session_id: str, limit: int = 200, include_params: bool = False):
+    return list_compute_requests(session_id, limit=limit, include_params=include_params)
 
 async def correlation_id_dep(request: Request, response: Response):
     cid = get_or_create_correlation_id(request)
