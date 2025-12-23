@@ -1,6 +1,6 @@
 from __future__ import annotations
 from dataclasses import dataclass, field
-from typing import Any, Dict, Set, Literal
+from typing import Any, Dict, Literal
 from datetime import datetime
 import json
 import hashlib
@@ -10,11 +10,7 @@ class AppliedEvent:
     event: V2Event
     state_version: int
     applied_at: datetime
-from dataclasses import dataclass, field
-from typing import Any, Dict, Set, Literal
-from datetime import datetime
-import json
-import hashlib
+
 
 EventType = Literal["QUOTE_INGESTED", "COMPUTE_REQUESTED", "SNAPSHOT_CREATED"]
 
