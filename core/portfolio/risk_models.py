@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Mapping
 
-from core.portfolio.models import Money
+
 
 
 @dataclass(frozen=True)
