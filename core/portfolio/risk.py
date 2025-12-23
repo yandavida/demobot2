@@ -2,17 +2,12 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from core.greeks import Greeks
+from core.contracts.risk_types import Greeks, PortfolioRiskSnapshot
 from core.portfolio.engine import PortfolioEngine
 from core.portfolio.models import Money, Portfolio
 
 
-@dataclass(frozen=True)
-class PortfolioRiskSnapshot:
-    """Aggregated portfolio risk snapshot in base currency."""
 
-    pv_base: Money
-    greeks: Greeks
 
 
 def aggregate_portfolio_risk(
@@ -27,5 +22,4 @@ def aggregate_portfolio_risk(
     total_value_base = engine.evaluate_portfolio(portfolio)
 
     zero_greeks = Greeks(0.0, 0.0, 0.0, 0.0, 0.0)
-
-    return PortfolioRiskSnapshot(pv_base=total_value_base, greeks=zero_greeks)
+    return PortfolioRiskSnapshot(total_pv=float(total_value_base.amount), currency=total_value_base.ccy, greeks=zero_greeks, positions=tuple())

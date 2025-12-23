@@ -18,15 +18,8 @@ def _norm_pdf(x: float) -> float:
     return (1.0 / sqrt(2.0 * pi)) * exp(-0.5 * x * x)
 
 
-@dataclass
-class Greeks:
-    """Greeks לפוזיציה / אופציה בודדת."""
 
-    delta: float
-    gamma: float
-    vega: float
-    theta: float
-    rho: float
+from core.contracts.risk_types import Greeks
 
 
 def _bs_greeks_single(

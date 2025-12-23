@@ -8,8 +8,8 @@ from core.portfolio.risk import PortfolioRiskSnapshot
 def calculate_portfolio_margin(
     snapshot: PortfolioRiskSnapshot, config: MarginConfig
 ) -> MarginResult:
-    base_ccy = config.currency or snapshot.pv_base.ccy
-    pv_amount = abs(snapshot.pv_base.amount)
+    base_ccy = config.currency or snapshot.currency
+    pv_amount = abs(snapshot.total_pv)
     required_raw = pv_amount * config.rate
     required_amount = max(required_raw, config.minimum)
     required_money = Money(amount=required_amount, ccy=base_ccy)
