@@ -1,0 +1,17 @@
+%% Mermaid diagram: V2 state flow (proposed)
+flowchart TD
+    S[Session] --> R[Run]
+    R --> Q[QuoteStream]
+    R --> P[PortfolioSnapshot]
+    R --> J[ComputeJob]
+    Q --> E[Event Log]
+    J --> E
+    P --> E
+    E -->|Replay| S
+
+    style S fill:#e0eaff,stroke:#333,stroke-width:2px
+    style R fill:#eaffea,stroke:#333,stroke-width:2px
+    style Q fill:#fffbe0,stroke:#333,stroke-width:2px
+    style P fill:#ffe0e0,stroke:#333,stroke-width:2px
+    style J fill:#e0ffe0,stroke:#333,stroke-width:2px
+    style E fill:#f0e0ff,stroke:#333,stroke-width:2px
