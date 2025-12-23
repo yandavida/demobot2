@@ -166,8 +166,8 @@ def valuate_portfolio(request: PublicValuationRequest) -> PublicValuationRespons
     )
 
     return PublicValuationResponse(
-        total_value=risk_snapshot.pv_base.amount,
-        currency=risk_snapshot.pv_base.ccy,
+        total_value=risk_snapshot.total_pv,
+        currency=risk_snapshot.currency,
         portfolio_risk=portfolio_risk,
         base_currency=request.base_currency,
         fx_rates=fx_rates,
@@ -181,8 +181,8 @@ def _snapshot_to_public_risk(
     var_result: VarResult,
 ) -> PublicPortfolioRisk:
     return PublicPortfolioRisk(
-        pv=snapshot.pv_base.amount,
-        currency=snapshot.pv_base.ccy,
+        pv=snapshot.total_pv,
+        currency=snapshot.currency,
         greeks=PublicGreeks(
             delta=snapshot.greeks.delta,
             gamma=snapshot.greeks.gamma,

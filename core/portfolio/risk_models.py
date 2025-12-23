@@ -49,22 +49,4 @@ class PositionGreeks:
         )
 
 
-@dataclass(frozen=True)
-class PortfolioRiskSnapshot:
-    total_value: Money
-    greeks: PositionGreeks
 
-    def __add__(self, other: "PortfolioRiskSnapshot") -> "PortfolioRiskSnapshot":
-        if not isinstance(other, PortfolioRiskSnapshot):
-            return NotImplemented
-
-        if self.total_value.ccy != other.total_value.ccy:
-            raise ValueError("Cannot add snapshots with different currencies")
-
-        return PortfolioRiskSnapshot(
-            total_value=Money(
-                amount=self.total_value.amount + other.total_value.amount,
-                ccy=self.total_value.ccy,
-            ),
-            greeks=self.greeks + other.greeks,
-        )
