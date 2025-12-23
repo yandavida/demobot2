@@ -1,3 +1,12 @@
+Stage 1 — Risk Vocabulary
+
+Horizon: 1d, 10d
+
+Confidence: 0.99 default, configurable
+
+Base currency: ILS default
+
+Note: “Stage 1 adds semantics only; VaR/CVaR in Stage 2”
 Locked Contracts
 
 PriceResult
