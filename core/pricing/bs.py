@@ -122,7 +122,10 @@ class BlackScholesPricingEngine:
             if spot is None:
                 raise PricingError(f"missing spot for {opt.underlying}")
 
-            # Prefer vol from context.vol_provider when available
+            # Prefer vol from `PricingContext.vol_provider` when available.
+            # Compatibility: tolerate context-like objects by using getattr,
+            # but tests and callers should pass `PricingContext`. This
+            # tolerance is temporary and exists for backward compatibility.
             vol = None
             vp_ctx = getattr(context, "vol_provider", None)
             if vp_ctx is not None:
@@ -157,6 +160,8 @@ class BlackScholesPricingEngine:
             raise PricingError("unsupported execution type for BlackScholesPricingEngine")
 
         # resolve vol: prefer provider if available, else take execution.vol
+        # Compatibility: prefer `PricingContext.vol_provider` but tolerate
+        # context-like objects (getattr) for backwards compatibility.
         vol = None
         vp_ctx2 = getattr(context, "vol_provider", None)
         if vp_ctx2 is not None:
