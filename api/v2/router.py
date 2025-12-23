@@ -2,7 +2,9 @@ import logging
 logger = logging.getLogger("demobot.v2")
 from fastapi import APIRouter, Request, Response, status, HTTPException, Depends
 
-from api.v2.schemas import CreateSessionResponse, IngestEventRequest, IngestEventResponse, SnapshotResponse
+from api.v2.schemas import CreateSessionResponse, IngestEventResponse, SnapshotResponse
+from api.v2.commands import QuoteIngestCommand
+from api.v2.validators import validate_quote_payload
 from api.v2.service import v2_service
 from api.v2.correlation import get_or_create_correlation_id, attach_correlation_id
 from api.v2.logging import log_request
@@ -25,8 +27,12 @@ async def create_session(request: Request, response: Response, cid: str = Depend
     return CreateSessionResponse(session_id=session_id)
 
 @router.post("/sessions/{session_id}/events", response_model=IngestEventResponse, status_code=201)
-async def ingest_event(session_id: str, req: IngestEventRequest, request: Request):
+async def ingest_event(session_id: str, req: QuoteIngestCommand, request: Request):
     cid = getattr(request.state, "correlation_id", None)
+    # Strict command boundary: only QUOTE_INGESTED supported here
+    if req.type != "QUOTE_INGESTED":
+        raise HTTPException(status_code=400, detail={"detail": "Only QUOTE_INGESTED supported in V2 command boundary"})
+    validate_quote_payload(req.payload)
     try:
         state_version, applied = v2_service.ingest_event(
             session_id,
