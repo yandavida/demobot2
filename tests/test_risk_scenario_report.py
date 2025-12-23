@@ -45,10 +45,6 @@ def test_greeks_change_on_vol_shock():
     base_ctx = PricingContext(market=snap, vol_provider=vp, fx_converter=None, base_currency="USD")
     engine = BlackScholesPricingEngine()
 
-    vol_up = Scenario(name="volup", shocks_by_symbol=(), fx_shocks_by_pair=(("BBB", Shock(vol_abs=0.1)).__repr__(),))
-    # Above line intentionally wrong shape will be corrected by construction in Scenario
-    # Instead construct scenario properly:
-    vol_up = Scenario(name="volup", shocks_by_symbol=(), fx_shocks_by_pair=())
     # Build a scenario with a vol shock via shocks_by_symbol
     vol_up = Scenario(name="volup", shocks_by_symbol=(("BBB", Shock(vol_abs=0.1)),), fx_shocks_by_pair=())
 
