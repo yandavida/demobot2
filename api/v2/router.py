@@ -1,3 +1,5 @@
+import logging
+logger = logging.getLogger("demobot.v2")
 from fastapi import APIRouter, Request, Response, status, HTTPException, Depends
 
 from api.v2.schemas import CreateSessionResponse, IngestEventRequest, IngestEventResponse, SnapshotResponse
@@ -22,18 +24,36 @@ async def create_session(request: Request, response: Response, cid: str = Depend
     response.status_code = status.HTTP_201_CREATED
     return CreateSessionResponse(session_id=session_id)
 
-@router.post("/sessions/{session_id}/events", response_model=IngestEventResponse)
-async def ingest_event(session_id: str, req: IngestEventRequest, request: Request, response: Response, cid: str = Depends(correlation_id_dep)):
-    t0 = perf_counter()
+@router.post("/sessions/{session_id}/events", response_model=IngestEventResponse, status_code=201)
+async def ingest_event(session_id: str, req: IngestEventRequest, request: Request):
+    cid = getattr(request.state, "correlation_id", None)
     try:
-        state_version, applied = v2_service.ingest_event(session_id, req)
-    except KeyError:
-        elapsed = (perf_counter() - t0) * 1000
-        log_request("POST", f"/api/v2/sessions/{session_id}/events", session_id, cid, 404, elapsed)
-        raise HTTPException(status_code=404, detail="Session not found")
-    elapsed = (perf_counter() - t0) * 1000
-    log_request("POST", f"/api/v2/sessions/{session_id}/events", session_id, cid, 200, elapsed)
-    return IngestEventResponse(session_id=session_id, state_version=state_version, applied=applied, correlation_id=cid)
+        state_version, applied = v2_service.ingest_event(
+            session_id,
+            event_id=req.event_id,
+            ts=req.ts,
+            type=req.type,
+            payload=req.payload,
+        )
+        return IngestEventResponse(
+            session_id=session_id,
+            state_version=state_version,
+            applied=applied,
+            correlation_id=cid,
+        )
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.exception(
+            "v2.ingest_event failed",
+            extra={
+                "correlation_id": cid,
+                "session_id": session_id,
+                "event_id": getattr(req, "event_id", None),
+                "event_type": getattr(req, "type", None),
+            },
+        )
+        raise HTTPException(status_code=500, detail={"detail": "Internal Server Error"}) from exc
 
 @router.get("/sessions/{session_id}/snapshot", response_model=SnapshotResponse)
 async def get_snapshot(session_id: str, request: Request, response: Response, cid: str = Depends(correlation_id_dep)):
