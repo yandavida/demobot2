@@ -1,8 +1,8 @@
-
 import logging
 logger = logging.getLogger("demobot.v2")
 from fastapi import APIRouter, Request, Response, status, HTTPException, Depends
 from api.v2.read_models import list_events, get_snapshot_metadata, list_compute_requests
+from api.v2.read_models_opportunities_schemas import LatestOpportunitiesOut
 from api.v2.read_models_schemas import EventsListResponse, SnapshotMetadataResponse, ComputeRequestsListResponse
 from api.v2.schemas import CreateSessionResponse, IngestEventResponse, SnapshotResponse
 from api.v2.commands import V2IngestCommand
@@ -46,18 +46,60 @@ async def create_snapshot(session_id: str, request: Request, response: Response,
         correlation_id=cid,
     )
 
-# --- Read-only endpoints ---
+# --- עזר: בדיקת קיום session ---
+def assert_session_exists(session_id: str) -> None:
+    if v2_service.get_session(session_id) is None:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+# --- GET /sessions/{session_id}/snapshot ---
+@router.get("/sessions/{session_id}/snapshot", response_model=SnapshotResponse)
+async def get_snapshot(session_id: str, request: Request, response: Response, cid: str = Depends(correlation_id_dep)):
+    t0 = perf_counter()
+    assert_session_exists(session_id)
+    try:
+        snap = v2_service.get_snapshot(session_id)
+    except HTTPException:
+        elapsed = (perf_counter() - t0) * 1000
+        log_request("GET", f"/api/v2/sessions/{session_id}/snapshot", session_id, cid, 404, elapsed)
+        raise
+    except Exception:
+        elapsed = (perf_counter() - t0) * 1000
+        log_request("GET", f"/api/v2/sessions/{session_id}/snapshot", session_id, cid, 500, elapsed)
+        raise HTTPException(status_code=500, detail="Internal Server Error")
+    elapsed = (perf_counter() - t0) * 1000
+    log_request("GET", f"/api/v2/sessions/{session_id}/snapshot", session_id, cid, 200, elapsed)
+    return SnapshotResponse(
+        session_id=snap.session_id,
+        version=snap.version,
+        state_hash=snap.state_hash,
+        data=snap.data,
+        correlation_id=cid,
+    )
+
+# --- GET /sessions/{session_id}/events ---
 @router.get("/sessions/{session_id}/events", response_model=EventsListResponse)
 async def get_events_list(session_id: str, limit: int = 200, include_payload: bool = False):
+    assert_session_exists(session_id)
     return list_events(session_id, limit=limit, include_payload=include_payload)
 
-@router.get("/sessions/{session_id}/snapshot/metadata", response_model=SnapshotMetadataResponse)
-async def get_snapshot_metadata_view(session_id: str):
-    return get_snapshot_metadata(session_id)
-
+# --- GET /sessions/{session_id}/compute/requests ---
 @router.get("/sessions/{session_id}/compute/requests", response_model=ComputeRequestsListResponse)
 async def get_compute_requests(session_id: str, limit: int = 200, include_params: bool = False):
+    assert_session_exists(session_id)
     return list_compute_requests(session_id, limit=limit, include_params=include_params)
+
+# --- GET /sessions/{session_id}/snapshot/metadata ---
+@router.get("/sessions/{session_id}/snapshot/metadata", response_model=SnapshotMetadataResponse)
+async def get_snapshot_metadata_view(session_id: str):
+    assert_session_exists(session_id)
+    return get_snapshot_metadata(session_id)
+
+@router.get("/opportunities/latest", response_model=LatestOpportunitiesOut, status_code=200)
+async def get_latest_opportunities(session_id: str, limit: int = 50):
+    try:
+        return v2_service.get_latest_opportunity_views(session_id=session_id, limit=limit)
+    except Exception:
+        return LatestOpportunitiesOut(items=[])
 
 async def correlation_id_dep(request: Request, response: Response):
     cid = get_or_create_correlation_id(request)
@@ -110,23 +152,4 @@ async def ingest_event(session_id: str, req: V2IngestCommand, request: Request):
             },
         )
         raise HTTPException(status_code=500, detail={"detail": "Internal Server Error"}) from exc
-
-@router.get("/sessions/{session_id}/snapshot", response_model=SnapshotResponse)
-async def get_snapshot(session_id: str, request: Request, response: Response, cid: str = Depends(correlation_id_dep)):
-    t0 = perf_counter()
-    try:
-        snap = v2_service.get_snapshot(session_id)
-    except KeyError:
-        elapsed = (perf_counter() - t0) * 1000
-        log_request("GET", f"/api/v2/sessions/{session_id}/snapshot", session_id, cid, 404, elapsed)
-        raise HTTPException(status_code=404, detail="Session not found")
-    elapsed = (perf_counter() - t0) * 1000
-    log_request("GET", f"/api/v2/sessions/{session_id}/snapshot", session_id, cid, 200, elapsed)
-    return SnapshotResponse(
-        session_id=snap.session_id,
-        version=snap.version,
-        state_hash=snap.state_hash,
-        data=snap.data,
-        correlation_id=cid,
-    )
 
