@@ -11,6 +11,10 @@ class SnapshotStore(Protocol):
         ...
 
 class InMemorySnapshotStore:
+    def list(self, session_id: str) -> list[Snapshot]:
+        """החזר את כל הסנאפשוטים עבור session_id בסדר גרסאות עולה."""
+        snaps = [snap for (sid, _), snap in self._store.items() if sid == session_id]
+        return sorted(snaps, key=lambda s: s.version)
     def __init__(self) -> None:
         self._store = {}  # (session_id, version) -> Snapshot
         self._latest = {}  # session_id -> Snapshot

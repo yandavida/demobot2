@@ -4,8 +4,11 @@ from core.v2.models import V2Event, SessionState, Snapshot, hash_snapshot, Appli
 from core.v2.event_store import EventStore
 from core.v2.snapshot_store import SnapshotStore
 from core.v2.snapshot_policy import SnapshotPolicy
+from core.v2.event_ordering import stable_sort_events
 from datetime import datetime
 from typing import Optional
+import logging
+import time
 
 class V2RuntimeOrchestrator:
     """
@@ -15,6 +18,54 @@ class V2RuntimeOrchestrator:
     - build_snapshot uses bounded replay from latest snapshot if available
     - Maintains applied_log[session_id]: list[AppliedEvent]
     """
+
+    def _replay_events_into_data(self, base_data: dict, events: list[V2Event]) -> dict:
+        data = dict(base_data)
+        for e in stable_sort_events(events):
+            if e.event_id not in data:
+                data[e.event_id] = e.payload
+        return data
+
+    def _build_snapshot_full(self, session_id: str) -> Snapshot:
+        events = self.store.list(session_id)
+        events = stable_sort_events(events)
+        data = {}
+        seen = set()
+        version = 0
+        for e in events:
+            if e.event_id not in seen:
+                data[e.event_id] = e.payload
+                seen.add(e.event_id)
+                version += 1
+        state_hash = hash_snapshot(data)
+        now = datetime.utcnow()
+        return Snapshot(
+            session_id=session_id,
+            version=version,
+            created_at=now,
+            state_hash=state_hash,
+            data=data,
+        )
+
+    def _build_snapshot_delta(self, session_id: str, base: Snapshot) -> Snapshot:
+        tail_events = self.store.list_after_version(session_id, base.version)
+        data = self._replay_events_into_data(base.data, tail_events)
+        # version = base.version + unique new event_ids in tail
+        seen = set(base.data.keys())
+        version = base.version
+        for e in stable_sort_events(tail_events):
+            if e.event_id not in seen:
+                seen.add(e.event_id)
+                version += 1
+        state_hash = hash_snapshot(data)
+        now = datetime.utcnow()
+        return Snapshot(
+            session_id=session_id,
+            version=version,
+            created_at=now,
+            state_hash=state_hash,
+            data=data,
+        )
     def __init__(self, store: EventStore, snapshot_store: Optional[SnapshotStore] = None, snapshot_policy: Optional[SnapshotPolicy] = None):
         self.store = store
         self.snapshot_store = snapshot_store
@@ -39,37 +90,30 @@ class V2RuntimeOrchestrator:
         return state
 
     def build_snapshot(self, session_id: str) -> Snapshot:
-        state = self._session_states.get(session_id)
-        version = state.version if state else 0
-        now = datetime.utcnow()
-        applied_log = self._applied_log.get(session_id, [])
-        # Try to use latest snapshot for bounded replay
-        base_snapshot = None
+        # Always use EventStore + SnapshotStore, never _applied_log/_session_states for correctness
+        logger = logging.getLogger("core.v2.orchestrator")
+        t0 = time.perf_counter()
+        base = None
+        mode = "full"
         base_version = 0
-        base_data = {}
+        tail_len = 0
         if self.snapshot_store is not None:
-            latest = self.snapshot_store.latest(session_id)
-            if latest is not None:
-                base_snapshot = latest
-                base_version = latest.version
-                base_data = dict(latest.data)
-        # Get applied events after base_version
-        tail = [ae for ae in applied_log if ae.state_version > base_version]
-        # Replay from base_data
-        data = dict(base_data)
-        for ae in tail:
-            if ae.event.event_id not in data:
-                data[ae.event.event_id] = ae.event.payload
-        state_hash = hash_snapshot(data)
-        snap = Snapshot(
-            session_id=session_id,
-            version=version,
-            created_at=now,
-            state_hash=state_hash,
-            data=data,
+            base = self.snapshot_store.latest(session_id)
+        if base is not None:
+            mode = "delta"
+            base_version = base.version
+            tail_events = self.store.list_after_version(session_id, base.version)
+            tail_len = len(tail_events)
+            snap = self._build_snapshot_delta(session_id, base)
+        else:
+            snap = self._build_snapshot_full(session_id)
+        elapsed_ms = (time.perf_counter() - t0) * 1000
+        logger.debug(
+            "build_snapshot: mode=%s session_id=%s base_version=%d tail_len=%d final_version=%d elapsed_ms=%.2f",
+            mode, session_id, base_version, tail_len, snap.version, elapsed_ms
         )
         # Optionally save snapshot
         if self.snapshot_store is not None and self.snapshot_policy is not None:
-            if self.snapshot_policy.should_snapshot(version):
+            if self.snapshot_policy.should_snapshot(snap.version):
                 self.snapshot_store.save(snap)
         return snap
