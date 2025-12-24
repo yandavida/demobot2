@@ -26,18 +26,27 @@ def list_events(session_id: str, *, limit: int, include_payload: bool) -> Events
     if v2_service.get_session(session_id) is None:
         raise HTTPException(status_code=404, detail="Session not found")
     events = v2_service.event_store.list(session_id) if hasattr(v2_service, "event_store") else []
-    events = sorted(events, key=lambda e: (e.ts, e.event_id))[:limit] if events else []
+    # סדר דטרמיניסטי, dedup לפי event_id, כולל state_version
+    sorted_events = sorted(events, key=lambda e: (e.ts, e.event_id))
+    seen = set()
     items: List[EventViewItem] = []
-    for e in events:
+    applied_version = 0
+    for e in sorted_events:
+        if e.event_id in seen:
+            continue
+        seen.add(e.event_id)
+        applied_version += 1
         kwargs = dict(
             event_id=e.event_id,
             ts=e.ts,
             type=_etype_str(e.type),
             payload_hash=e.payload_hash,
-            state_version=None,
+            state_version=applied_version,
             payload=_payload_dict(e.payload) if include_payload else None
         )
         items.append(EventViewItem(**kwargs))
+        if len(items) >= limit:
+            break
     return EventsListResponse(session_id=session_id, items=items)
 
 
