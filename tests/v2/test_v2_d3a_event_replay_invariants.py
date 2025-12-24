@@ -3,8 +3,6 @@ from datetime import datetime
 from core.v2.models import V2Event
 from core.v2.orchestrator import V2RuntimeOrchestrator
 from core.v2.event_store import InMemoryEventStore
-from core.v2.snapshot_store import InMemorySnapshotStore
-from tests.v2._canon import canonical_json_dumps, hash_canonical
 from tests.v2._event_gen import generate_events, shuffle_events, with_duplicate_event_id
 
 BASE_TS = datetime(2020, 1, 1, 12, 0, 0)

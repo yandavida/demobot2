@@ -49,11 +49,7 @@ else:
             snap = self.orchestrator.build_snapshot(session_id)
             self.snapshot_store.save(snap)
             return snap
-        def session_exists(self, session_id: str) -> bool:
-            # True if any event or snapshot exists for session_id
-            has_events = bool(self.event_store.list(session_id))
-            has_snapshot = self.snapshot_store.latest(session_id) is not None
-            return has_events or has_snapshot
+
         def __init__(self) -> None:
             self.event_store = InMemoryEventStore()
             self.snapshot_store = InMemorySnapshotStore()
@@ -112,4 +108,7 @@ else:
             self._require_session(session_id)
             return self.orchestrator.build_snapshot(session_id)
 
-    v2_service = V2Service()
+        def get_session(self, session_id: str):
+            return True if session_id in self._sessions else None
+
+v2_service = V2Service()
