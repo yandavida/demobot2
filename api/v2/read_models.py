@@ -1,7 +1,8 @@
+
 from typing import Any, Dict, List
-
+import time
+import logging
 from fastapi import HTTPException
-
 from api.v2.read_models_schemas import (
     EventViewItem,
     EventsListResponse,
@@ -10,6 +11,8 @@ from api.v2.read_models_schemas import (
     ComputeRequestsListResponse,
 )
 from api.v2.service import v2_service
+
+logger = logging.getLogger(__name__)
 
 
 def _etype_str(t: Any) -> str:
@@ -25,26 +28,46 @@ def list_events(session_id: str, *, limit: int, include_payload: bool) -> Events
         raise HTTPException(status_code=400, detail="limit must be between 1 and 500")
     if v2_service.get_session(session_id) is None:
         raise HTTPException(status_code=404, detail="Session not found")
+    start = time.perf_counter()
     events = v2_service.event_store.list(session_id) if hasattr(v2_service, "event_store") else []
-    events = sorted(events, key=lambda e: (e.ts, e.event_id))[:limit] if events else []
+    sorted_events = sorted(events, key=lambda e: (e.ts, e.event_id))
+    seen = set()
     items: List[EventViewItem] = []
-    for e in events:
+    applied_version = 0
+    for e in sorted_events:
+        if e.event_id in seen:
+            continue
+        seen.add(e.event_id)
+        applied_version += 1
         kwargs = dict(
             event_id=e.event_id,
             ts=e.ts,
             type=_etype_str(e.type),
             payload_hash=e.payload_hash,
-            state_version=None,
+            state_version=applied_version,
             payload=_payload_dict(e.payload) if include_payload else None
         )
         items.append(EventViewItem(**kwargs))
+        if len(items) >= limit:
+            break
+    elapsed_ms = (time.perf_counter() - start) * 1000
+    logger.debug(
+        "v2_read_model name=list_events session_id=%s limit=%s returned=%d elapsed_ms=%.2f",
+        session_id, limit, len(items), elapsed_ms
+    )
     return EventsListResponse(session_id=session_id, items=items)
 
 
 def get_snapshot_metadata(session_id: str) -> SnapshotMetadataResponse:
+    start = time.perf_counter()
     snap = v2_service.snapshot_store.latest(session_id)
     if snap is None:
         raise HTTPException(status_code=404, detail="Snapshot not found")
+    elapsed_ms = (time.perf_counter() - start) * 1000
+    logger.debug(
+        "v2_read_model name=get_snapshot_metadata session_id=%s limit=None returned=1 elapsed_ms=%.2f",
+        session_id, elapsed_ms
+    )
     return SnapshotMetadataResponse(
         session_id=snap.session_id,
         state_version=snap.version,
@@ -54,6 +77,7 @@ def get_snapshot_metadata(session_id: str) -> SnapshotMetadataResponse:
 
 
 def list_compute_requests(session_id: str, *, limit: int, include_params: bool) -> ComputeRequestsListResponse:
+    start = time.perf_counter()
     if not (1 <= limit <= 500):
         raise HTTPException(status_code=400, detail="limit must be between 1 and 500")
     if v2_service.get_session(session_id) is None:
@@ -74,4 +98,9 @@ def list_compute_requests(session_id: str, *, limit: int, include_params: bool) 
             params=params if include_params else None
         )
         items.append(ComputeRequestViewItem(**kwargs))
+    elapsed_ms = (time.perf_counter() - start) * 1000
+    logger.debug(
+        "v2_read_model name=list_compute_requests session_id=%s limit=%s returned=%d elapsed_ms=%.2f",
+        session_id, limit, len(items), elapsed_ms
+    )
     return ComputeRequestsListResponse(session_id=session_id, items=items)
