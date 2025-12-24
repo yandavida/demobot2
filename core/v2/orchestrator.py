@@ -7,6 +7,8 @@ from core.v2.snapshot_policy import SnapshotPolicy
 from core.v2.event_ordering import stable_sort_events
 from datetime import datetime
 from typing import Optional
+import logging
+import time
 
 class V2RuntimeOrchestrator:
     """
@@ -89,13 +91,27 @@ class V2RuntimeOrchestrator:
 
     def build_snapshot(self, session_id: str) -> Snapshot:
         # Always use EventStore + SnapshotStore, never _applied_log/_session_states for correctness
+        logger = logging.getLogger("core.v2.orchestrator")
+        t0 = time.perf_counter()
         base = None
+        mode = "full"
+        base_version = 0
+        tail_len = 0
         if self.snapshot_store is not None:
             base = self.snapshot_store.latest(session_id)
         if base is not None:
+            mode = "delta"
+            base_version = base.version
+            tail_events = self.store.list_after_version(session_id, base.version)
+            tail_len = len(tail_events)
             snap = self._build_snapshot_delta(session_id, base)
         else:
             snap = self._build_snapshot_full(session_id)
+        elapsed_ms = (time.perf_counter() - t0) * 1000
+        logger.debug(
+            "build_snapshot: mode=%s session_id=%s base_version=%d tail_len=%d final_version=%d elapsed_ms=%.2f",
+            mode, session_id, base_version, tail_len, snap.version, elapsed_ms
+        )
         # Optionally save snapshot
         if self.snapshot_store is not None and self.snapshot_policy is not None:
             if self.snapshot_policy.should_snapshot(snap.version):
