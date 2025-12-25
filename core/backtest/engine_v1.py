@@ -1,6 +1,6 @@
 import json
 import hashlib
-from typing import Any, Sequence, Optional
+from typing import Any, Sequence
 from core.marketdata.fingerprint import market_snapshot_fingerprint
 from .schemas import BacktestRequest, BacktestResult, BacktestPoint
 from core.scenario.schemas import ScenarioRequest

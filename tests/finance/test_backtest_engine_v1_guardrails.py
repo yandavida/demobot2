@@ -1,6 +1,6 @@
 import pytest
 from datetime import datetime, timedelta
-from core.backtest import BacktestRequest, run_backtest_v1, build_backtest_hash_key
+from core.backtest import BacktestRequest, run_backtest_v1
 from core.marketdata.schemas import MarketSnapshot
 
 class DummyPosition:

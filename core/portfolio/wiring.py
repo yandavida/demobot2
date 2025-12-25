@@ -54,8 +54,11 @@ def build_candidate_from_executions(
 
     positions: list[Position] = []
     tag_val = tags or frozenset()
+    from typing import cast
+    from core.arbitrage.models import ArbitrageOpportunity
     for k, e in unique_pairs:
-        pos = Position(key=k, execution=e, quantity=float(quantity), tags=tag_val)
+        execution_t = cast(ArbitrageOpportunity, e)
+        pos = Position(key=k, execution=execution_t, quantity=float(quantity), tags=tag_val)
         positions.append(pos)
 
     # Ensure deterministic ordering by key
@@ -73,8 +76,11 @@ def build_portfolio_state_from_candidate(
 ) -> PortfolioState:
     meta = dict(metadata) if metadata else None
     # Use with_positions with bump_revision=False to preserve revision as caller provided
+    from typing import cast
+    from core.contracts.money import Currency
+    base_ccy = cast(Currency, base_currency)
     return PortfolioState.with_positions(
-        list(candidate.positions), base_currency=base_currency, bump_revision=False, revision=revision, metadata=meta
+        list(candidate.positions), base_currency=base_ccy, bump_revision=False, revision=revision, metadata=meta
     )
 
 

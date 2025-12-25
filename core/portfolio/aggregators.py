@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Mapping, Sequence, Tuple, Any, Dict, Hashable
+from typing import Mapping, Sequence, Tuple, Any, Dict, Hashable, TypeVar
+K = TypeVar("K", bound=Hashable)
 
 from core.portfolio.portfolio_models import PortfolioState
 from core.portfolio.models import Currency
@@ -39,15 +40,15 @@ def _econ_float(econ: object, field: str) -> float:
         return 0.0
 
 
-def _merge_numeric_maps(maps: Sequence[Mapping[Hashable, float]]) -> Dict[Hashable, float]:
-    result: Dict[Hashable, float] = {}
+def _merge_numeric_maps(maps: Sequence[Mapping[K, float]]) -> Dict[K, float]:
+    result: Dict[K, float] = {}
     for m in maps:
         for k, v in m.items():
             result[k] = result.get(k, 0.0) + float(v)
     return result
 
 
-def _sorted_pairs(mapping: Mapping[Hashable, float]) -> Tuple[Tuple[Hashable, float], ...]:
+def _sorted_pairs(mapping: Mapping[K, float]) -> Tuple[Tuple[K, float], ...]:
     # Deterministic ordering by string(key)
     items = list(mapping.items())
     items.sort(key=lambda kv: str(kv[0]))
