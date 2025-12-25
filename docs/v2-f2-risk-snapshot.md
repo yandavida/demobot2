@@ -17,7 +17,20 @@ Provides a deterministic, portfolio-level risk view for a set of positions. Used
 - FX and options conventions as in F1
 - No normalization or scaling beyond qty * contract_multiplier
 
-## Out of Scope
-- Margin calculation
-- Scenario engine
-- Market data integration
+
+## Margin v1 (placeholder)
+
+- This margin model is a heuristic placeholder, NOT regulatory or production-grade.
+- **Formulas:**
+	- margin_options = A_DELTA*|Δ| + B_GAMMA*|Γ| + C_VEGA*|V|
+	- margin_fx = K_NOTIONAL * sum(|notional|)
+	- required = max(0, margin_options + margin_fx)
+- **Components:**
+	- options: margin_options
+	- fx: margin_fx
+- **Units:**
+	- Greeks are canonical (F1): vega per 1% IV, theta per day (theta not used in margin v1)
+- **Determinism:**
+	- Margin calculation is deterministic and permutation-invariant.
+- **Audit:**
+	- Any change to margin logic must be covered by audit/guardrail tests.
