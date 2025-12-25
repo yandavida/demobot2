@@ -48,8 +48,8 @@ def build_risk_scenario_report(
     results_list: list[RiskScenarioResult] = []
 
     for sc in scenarios.scenarios:
-        ctx = build_shocked_context(base_ctx, sc)
-        sc_positions = valuate_and_risk_positions(state=state, pricing_engine=pricing_engine, snapshot=ctx.market, base_currency=base_currency, context=ctx)
+        shocked_pricing_ctx = build_shocked_context(base_ctx, sc)
+        sc_positions = valuate_and_risk_positions(state=state, pricing_engine=pricing_engine, snapshot=shocked_pricing_ctx.market, base_currency=base_currency, context=shocked_pricing_ctx)
         sc_agg = aggregate_portfolio_risk(sc_positions, base_currency=base_currency)
         sc_total = float(sc_agg.total_pv)
 
@@ -102,7 +102,8 @@ def build_risk_scenario_report(
     max_loss = float(base_total - worst.scenario_total_pv)
     max_gain = float(best.scenario_total_pv - base_total)
 
-    ctx = risk_context or default_risk_context()
+    pricing_ctx: PricingContext = base_ctx  # for clarity, if needed for future use
+    ctx: RiskContext = risk_context or default_risk_context()
     return RiskScenarioReport(
         base_snapshot=base_agg,
         results=results,

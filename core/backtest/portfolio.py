@@ -94,7 +94,10 @@ def build_portfolio_valuation_step(
     if fx_rates:
         fx_conv = FxConverter(fx_rates=fx_rates)
 
-    context = PricingContext(market=snapshot, base_currency=base_currency, fx_converter=fx_conv)
+    from typing import cast
+    from core.contracts.money import Currency
+    base_ccy = cast(Currency, base_currency)
+    context = PricingContext(market=snapshot, base_currency=base_ccy, fx_converter=fx_conv)
 
     valuations = valuate_positions(state, pricing_engine, context)
     total_pv = sum(v.pv for v in valuations)

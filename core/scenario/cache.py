@@ -1,20 +1,24 @@
-from typing import Protocol, Optional
-from .schemas import ScenarioResponse
+
+from __future__ import annotations
+from typing import Protocol, Optional, TYPE_CHECKING
+if TYPE_CHECKING:
+    from core.scenario.schemas import ScenarioResponse
 
 class ScenarioCache(Protocol):
-    def get(self, key: str) -> Optional[ScenarioResponse]: ...
-    def set(self, key: str, value: ScenarioResponse) -> None: ...
+    def get(self, key: str) -> Optional["ScenarioResponse"]: ...
+    def set(self, key: str, value: "ScenarioResponse") -> None: ...
+
 
 class InMemoryScenarioCache:
     def __init__(self, max_size: int = 128):
-        self._cache = {}
-        self._order = []
+        self._cache: dict[str, "ScenarioResponse"] = {}
+        self._order: list[str] = []
         self._max_size = max_size
 
-    def get(self, key: str) -> Optional[ScenarioResponse]:
+    def get(self, key: str) -> Optional["ScenarioResponse"]:
         return self._cache.get(key)
 
-    def set(self, key: str, value: ScenarioResponse) -> None:
+    def set(self, key: str, value: "ScenarioResponse") -> None:
         if key not in self._cache and len(self._cache) >= self._max_size:
             # Simple FIFO eviction
             oldest = self._order.pop(0)

@@ -1,22 +1,17 @@
+
 from __future__ import annotations
+from core.portfolio.models import Currency
+from typing import TYPE_CHECKING
 
-from dataclasses import dataclass, field
-from typing import Mapping, Tuple
+if TYPE_CHECKING:
+    from core.risk.portfolio import PositionRisk
 
-from core.contracts.money import Currency
+from dataclasses import dataclass
+from typing import Tuple
 
 
-@dataclass(frozen=True)
-class PriceResult:
-    """Pricing output for a single unit/contract.
 
-    PV is per-unit (not scaled by quantity). Currency is the instrument's
-    native currency. Breakdown holds per-key components (e.g., greeks).
-    """
 
-    pv: float
-    currency: Currency
-    breakdown: Mapping[str, float] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -64,7 +59,7 @@ class PortfolioRiskSnapshot:
     total_pv: float
     currency: Currency
     greeks: Greeks
-    positions: Tuple[Tuple[str, float], ...] = tuple()
+    positions: Tuple["PositionRisk", ...] = tuple()
 
 
-__all__ = ["PriceResult", "Greeks", "RiskScenarioResult", "PortfolioRiskSnapshot"]
+__all__ = ["Greeks", "RiskScenarioResult", "PortfolioRiskSnapshot"]

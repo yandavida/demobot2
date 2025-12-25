@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import math
-from typing import Mapping
+from typing import Mapping, Any
 
 from core.pricing.types import PriceResult, PricingError
 from core.pricing.option_types import EuropeanOption
@@ -58,6 +58,13 @@ def bs_price(option_type: str, spot: float, strike: float, rate: float, div: flo
     return strike * df_r * norm_cdf(-d2) - spot * df_q * norm_cdf(-d1)
 
 
+def _req_float(v: Any, name: str) -> float:
+    if v is None:
+        raise TypeError(f"bs_greeks() missing required input: {name}")
+    if isinstance(v, (int, float, str)):
+        return float(v)
+    raise TypeError(f"bs_greeks() invalid type for {name}: {type(v).__name__}")
+
 def bs_greeks(*args, **kwargs) -> Mapping[str, float]:
     """
     Canonical BS greeks adapter.
@@ -88,21 +95,28 @@ def bs_greeks(*args, **kwargs) -> Mapping[str, float]:
         return bs_greeks(spot=spot, strike=strike, t=t, rate=rate, div=div, vol=vol, cp=cp)
 
     # Canonical keyword-only
-    spot = kwargs.get("spot")
-    strike = kwargs.get("strike")
-    t = kwargs.get("t")
-    rate = kwargs.get("rate")
-    div = kwargs.get("div")
-    vol = kwargs.get("vol")
-    cp = kwargs.get("cp")
-    option_type = kwargs.get("option_type")
-    # Resolve option type
-    opt = cp if cp is not None else option_type
+    spot_obj = kwargs.get("spot")
+    strike_obj = kwargs.get("strike")
+    t_obj = kwargs.get("t")
+    rate_obj = kwargs.get("rate")
+    div_obj = kwargs.get("div")
+    vol_obj = kwargs.get("vol")
+
+    spot = _req_float(kwargs.get("spot"), "spot")
+    strike = _req_float(kwargs.get("strike"), "strike")
+    t = _req_float(kwargs.get("t"), "t")
+    rate = _req_float(kwargs.get("rate"), "rate")
+    div = _req_float(kwargs.get("div"), "div")
+    vol = _req_float(kwargs.get("vol"), "vol")
+    cp_raw = kwargs.get("cp")
+    option_type_raw = kwargs.get("option_type")
+    opt = cp_raw if cp_raw is not None else option_type_raw
     if opt is None:
         raise TypeError("Either cp or option_type must be provided.")
-    if opt not in ("C", "P"):
+    opt_s = str(opt)
+    if opt_s not in ("C", "P"):
         raise ValueError(f"Invalid option type: {opt!r}. Expected 'C' or 'P'.")
-    option_type = opt
+    option_type = opt_s
 
     # --- DO NOT CHANGE ANY MATH BELOW THIS LINE ---
     if t <= 0:

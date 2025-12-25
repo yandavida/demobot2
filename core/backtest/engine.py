@@ -18,8 +18,11 @@ class BacktestEngine:
     ) -> BacktestResult:
         steps: list[BacktestStepResult] = []
 
+        from typing import cast
+        from core.contracts.money import Currency
         for tp in timeline.points:
-            ctx = PricingContext(market=tp.snapshot, base_currency=base_currency)
+            base_ccy = cast(Currency, base_currency)
+            ctx = PricingContext(market=tp.snapshot, base_currency=base_ccy)
             try:
                 pr = pricing_engine.price_execution(execution, ctx)
             except Exception as exc:

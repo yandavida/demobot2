@@ -79,7 +79,7 @@ def build_historical_var_and_cvar_result(
     confidence: float,
     horizon_days: int,
     currency: Currency,
-    notes: dict[str, str] = None,
+    notes: Optional[dict[str, str]] = None,
 ) -> VarResult:
     """
     Helper to produce a VarResult for historical VaR and CVaR/ES.

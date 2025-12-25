@@ -16,8 +16,8 @@ class InMemorySnapshotStore:
         snaps = [snap for (sid, _), snap in self._store.items() if sid == session_id]
         return sorted(snaps, key=lambda s: s.version)
     def __init__(self) -> None:
-        self._store = {}  # (session_id, version) -> Snapshot
-        self._latest = {}  # session_id -> Snapshot
+        self._store: dict[tuple[str, int], Snapshot] = {}  # (session_id, version) -> Snapshot
+        self._latest: dict[str, Snapshot] = {}  # session_id -> Snapshot
 
     def save(self, snapshot: Snapshot) -> None:
         key = (snapshot.session_id, snapshot.version)

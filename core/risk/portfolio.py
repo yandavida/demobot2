@@ -55,7 +55,11 @@ def normalize_money(amount: float, from_ccy: str, to_ccy: str, snapshot: MarketS
         if strict:
             raise PricingError(f"missing fx rates for conversion {from_ccy}->{to_ccy}")
         return float(amount)
-    return float(conv.convert(amount, from_ccy, to_ccy, strict=strict))
+    from typing import cast
+    from core.contracts.money import Currency
+    from_ccy_t = cast(Currency, from_ccy)
+    to_ccy_t = cast(Currency, to_ccy)
+    return float(conv.convert(amount, from_ccy_t, to_ccy_t, strict=strict))
 
 
 def valuate_and_risk_positions(
@@ -82,7 +86,10 @@ def valuate_and_risk_positions(
 
         ctx = context
         if ctx is None:
-            ctx = PricingContext(market=snapshot, base_currency=base_currency, fx_converter=conv)
+            from typing import cast
+            from core.contracts.money import Currency
+            base_ccy = cast(Currency, base_currency)
+            ctx = PricingContext(market=snapshot, base_currency=base_ccy, fx_converter=conv)
 
         pr: PriceResult
         try:
@@ -97,7 +104,11 @@ def valuate_and_risk_positions(
         if pr.currency != base_currency:
             if conv is None:
                 raise PricingError(f"missing FxConverter for {pr.currency}->{base_currency}")
-            fx_factor = float(conv.convert(1.0, pr.currency, base_currency, strict=True))
+            from typing import cast
+            from core.contracts.money import Currency
+            pr_ccy_t = cast(Currency, pr.currency)
+            base_ccy_t = cast(Currency, base_currency)
+            fx_factor = float(conv.convert(1.0, pr_ccy_t, base_ccy_t, strict=True))
             pv_pos = pv_pos * fx_factor
         else:
             fx_factor = 1.0
@@ -121,7 +132,11 @@ def aggregate_portfolio_risk(positions: Sequence[PositionRisk], *, base_currency
     for p in positions:
         total_greeks = add_greeks(total_greeks, p.greeks)
 
-    return PortfolioRiskSnapshot(total_pv=float(total_pv), currency=base_currency, greeks=total_greeks, positions=tuple(positions))
+    from typing import cast
+    from core.contracts.money import Currency
+    snap_ccy = cast(Currency, base_currency)
+    positions_t: tuple[PositionRisk, ...] = tuple(positions)
+    return PortfolioRiskSnapshot(total_pv=float(total_pv), currency=snap_ccy, greeks=total_greeks, positions=positions_t)
 
 
 __all__ = [
