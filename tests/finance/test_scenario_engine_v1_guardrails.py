@@ -1,5 +1,7 @@
 import pytest
-from core.scenario.schemas import ScenarioMarketInputs, ScenarioRequest
+from core.scenario.schemas import ScenarioRequest
+from core.marketdata.schemas import Quote
+from core.marketdata.adapters import build_market_snapshot_v1
 from core.scenario.engine import compute_scenario
 
 # Dummy position for permutation invariance (replace with real if available)
@@ -16,13 +18,17 @@ class DummyPosition:
 
 @pytest.fixture
 def base_market():
-    return ScenarioMarketInputs(
-        spot_by_symbol={"AAPL": 100.0},
-        vol_by_symbol={"AAPL": 0.2},
-        rate_by_symbol_or_ccy={},
-        div_by_symbol={},
-        fx_forward_by_pair={}
-    )
+    # Use build_market_snapshot_v1 to create a MarketSnapshot
+    quotes = [
+        Quote(kind="spot", key="AAPL", value=100.0),
+        Quote(kind="vol", key="AAPL", value=0.2),
+        Quote(kind="rate", key="USD", value=0.03),
+        Quote(kind="div", key="AAPL", value=0.01),
+        Quote(kind="fx_spot", key="USD/ILS", value=3.7),
+        Quote(kind="fx_forward", key="USD/ILS", value=3.75),
+    ]
+    from datetime import datetime
+    return build_market_snapshot_v1(datetime(2025, 1, 1, 12, 0, 0), quotes)
 
 @pytest.fixture
 def base_positions():
