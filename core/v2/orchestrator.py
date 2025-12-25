@@ -74,20 +74,24 @@ class V2RuntimeOrchestrator:
         self._applied_log: dict[str, list[AppliedEvent]] = {}
 
     def ingest_event(self, event: V2Event) -> SessionState:
-        self.store.append(event)
         state = self._session_states.get(event.session_id)
         applied_log = self._applied_log.setdefault(event.session_id, [])
         if state is None:
             state = SessionState(session_id=event.session_id, version=0, applied={})
         if event.event_id not in state.applied:
+            self.store.append(event)
             new_applied = dict(state.applied)
             new_version = state.version + 1
             new_applied[event.event_id] = new_version
             state = SessionState(session_id=event.session_id, version=new_version, applied=new_applied)
             applied_event = AppliedEvent(event=event, state_version=new_version, applied_at=datetime.utcnow())
             applied_log.append(applied_event)
-        self._session_states[event.session_id] = state
-        return state
+            self._session_states[event.session_id] = state
+            return state
+        else:
+            # Idempotent: do not append duplicate event, do not increment version
+            self._session_states[event.session_id] = state
+            return state
 
     def build_snapshot(self, session_id: str) -> Snapshot:
         # Always use EventStore + SnapshotStore, never _applied_log/_session_states for correctness
