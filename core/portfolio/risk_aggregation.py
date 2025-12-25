@@ -1,11 +1,13 @@
 from __future__ import annotations
 
-from typing import Iterable, Mapping
+from typing import cast, Iterable, Mapping
 
 from core.adapters.market_data import InMemoryMarketDataAdapter
+from core.contracts.risk_types import Greeks
 from core.fx.converter import FxConverter
 from core.portfolio.models import Money, Position
-from core.portfolio.risk_models import PortfolioRiskSnapshot, PositionGreeks
+from core.portfolio.risk_models import PositionGreeks
+from core.risk.portfolio import PortfolioRiskSnapshot
 from core.services.portfolio_valuation import _StaticPricingAdapter
 
 
@@ -14,7 +16,7 @@ def _value_position(position: Position, fx: FxConverter) -> Money:
     if price is None:
         raise ValueError(f"Missing market price for {position.symbol}")
 
-    market = InMemoryMarketDataAdapter(prices={position.symbol: float(price)}).get_snapshot()
+    market = InMemoryMarketDataAdapter(prices={position.symbol: float(cast(float, price))}).get_snapshot()
     adapter = _StaticPricingAdapter()
     return adapter.price(position, market, fx_converter=fx)
 
@@ -46,4 +48,13 @@ def aggregate_portfolio_risk(
         total_value = Money(amount=total_value.amount + pv_base.amount, ccy=fx.base_ccy)
         total_greeks = total_greeks + _extract_greeks(position.metadata)
 
-    return PortfolioRiskSnapshot(total_value=total_value, greeks=total_greeks)
+    total_value_amount: float = float(total_value.amount)
+
+    greeks = Greeks(
+        delta=float(total_greeks.delta),
+        gamma=float(total_greeks.gamma),
+        vega=float(total_greeks.vega),
+        theta=float(total_greeks.theta),
+        rho=float(total_greeks.rho),
+    )
+    return PortfolioRiskSnapshot(total_pv=total_value_amount, currency=fx.base_ccy, greeks=greeks, positions=tuple())
