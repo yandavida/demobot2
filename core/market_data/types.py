@@ -2,7 +2,7 @@ from __future__ import annotations
 
 
 from dataclasses import dataclass
-from core.finance.currency import Currency
+from core.contracts.money import Currency
 
 
 AssetId = str

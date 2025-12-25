@@ -4,9 +4,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Mapping, MutableMapping, Sequence
 
-# Canonical finance primitives
-from core.finance.currency import Currency, normalize_currency
-from core.finance.money import Money
+from core.contracts.money import Currency, Money, normalize_currency
 from core.market_data.types import MarketSnapshot
 
 @dataclass(frozen=True)
