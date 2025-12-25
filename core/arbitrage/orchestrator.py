@@ -14,6 +14,7 @@ from core.arbitrage.execution.gate import (
 )
 from core.arbitrage.feed import QuoteSnapshot
 from core.arbitrage.identity import opportunity_id
+from core.finance.money import Money
 from core.arbitrage.intelligence.events import ArbitrageEvent, ArbitrageEventType
 from core.arbitrage.intelligence.lifecycle import (
     LifecycleState,
@@ -31,7 +32,7 @@ from core.arbitrage.intelligence.scoring import RankedRecommendation, to_recomme
 from core.arbitrage.intelligence.signals import compute_signals
 from core.arbitrage.models import ArbitrageConfig, ArbitrageOpportunity
 from core.fx.converter import FxConverter
-from core.portfolio.models import Currency, Money
+from core.portfolio.models import Currency
 
 try:
     # Preferred canonical type (if exists in your repo)
@@ -205,8 +206,8 @@ class ArbitrageOrchestrator:
                 buy_venue=opp.buy.venue,
                 sell_venue=opp.sell.venue,
                 base_ccy=str(state.base_currency),
-                buy_price_base=fx_converter.to_base(Money(amount=opp.buy.price, ccy=opp.buy.ccy)).amount,
-                sell_price_base=fx_converter.to_base(Money(amount=opp.sell.price, ccy=opp.sell.ccy)).amount,
+                buy_price_base=fx_converter.to_base(Money(amount=float(opp.buy.price), ccy=opp.buy.ccy)).amount,
+                sell_price_base=fx_converter.to_base(Money(amount=float(opp.sell.price), ccy=opp.sell.ccy)).amount,
             )
 
             lifecycle = update_lifecycle(
@@ -218,8 +219,8 @@ class ArbitrageOrchestrator:
             lifecycle.opportunity_id = opp.opportunity_id  # type: ignore[attr-defined]
             state.opportunity_state[opp.opportunity_id] = lifecycle
 
-            edge_per_unit_money = fx_converter.to_base(Money(amount=opp.net_edge, ccy=opp.ccy))
-            edge_total_money = fx_converter.to_base(Money(amount=opp.net_edge * opp.size, ccy=opp.ccy))
+            edge_per_unit_money = fx_converter.to_base(Money(amount=float(opp.net_edge), ccy=opp.ccy))
+            edge_total_money = fx_converter.to_base(Money(amount=float(opp.net_edge * opp.size), ccy=opp.ccy))
 
             readiness = evaluate_execution_readiness(
                 edge_bps=opp.edge_bps,

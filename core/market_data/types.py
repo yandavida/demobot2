@@ -1,9 +1,8 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from typing import Tuple
 
-from core.portfolio.models import Currency
+from dataclasses import dataclass
+from core.finance.currency import Currency
 
 
 AssetId = str
@@ -30,18 +29,28 @@ class FxRateQuote:
             raise ValueError(f"FxRateQuote.rate must be > 0, got {self.rate}")
 
 
+
+
+
 @dataclass(frozen=True)
 class MarketSnapshot:
-    quotes: Tuple[PriceQuote, ...] = field(default_factory=tuple)
-    fx_rates: Tuple[FxRateQuote, ...] = field(default_factory=tuple)
+
+    quotes: tuple[PriceQuote, ...] = ()
+    fx_rates: tuple[FxRateQuote, ...] = ()
     as_of: str | None = None
 
-    def __post_init__(self) -> None:  # type: ignore[override]
-        # Ensure deterministic ordering by asset / pair string
-        sorted_quotes = tuple(sorted(self.quotes, key=lambda q: str(q.asset)))
-        object.__setattr__(self, "quotes", sorted_quotes)
-        sorted_fx = tuple(sorted(self.fx_rates, key=lambda f: str(f.pair)))
-        object.__setattr__(self, "fx_rates", sorted_fx)
+    def __post_init__(self):
+        # מיון דטרמיניסטי
+        object.__setattr__(self, "quotes", tuple(sorted(self.quotes, key=lambda q: q.asset)))
+        object.__setattr__(self, "fx_rates", tuple(sorted(self.fx_rates, key=lambda f: f.pair)))
 
+    def get_quote(self, asset: str) -> PriceQuote:
+        for q in self.quotes:
+            if q.asset == asset:
+                return q
+        raise KeyError(asset)
+
+    def get_price(self, asset: str) -> float:
+        return float(self.get_quote(asset).price)
 
 __all__ = ["AssetId", "PriceQuote", "FxRateQuote", "MarketSnapshot"]

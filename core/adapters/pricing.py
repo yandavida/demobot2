@@ -4,7 +4,8 @@ from typing import Dict
 
 from core.adapters.contracts import PricingAdapter
 from core.fx.converter import FxConverter
-from core.portfolio.models import MarketSnapshot, Money, Position
+from core.market_data.types import MarketSnapshot
+from core.portfolio.models import Money, Position
 
 
 class BSPricingAdapter(PricingAdapter):

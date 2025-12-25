@@ -2,7 +2,8 @@ from __future__ import annotations
 
 from typing import Mapping
 
-from core.market_data.types import MarketSnapshot, PriceQuote, FxRateQuote
+from core.finance.market import MarketSnapshot
+from core.market_data.types import PriceQuote, FxRateQuote
 from core.pricing.context import PricingContext
 from core.scenarios.types import Scenario, Shock
 from core.fx.errors import MissingFxRateError

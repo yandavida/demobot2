@@ -9,7 +9,7 @@ from core.pricing.engine import PricingEngine
 from core.pricing.context import PricingContext
 from core.fx.converter import FxConverter
 from core.pricing.types import PriceResult, PricingError
-from core.market_data.types import MarketSnapshot
+from core.finance.market import MarketSnapshot
 from core.backtest.timeline import BacktestTimeline
 from core.portfolio.aggregators import validate_portfolio_economics_present
 from core.portfolio.constraints import ConstraintSpec, evaluate_constraints, PortfolioConstraintError, ConstraintReport

@@ -1,5 +1,6 @@
+
 from core.portfolio.cache import CacheKey, InMemoryCache
-from core.portfolio.models import MarketSnapshot, Money, Portfolio, Position
+from core.portfolio.models import MarketSnapshot, Money, Portfolio, Position, Currency, normalize_currency
 from core.portfolio.risk_models import PositionGreeks
 
 __all__ = [
@@ -9,6 +10,7 @@ __all__ = [
     "Money",
     "Portfolio",
     "Position",
-    # "PortfolioRiskSnapshot",  # ייצוא הוסר, יש לייבא מהחוזה הקנוני בלבד
+    "Currency",
+    "normalize_currency",
     "PositionGreeks",
 ]

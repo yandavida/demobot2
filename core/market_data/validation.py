@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Any, Iterable, List
 
-from core.portfolio.models import _normalize_currency
+from core.finance.currency import normalize_currency
 
 
 @dataclass
@@ -79,7 +79,7 @@ def validate_quote_payload(payload: dict[str, Any]) -> ValidationResult:
         errors.append("ccy is required")
     else:
         try:
-            normalized["ccy"] = _normalize_currency(raw_ccy, field_name="Quote.ccy")
+            normalized["ccy"] = normalize_currency(raw_ccy, field_name="Quote.ccy")
         except Exception:
             errors.append("ccy must be a supported currency")
 

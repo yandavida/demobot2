@@ -7,7 +7,7 @@ from core.portfolio.portfolio_models import CanonicalKey, PortfolioState
 from core.pricing.types import PriceResult, PricingError
 from core.contracts.risk_types import Greeks, PortfolioRiskSnapshot
 from core.pricing.engine import PricingEngine
-from core.market_data.types import MarketSnapshot
+from core.finance.market import MarketSnapshot
 from core.fx.converter import FxConverter
 from core.pricing.context import PricingContext
 

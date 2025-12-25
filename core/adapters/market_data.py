@@ -4,7 +4,7 @@ from dataclasses import dataclass, field
 from typing import Iterable, Mapping
 
 from core.adapters.contracts import MarketDataAdapter
-from core.portfolio.models import MarketSnapshot
+from core.market_data.types import MarketSnapshot, PriceQuote
 
 
 @dataclass
@@ -17,4 +17,9 @@ class InMemoryMarketDataAdapter(MarketDataAdapter):
         else:
             requested = set(symbols)
             snapshot_prices = {symbol: price for symbol, price in self.prices.items() if symbol in requested}
-        return MarketSnapshot(prices=snapshot_prices)
+        # המרה ל-PriceQuote לפי החוזה הקנוני
+        quotes = tuple(
+            PriceQuote(asset=symbol, price=price, currency="USD")  # TODO: יש להחליף ל-currency אמיתי אם קיים
+            for symbol, price in snapshot_prices.items()
+        )
+        return MarketSnapshot(quotes=quotes)

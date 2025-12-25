@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Tuple
 
-from core.market_data.types import MarketSnapshot
+from core.finance.market import MarketSnapshot
 
 
 @dataclass(frozen=True)
