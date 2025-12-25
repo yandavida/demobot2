@@ -1,18 +1,12 @@
-from dataclasses import dataclass, field
-from typing import Any, Sequence, Dict, List
 
-@dataclass(frozen=True)
-class ScenarioMarketInputs:
-    spot_by_symbol: Dict[str, float]
-    vol_by_symbol: Dict[str, float]
-    rate_by_symbol_or_ccy: Dict[str, float]
-    div_by_symbol: Dict[str, float] = field(default_factory=dict)
-    fx_forward_by_pair: Dict[str, float] = field(default_factory=dict)
+from dataclasses import dataclass
+from typing import Any, Sequence, Dict, List
+from core.marketdata.schemas import MarketSnapshot
 
 @dataclass(frozen=True)
 class ScenarioRequest:
     positions: Sequence[Any]
-    market: ScenarioMarketInputs
+    market: MarketSnapshot
     spot_shocks: List[float]
     vol_shocks: List[float]
     use_cache: bool = True

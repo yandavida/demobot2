@@ -1,6 +1,5 @@
 
 from .schemas import (
-	ScenarioMarketInputs,
 	ScenarioRequest,
 	ScenarioPoint,
 	ScenarioResponse,
