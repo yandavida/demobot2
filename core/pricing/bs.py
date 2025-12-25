@@ -58,12 +58,56 @@ def bs_price(option_type: str, spot: float, strike: float, rate: float, div: flo
     return strike * df_r * norm_cdf(-d2) - spot * df_q * norm_cdf(-d1)
 
 
-def bs_greeks(option_type: str, spot: float, strike: float, rate: float, div: float, vol: float, t: float) -> Mapping[str, float]:
-    # return per-unit greeks
-    # handle boundaries
+def bs_greeks(*args, **kwargs) -> Mapping[str, float]:
+    """
+    Canonical BS greeks adapter.
+    Public contract: cp in {"C","P"}.
+    Internal math uses resolved option_type.
+    Supports both legacy positional and canonical keyword-only API.
+
+    LOCKED CONTRACT:
+    - Only European options supported. American options are unsupported and must raise.
+    - Vega is returned per +1% IV (0.01 vol).
+    - Theta is returned per 1 day.
+    - No distributed normalization: all unit normalization is via core/pricing/units.py.
+    - FX Forward sign convention: BUY_BASE = notional * (spot - forward), SELL_BASE = -notional * (spot - forward).
+    """
+    # Legacy positional: (option_type, spot, strike, rate, div, vol, t)
+    if args:
+        if len(args) != 7:
+            raise TypeError(f"bs_greeks() legacy positional expects 7 args, got {len(args)}")
+        option_type, spot, strike, rate, div, vol, t = args
+        # Map legacy option_type to cp
+        if option_type.lower() in ("call", "c"):
+            cp = "C"
+        elif option_type.lower() in ("put", "p"):
+            cp = "P"
+        else:
+            raise ValueError(f"Invalid option_type: {option_type!r}")
+        # Recurse to canonical
+        return bs_greeks(spot=spot, strike=strike, t=t, rate=rate, div=div, vol=vol, cp=cp)
+
+    # Canonical keyword-only
+    spot = kwargs.get("spot")
+    strike = kwargs.get("strike")
+    t = kwargs.get("t")
+    rate = kwargs.get("rate")
+    div = kwargs.get("div")
+    vol = kwargs.get("vol")
+    cp = kwargs.get("cp")
+    option_type = kwargs.get("option_type")
+    # Resolve option type
+    opt = cp if cp is not None else option_type
+    if opt is None:
+        raise TypeError("Either cp or option_type must be provided.")
+    if opt not in ("C", "P"):
+        raise ValueError(f"Invalid option type: {opt!r}. Expected 'C' or 'P'.")
+    option_type = opt
+
+    # --- DO NOT CHANGE ANY MATH BELOW THIS LINE ---
     if t <= 0:
         # intrinsic at expiry
-        if option_type == "call":
+        if option_type == "C":
             delta = 1.0 if spot > strike else 0.0
         else:
             delta = -1.0 if spot < strike else 0.0
@@ -72,7 +116,7 @@ def bs_greeks(option_type: str, spot: float, strike: float, rate: float, div: fl
     if vol <= 0:
         # deterministic: delta is e^{-q t} if in-the-money forward, else 0 (call)
         forward = spot * math.exp((rate - div) * t)
-        if option_type == "call":
+        if option_type == "C":
             if forward > strike:
                 return {"delta": math.exp(-div * t), "gamma": 0.0, "vega": 0.0, "theta": 0.0, "rho": 0.0}
             return {"delta": 0.0, "gamma": 0.0, "vega": 0.0, "theta": 0.0, "rho": 0.0}
@@ -89,15 +133,15 @@ def bs_greeks(option_type: str, spot: float, strike: float, rate: float, div: fl
 
     pdf_d1 = norm_pdf(d1)
 
-    delta = df_q * norm_cdf(d1) if option_type == "call" else df_q * (norm_cdf(d1) - 1.0)
+    delta = df_q * norm_cdf(d1) if option_type == "C" else df_q * (norm_cdf(d1) - 1.0)
     gamma = df_q * pdf_d1 / (spot * vol * math.sqrt(t))
     vega = spot * df_q * pdf_d1 * math.sqrt(t)
 
     # theta per year
-    theta = - (spot * df_q * pdf_d1 * vol) / (2.0 * math.sqrt(t)) - rate * strike * df_r * (norm_cdf(d2) if option_type == "call" else -norm_cdf(-d2)) + div * spot * df_q * (norm_cdf(d1) if option_type == "call" else (norm_cdf(d1) - 1.0))
+    theta = - (spot * df_q * pdf_d1 * vol) / (2.0 * math.sqrt(t)) - rate * strike * df_r * (norm_cdf(d2) if option_type == "C" else -norm_cdf(-d2)) + div * spot * df_q * (norm_cdf(d1) if option_type == "C" else (norm_cdf(d1) - 1.0))
 
     # rho
-    rho = strike * t * df_r * (norm_cdf(d2) if option_type == "call" else -norm_cdf(-d2))
+    rho = strike * t * df_r * (norm_cdf(d2) if option_type == "C" else -norm_cdf(-d2))
 
     return {"delta": float(delta), "gamma": float(gamma), "vega": float(vega), "theta": float(theta), "rho": float(rho)}
 

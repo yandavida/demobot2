@@ -21,17 +21,18 @@ class PriceResult:
 
 @dataclass(frozen=True)
 class Greeks:
-    """Per-unit Greeks exposure.
+    """Per-unit Greeks exposure (canonical units).
 
-    Fields represent mathematical derivatives per unit/contract:
-      - delta: dPV / dSpot
-      - gamma: d2PV / dSpot2
-      - vega: dPV / dVol (absolute vol)
-      - theta: dPV / dT (time)
-      - rho: dPV / dr (interest rate)
+    Fields:
+        - delta: dPV / dSpot
+        - gamma: d2PV / dSpot2
+        - vega: change for +1% IV (per 0.01 vol)
+        - theta: change per day
+        - rho: dPV / dr (interest rate)
 
-    Values are per-unit and should be scaled only by portfolio aggregation
-    logic (no scaling inside pricing engines).
+    All values are per-unit and must be scaled by quantity * contract_multiplier for portfolio aggregation.
+    Vega/theta units are locked: vega per 1% IV, theta per day.
+    American options are unsupported in V2-F.1 (must raise if called).
     """
 
     delta: float
