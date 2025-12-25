@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Mapping, Tuple
 
-from core.finance.currency import Currency
+from core.contracts.money import Currency
 
 
 @dataclass(frozen=True)
