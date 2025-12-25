@@ -12,7 +12,14 @@ class AppliedEvent:
     applied_at: datetime
 
 
-EventType = Literal["QUOTE_INGESTED", "COMPUTE_REQUESTED", "SNAPSHOT_CREATED"]
+EventType = Literal[
+    "QUOTE_INGESTED",
+    "COMPUTE_REQUESTED",
+    "SNAPSHOT_CREATED",
+    "PORTFOLIO_CREATED",
+    "PORTFOLIO_POSITION_UPSERTED",
+    "PORTFOLIO_POSITION_REMOVED"
+]
 
 @dataclass(frozen=True)
 class V2Event:
