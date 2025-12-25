@@ -24,7 +24,7 @@ def normalize_currency(value: Currency | str | None, field_name: str = "currency
 class Money:
     amount: float
     ccy: Currency
-    def __init__(self, amount: float, ccy: Currency = None, currency: Currency = None):
+    def __init__(self, amount: float, ccy: Currency | str | None = None, currency: Currency | str | None = None):
         if ccy is not None and currency is not None:
             raise TypeError("Specify only one of ccy or currency")
         object.__setattr__(self, 'amount', float(amount))
