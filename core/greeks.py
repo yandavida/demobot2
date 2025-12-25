@@ -1,10 +1,34 @@
-# Layer: core_math
-# core/greeks.py
 from __future__ import annotations
 
-from math import log, sqrt, exp, erf, pi
-
 from core.models import Position, CP
+
+def aggregate_greeks(g, qty=None, contract_multiplier=None, *args, **kwargs):
+    """
+    Adapter: supports both iterable-of-greeks and (greeks, qty, contract_multiplier).
+    If qty and contract_multiplier are provided, applies linear scaling.
+    Returns dict for test compatibility.
+    """
+    # Legacy/test mode: ([g], [qty], [cmult])
+    if qty is not None and contract_multiplier is not None:
+        # Assume g is a list of dicts, qty/contract_multiplier are lists of same length
+        out = {}
+        keys = set()
+        for gi in g:
+            keys.update(gi.keys())
+        for k in keys:
+            out[k] = sum(gi.get(k, 0.0) * q * cm for gi, q, cm in zip(g, qty, contract_multiplier))
+        return out
+    # Canonical: sum iterable
+    total = {}
+    keys = set()
+    for gi in g:
+        keys.update(getattr(gi, 'keys', lambda: gi.__dict__.keys())())
+    for k in keys:
+        total[k] = sum(getattr(gi, k, gi.get(k, 0.0)) for gi in g)
+    return total
+
+__all__ = ["Greeks", "aggregate_greeks"]
+from math import log, sqrt, exp, erf, pi
 
 
 def _norm_cdf(x: float) -> float:
