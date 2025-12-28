@@ -1,16 +1,16 @@
 from core.pnl.theoretical import compute_position_pnl
 from core.pricing.types import PriceResult
-from core.contracts.money import Currency, Money
+from core.contracts.money import Currency
 
 class DummyFxConverter:
-    def convert(self, money: Money, to_ccy: Currency) -> Money:
+    def convert(self, amount: float, from_ccy: Currency, to_ccy: Currency, *, strict: bool = True) -> float:
         # USD <-> ILS: 1 USD = 4 ILS
-        if money.ccy == to_ccy:
-            return money
-        if money.ccy == "USD" and to_ccy == "ILS":
-            return Money(money.amount * 4, "ILS")
-        if money.ccy == "ILS" and to_ccy == "USD":
-            return Money(money.amount / 4, "USD")
+        if from_ccy == to_ccy:
+            return float(amount)
+        if from_ccy == "USD" and to_ccy == "ILS":
+            return float(amount) * 4
+        if from_ccy == "ILS" and to_ccy == "USD":
+            return float(amount) / 4
         raise ValueError("Unsupported currency conversion")
 
 class DummySnapshot:
