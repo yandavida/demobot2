@@ -20,6 +20,27 @@ def make_price(pv, ccy, breakdown):
     return type("PriceResult", (), {"pv": pv, "currency": ccy, "breakdown": breakdown})()
 
 def test_signature_lock():
+    # F6.5: InstitutionalFxSwapPricingEngine.price_swap signature
+    from core.pricing.institutional_fx.swaps_engine import InstitutionalFxSwapPricingEngine
+    from core.pricing.institutional_fx.swaps_models import FxSwapTrade, FxSwapMtmResult
+    swap_engine = InstitutionalFxSwapPricingEngine
+    swap_sig = inspect.signature(swap_engine.price_swap)
+    swap_params = list(swap_sig.parameters)
+    assert swap_params == ["self", "trade"]
+    # FxSwapTrade dataclass fields
+    import dataclasses
+    trade_fields = [f.name for f in dataclasses.fields(FxSwapTrade)]
+    required_trade = [
+        "pair", "base_notional", "swap_type", "near_forward_rate", "far_forward_rate",
+        "near_df_base", "near_df_quote", "near_df_mtm", "far_df_base", "far_df_quote", "far_df_mtm", "spot", "presentation_currency"
+    ]
+    for f in required_trade:
+        assert f in trade_fields
+    # FxSwapMtmResult dataclass fields
+    mtm_fields = [f.name for f in dataclasses.fields(FxSwapMtmResult)]
+    required_mtm = ["mtm", "currency", "near_leg", "far_leg"]
+    for f in required_mtm:
+        assert f in mtm_fields
     sig = inspect.signature(compute_position_pnl)
     params = list(sig.parameters)
     required = ["position_id", "symbol", "prev_pr", "curr_pr", "prev_snapshot", "curr_snapshot", "quantity", "base_currency", "fx_converter", "mode"]
