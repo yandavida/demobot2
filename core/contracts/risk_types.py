@@ -62,6 +62,4 @@ class PortfolioRiskSnapshot:
     positions: Tuple["PositionRisk", ...] = tuple()
 
 
-from core.pricing.types import PriceResult  # For mypy symbol resolution (V2-E0)
-
-__all__ = ["Greeks", "RiskScenarioResult", "PortfolioRiskSnapshot", "PriceResult"]
+__all__ = ["Greeks", "RiskScenarioResult", "PortfolioRiskSnapshot"]
