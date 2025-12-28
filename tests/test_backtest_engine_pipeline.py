@@ -1,8 +1,7 @@
-from core.backtest import TimePoint, BacktestTimeline, BacktestEngine
+from core.backtest import TimePoint, BacktestTimeline
 from core.market_data.types import MarketSnapshot, PriceQuote
 from core.pricing.simple import SimpleSpotPricingEngine
 from core.arbitrage.models import ArbitrageOpportunity, ArbitrageLeg
-import pytest
 
 def _make_opportunity(symbol: str, size: float) -> ArbitrageOpportunity:
     buy = ArbitrageLeg(action="buy", venue="X", price=0.0, quantity=size)
