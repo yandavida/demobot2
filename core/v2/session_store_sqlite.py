@@ -3,17 +3,26 @@ from datetime import datetime
 from core.v2.sqlite_schema import ensure_schema
 from core.v2.persistence_config import get_v2_db_path, ensure_var_dir_exists
 
+
+from contextlib import closing
+
 class SqliteSessionStore:
     def __init__(self, db_path: str = None):
         if db_path is None:
             db_path = get_v2_db_path()
-        ensure_var_dir_exists(db_path)
-        self.conn = sqlite3.connect(db_path, check_same_thread=False)
-        ensure_schema(self.conn)
+        self.db_path = db_path
+
+    def _connect(self):
+        ensure_var_dir_exists(self.db_path)
+        conn = sqlite3.connect(self.db_path, check_same_thread=False)
+        conn.execute("PRAGMA foreign_keys=ON")
+        conn.execute("PRAGMA journal_mode=WAL")
+        conn.execute("PRAGMA synchronous=NORMAL")
+        ensure_schema(conn)
+        return conn
 
     def create(self, session_id: str, created_at: datetime) -> None:
-        cur = self.conn.cursor()
-        try:
+        with closing(self._connect()) as conn, closing(conn.cursor()) as cur:
             cur.execute(
                 """
                 INSERT INTO sessions (session_id, created_at)
@@ -22,24 +31,18 @@ class SqliteSessionStore:
                 """,
                 (session_id, created_at.isoformat()),
             )
-            self.conn.commit()
-        finally:
-            cur.close()
+            conn.commit()
 
     def exists(self, session_id: str) -> bool:
-        cur = self.conn.cursor()
-        try:
+        with closing(self._connect()) as conn, closing(conn.cursor()) as cur:
             cur.execute(
                 "SELECT 1 FROM sessions WHERE session_id = ? LIMIT 1",
                 (session_id,)
             )
             return cur.fetchone() is not None
-        finally:
-            cur.close()
 
     def get(self, session_id: str):
-        cur = self.conn.cursor()
-        try:
+        with closing(self._connect()) as conn, closing(conn.cursor()) as cur:
             cur.execute(
                 "SELECT session_id, created_at FROM sessions WHERE session_id = ?",
                 (session_id,)
@@ -48,10 +51,6 @@ class SqliteSessionStore:
             if not row:
                 return None
             return {"session_id": row[0], "created_at": row[1]}
-        finally:
-            cur.close()
 
     def close(self):
-        if hasattr(self, 'conn') and self.conn:
-            self.conn.close()
-            self.conn = None
+        pass  # No-op: no long-lived connection
