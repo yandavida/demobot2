@@ -5,9 +5,9 @@ from __future__ import annotations
 
 import sqlite3
 from typing import Optional, List
-from datetime import datetime, timezone
+from datetime import datetime
 import json
-from core.v2.models import Snapshot, canonical_json
+from core.v2.models import Snapshot, hash_snapshot, canonical_json
 from .types import StorageError, StorageIntegrityError, StorageConnectionError
 from .schema import run_migrations
 
@@ -24,7 +24,9 @@ class SqliteSnapshotStore:
         try:
             cur = self.conn.cursor()
             payload_json = canonical_json(snapshot.data)
-            created_at = snapshot.created_at.replace(tzinfo=timezone.utc).isoformat()
+            # חשב hash דטרמיניסטי תמיד
+            state_hash = hash_snapshot(snapshot.data)
+            created_at = snapshot.created_at.isoformat()
             cur.execute(
                 """
                 INSERT OR REPLACE INTO snapshot_store (session_id, version, payload, payload_hash, created_at)
@@ -34,7 +36,7 @@ class SqliteSnapshotStore:
                     snapshot.session_id,
                     snapshot.version,
                     payload_json,
-                    snapshot.state_hash,
+                    state_hash,
                     created_at,
                 ),
             )
@@ -86,10 +88,13 @@ class SqliteSnapshotStore:
 
     def _row_to_snapshot(self, row) -> Snapshot:
         session_id, version, payload_json, state_hash, created_at = row
+        data = json.loads(payload_json)
+        # ודא hash דטרמיניסטי תמיד
+        computed_hash = hash_snapshot(data)
         return Snapshot(
             session_id=session_id,
             version=version,
             created_at=datetime.fromisoformat(created_at),
-            state_hash=state_hash,
-            data=json.loads(payload_json),
+            state_hash=computed_hash,
+            data=data,
         )

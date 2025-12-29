@@ -10,7 +10,7 @@ from api.v2.read_models_schemas import (
     ComputeRequestViewItem,
     ComputeRequestsListResponse,
 )
-from api.v2.service import v2_service
+from api.v2.service import get_v2_service
 
 logger = logging.getLogger(__name__)
 
@@ -26,10 +26,11 @@ def _payload_dict(p: Any) -> Dict[str, Any]:
 def list_events(session_id: str, *, limit: int, include_payload: bool) -> EventsListResponse:
     if not (1 <= limit <= 500):
         raise HTTPException(status_code=400, detail="limit must be between 1 and 500")
-    if v2_service.get_session(session_id) is None:
+    svc = get_v2_service()
+    if svc.get_session(session_id) is None:
         raise HTTPException(status_code=404, detail="Session not found")
     start = time.perf_counter()
-    events = v2_service.event_store.list(session_id) if hasattr(v2_service, "event_store") else []
+    events = svc.event_store.list(session_id) if hasattr(svc, "event_store") else []
     sorted_events = sorted(events, key=lambda e: (e.ts, e.event_id))
     seen = set()
     items: List[EventViewItem] = []
@@ -60,7 +61,8 @@ def list_events(session_id: str, *, limit: int, include_payload: bool) -> Events
 
 def get_snapshot_metadata(session_id: str) -> SnapshotMetadataResponse:
     start = time.perf_counter()
-    snap = v2_service.snapshot_store.latest(session_id)
+    svc = get_v2_service()
+    snap = svc.snapshot_store.latest(session_id)
     if snap is None:
         raise HTTPException(status_code=404, detail="Snapshot not found")
     elapsed_ms = (time.perf_counter() - start) * 1000
@@ -80,9 +82,10 @@ def list_compute_requests(session_id: str, *, limit: int, include_params: bool) 
     start = time.perf_counter()
     if not (1 <= limit <= 500):
         raise HTTPException(status_code=400, detail="limit must be between 1 and 500")
-    if v2_service.get_session(session_id) is None:
+    svc = get_v2_service()
+    if svc.get_session(session_id) is None:
         raise HTTPException(status_code=404, detail="Session not found")
-    events = v2_service.event_store.list(session_id) if hasattr(v2_service, "event_store") else []
+    events = svc.event_store.list(session_id) if hasattr(svc, "event_store") else []
     compute_events = [e for e in events if _etype_str(e.type) == "COMPUTE_REQUESTED"] if events else []
     compute_events = sorted(compute_events, key=lambda e: (e.ts, e.event_id))[:limit] if compute_events else []
     items: List[ComputeRequestViewItem] = []

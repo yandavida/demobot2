@@ -1,5 +1,6 @@
 from __future__ import annotations
 from fastapi import Request
+import os
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 
@@ -23,6 +24,8 @@ class ErrorHandlingMiddleware(BaseHTTPMiddleware):
             )
 
         except Exception as e:
+            if "PYTEST_CURRENT_TEST" in os.environ:
+                raise
             return JSONResponse(
                 status_code=500,
                 content=ErrorResponse(

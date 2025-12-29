@@ -1,13 +1,16 @@
 
-# --- Canonical V2 API Router ---
+import os
+import logging
+import traceback
 from fastapi import APIRouter, Request, Response, status, HTTPException, Depends
+from api.v2.service import get_v2_service
 from api.v2.read_models import list_events, get_snapshot_metadata, list_compute_requests
 from api.v2.read_models_opportunities_schemas import LatestOpportunitiesOut
 from api.v2.read_models_schemas import EventsListResponse, SnapshotMetadataResponse, ComputeRequestsListResponse
 from api.v2.schemas import CreateSessionResponse, IngestEventResponse, SnapshotResponse
 from api.v2.commands import V2IngestCommand
 from api.v2.validators import validate_quote_payload, validate_compute_payload
-from api.v2.service import v2_service
+from api.v2.force_raise_hook import should_force_raise_for_tests
 from api.v2.correlation import get_or_create_correlation_id, attach_correlation_id
 from api.v2.logging import log_request
 from api.v2.portfolio_read_model import get_portfolio_summary
@@ -15,28 +18,45 @@ from api.v2.portfolio_schemas import PortfolioSummaryOut
 
 router = APIRouter()
 
+
+
+
 # --- Correlation ID Dependency ---
 async def correlation_id_dep(request: Request, response: Response):
     cid = get_or_create_correlation_id(request)
     attach_correlation_id(response, cid)
     return cid
 
+
 # --- Helper: Assert Session Exists ---
 def assert_session_exists(session_id: str) -> None:
-    if v2_service.get_session(session_id) is None:
+    svc = get_v2_service()
+    if svc.get_session(session_id) is None:
         raise HTTPException(status_code=404, detail="Session not found")
 
 # --- Endpoints ---
+
 @router.post("/sessions", response_model=CreateSessionResponse)
 async def create_session(request: Request, response: Response, cid: str = Depends(correlation_id_dep)):
-    session_id = v2_service.create_session()
-    log_request("POST", "/api/v2/sessions", session_id, cid, status.HTTP_201_CREATED, 0)
-    response.status_code = status.HTTP_201_CREATED
-    return CreateSessionResponse(session_id=session_id)
+    logger = logging.getLogger("api.v2.router")
+    if should_force_raise_for_tests():
+        raise RuntimeError("forced error for tests")
+    try:
+        svc = get_v2_service()
+        session_id = svc.create_session()
+        log_request("POST", "/api/v2/sessions", session_id, cid, status.HTTP_201_CREATED, 0)
+        response.status_code = status.HTTP_201_CREATED
+        return CreateSessionResponse(session_id=session_id)
+    except Exception as exc:
+        logger.error("create_session failed: %s\n%s", exc, traceback.format_exc())
+        if "PYTEST_CURRENT_TEST" in os.environ:
+            raise
+        raise HTTPException(status_code=500, detail="Internal Server Error") from exc
 
 @router.post("/sessions/{session_id}/events", response_model=IngestEventResponse, status_code=201)
 async def ingest_event(session_id: str, req: V2IngestCommand, request: Request):
     cid = getattr(request.state, "correlation_id", None)
+    svc = get_v2_service()
     if req.type == "QUOTE_INGESTED":
         validate_quote_payload(req.payload)
     elif req.type == "COMPUTE_REQUESTED":
@@ -59,7 +79,7 @@ async def ingest_event(session_id: str, req: V2IngestCommand, request: Request):
     else:
         raise HTTPException(status_code=400, detail={"detail": f"unsupported command type: {req.type}"})
     try:
-        state_version, applied = v2_service.ingest_event(
+        state_version, applied = svc.ingest_event(
             session_id=session_id,
             event_id=getattr(req, "event_id", None),
             ts=getattr(req, "ts", None),
@@ -86,16 +106,23 @@ async def ingest_event(session_id: str, req: V2IngestCommand, request: Request):
                 "event_type": getattr(req, "type", None),
             },
         )
+        from api.v2.service import should_force_raise_for_tests
+        if should_force_raise_for_tests():
+            raise
         raise HTTPException(status_code=500, detail={"detail": "Internal Server Error"}) from exc
 
 @router.post("/sessions/{session_id}/snapshot", response_model=SnapshotResponse)
 async def create_snapshot(session_id: str, request: Request, response: Response, cid: str = Depends(correlation_id_dep)):
+    svc = get_v2_service()
     try:
-        snap = v2_service.create_snapshot(session_id)
+        snap = svc.create_snapshot(session_id)
     except HTTPException:
         raise
-    except Exception:
-        raise HTTPException(status_code=500, detail="Internal Server Error")
+    except Exception as exc:
+        from api.v2.service import should_force_raise_for_tests
+        if should_force_raise_for_tests():
+            raise
+        raise HTTPException(status_code=500, detail="Internal Server Error") from exc
     response.status_code = status.HTTP_201_CREATED
     return SnapshotResponse(
         session_id=snap.session_id,
@@ -107,20 +134,24 @@ async def create_snapshot(session_id: str, request: Request, response: Response,
 
 @router.get("/sessions/{session_id}/snapshot", response_model=SnapshotResponse)
 async def get_snapshot(session_id: str, request: Request, response: Response, cid: str = Depends(correlation_id_dep)):
-    assert_session_exists(session_id)
+    import logging
+    logger = logging.getLogger("api.v2.router")
     try:
-        snap = v2_service.get_snapshot(session_id)
-    except HTTPException:
-        raise
-    except Exception:
-        raise HTTPException(status_code=500, detail="Internal Server Error")
-    return SnapshotResponse(
-        session_id=snap.session_id,
-        version=snap.version,
-        state_hash=snap.state_hash,
-        data=snap.data,
-        correlation_id=cid,
-    )
+        assert_session_exists(session_id)
+        svc = get_v2_service()
+        snap = svc.get_snapshot(session_id)
+        return SnapshotResponse(
+            session_id=snap.session_id,
+            version=snap.version,
+            state_hash=snap.state_hash,
+            data=snap.data,
+            correlation_id=cid,
+        )
+    except Exception as exc:
+        logger.exception("v2.get_snapshot failed", extra={"session_id": session_id})
+        if "PYTEST_CURRENT_TEST" in os.environ:
+            raise
+        raise HTTPException(status_code=500, detail="Internal Server Error") from exc
 
 @router.get("/sessions/{session_id}/events", response_model=EventsListResponse)
 async def get_events_list(session_id: str, limit: int = 200, include_payload: bool = False):
@@ -140,8 +171,12 @@ async def get_snapshot_metadata_view(session_id: str):
 @router.get("/opportunities/latest", response_model=LatestOpportunitiesOut, status_code=200)
 async def get_latest_opportunities(session_id: str, limit: int = 50):
     try:
-        return v2_service.get_latest_opportunity_views(session_id=session_id, limit=limit)
-    except Exception:
+        svc = get_v2_service()
+        return svc.get_latest_opportunity_views(session_id=session_id, limit=limit)
+    except Exception as exc:
+        from api.v2.service import should_force_raise_for_tests
+        if should_force_raise_for_tests():
+            raise
         return LatestOpportunitiesOut(items=[])
 
 @router.get("/sessions/{session_id}/portfolio/summary", response_model=PortfolioSummaryOut)

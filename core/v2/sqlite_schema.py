@@ -33,6 +33,13 @@ def ensure_schema(conn: sqlite3.Connection) -> None:
     cur.execute("CREATE INDEX IF NOT EXISTS idx_events_session_ts ON events(session_id, ts)")
 
     cur.execute("""
+        CREATE TABLE IF NOT EXISTS sessions (
+            session_id TEXT PRIMARY KEY,
+            created_at TEXT NOT NULL
+        )
+    """)
+
+    cur.execute("""
         CREATE TABLE IF NOT EXISTS snapshots (
             session_id TEXT NOT NULL,
             version INTEGER NOT NULL,

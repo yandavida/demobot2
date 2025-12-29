@@ -3,11 +3,18 @@ import json
 from datetime import datetime
 from core.v2.models import V2Event
 from core.v2.sqlite_schema import ensure_schema
-from core.v2.persistence_config import V2_DB_PATH, ensure_var_dir_exists
+from core.v2.persistence_config import get_v2_db_path, ensure_var_dir_exists
 
 class SqliteEventStore:
-    def __init__(self, db_path: str = V2_DB_PATH):
-        ensure_var_dir_exists()
+    def close(self):
+        if hasattr(self, 'conn') and self.conn:
+            self.conn.close()
+            self.conn = None
+
+    def __init__(self, db_path: str = None):
+        if db_path is None:
+            db_path = get_v2_db_path()
+        ensure_var_dir_exists(db_path)
         self.conn = sqlite3.connect(db_path, check_same_thread=False)
         ensure_schema(self.conn)
 

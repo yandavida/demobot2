@@ -5,9 +5,9 @@ from __future__ import annotations
 
 import sqlite3
 from typing import List
-from datetime import datetime, timezone
+from datetime import datetime
 import json
-from core.v2.models import V2Event, canonical_json
+from core.v2.models import V2Event
 from .types import StorageError, StorageIntegrityError, StorageConnectionError
 from .schema import run_migrations
 
@@ -20,24 +20,29 @@ class SqliteEventStore:
         except sqlite3.Error as e:
             raise StorageConnectionError(f"Failed to connect or migrate: {e}")
 
-    def append(self, event: V2Event) -> bool:
-        """
-        מוסיף אירוע. מחזיר True אם נוסף, False אם כבר קיים (idempotent לפי event_id).
-        זורק StorageIntegrityError על הפרת שלמות אחרת.
-        """
+    def append(self, event: V2Event) -> None:
+        """Append an event to the store. Idempotent: if event exists, no-op. If conflict, raise."""
         try:
             cur = self.conn.cursor()
-            # קנוניזציה של payload
-            payload_json = canonical_json(event.payload)
-            created_at = datetime.now(timezone.utc).isoformat()
-            # חשב seq הבא
-            cur.execute("SELECT MAX(seq) FROM event_store WHERE session_id = ?", (event.session_id,))
+            # בדוק idempotency לפי (session_id, event_id)
+            cur.execute(
+                "SELECT type, payload, seq FROM event_store WHERE session_id = ? AND event_id = ?",
+                (event.session_id, event.event_id),
+            )
             row = cur.fetchone()
-            next_seq = (row[0] or 0) + 1
-            # בדוק idempotency לפי event_id
-            cur.execute("SELECT 1 FROM event_store WHERE session_id = ? AND event_id = ?", (event.session_id, event.event_id))
-            if cur.fetchone():
-                return False
+            if row:
+                # אם האירוע קיים וזהה, no-op
+                if row[0] == event.type and row[1] == json.dumps(event.payload, separators=(",", ":")):
+                    return
+                # אם קיים אבל שונה, זו התנגשות
+                raise StorageIntegrityError(f"Event conflict for session_id={event.session_id} event_id={event.event_id}")
+            # חשב seq הבא (הגרסה)
+            cur.execute(
+                "SELECT COALESCE(MAX(seq), 0) + 1 FROM event_store WHERE session_id = ?",
+                (event.session_id,)
+            )
+            next_seq = cur.fetchone()[0]
+            # הוסף אירוע
             cur.execute(
                 """
                 INSERT INTO event_store (session_id, seq, event_id, ts, type, payload, payload_hash, created_at)
@@ -47,15 +52,14 @@ class SqliteEventStore:
                     event.session_id,
                     next_seq,
                     event.event_id,
-                    event.ts.replace(tzinfo=timezone.utc).isoformat(),
+                    event.ts.isoformat(),
                     event.type,
-                    payload_json,
+                    json.dumps(event.payload, separators=(",", ":")),
                     event.payload_hash,
-                    created_at,
+                    datetime.now().isoformat(),
                 ),
             )
             self.conn.commit()
-            return True
         except sqlite3.IntegrityError as e:
             raise StorageIntegrityError(f"Integrity error: {e}")
         except sqlite3.Error as e:
