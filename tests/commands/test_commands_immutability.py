@@ -5,7 +5,6 @@ from datetime import datetime
 
 from core.commands.base import CommandMeta
 from core.commands.event_ingest import IngestEventCommand
-from core.v2.models import EventType
 
 
 def test_ingest_command_is_immutable():

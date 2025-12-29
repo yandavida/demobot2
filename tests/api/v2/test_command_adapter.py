@@ -1,7 +1,6 @@
 
 from api.v2.adapters.command_adapter import ingest_request_to_command
 from api.v2.schemas import IngestEventRequest
-from core.v2.models import EventType
 
 def test_ingest_request_to_command_mapping():
     req = IngestEventRequest(
