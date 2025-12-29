@@ -73,6 +73,51 @@ class V2RuntimeOrchestrator:
         self._session_states: dict[str, SessionState] = {}
         self._applied_log: dict[str, list[AppliedEvent]] = {}
 
+    def recover(self, session_id: str) -> SessionState:
+        """
+        Load latest snapshot and replay only tail events for session_id.
+        Guarantees deterministic state after crash/restart.
+        """
+        base = None
+        if self.snapshot_store is not None:
+            base = self.snapshot_store.latest(session_id)
+        if base is not None:
+            # Load tail events after snapshot.version
+            tail_events = self.store.list_after_version(session_id, base.version)
+            data = dict(base.data)
+            seen = set(base.data.keys())
+            version = base.version
+            applied = dict((eid, i+1) for i, eid in enumerate(sorted(seen)))
+            applied_log = []
+            for e in sorted(tail_events, key=lambda e: (e.ts, e.event_id)):
+                if e.event_id not in seen:
+                    data[e.event_id] = e.payload
+                    version += 1
+                    applied[e.event_id] = version
+                    applied_log.append(AppliedEvent(event=e, state_version=version, applied_at=e.ts))
+            state = SessionState(session_id=session_id, version=version, applied=applied)
+            self._session_states[session_id] = state
+            self._applied_log[session_id] = applied_log
+            return state
+        else:
+            # No snapshot: replay all events
+            events = self.store.list(session_id)
+            data = {}
+            seen = set()
+            version = 0
+            applied = {}
+            applied_log = []
+            for e in sorted(events, key=lambda e: (e.ts, e.event_id)):
+                if e.event_id not in seen:
+                    data[e.event_id] = e.payload
+                    version += 1
+                    applied[e.event_id] = version
+                    applied_log.append(AppliedEvent(event=e, state_version=version, applied_at=e.ts))
+            state = SessionState(session_id=session_id, version=version, applied=applied)
+            self._session_states[session_id] = state
+            self._applied_log[session_id] = applied_log
+            return state
+
     def ingest_event(self, event: V2Event) -> SessionState:
         state = self._session_states.get(event.session_id)
         applied_log = self._applied_log.setdefault(event.session_id, [])
@@ -104,6 +149,13 @@ class V2RuntimeOrchestrator:
         if self.snapshot_store is not None:
             base = self.snapshot_store.latest(session_id)
         if base is not None:
+            all_events = self.store.list(session_id)
+            if all_events:
+                max_seq = len({e.event_id for e in all_events})
+                if base.version == max_seq:
+                    return base
+                if base.version > max_seq:
+                    raise ValueError(f"Snapshot version {base.version} > latest event version {max_seq}")
             mode = "delta"
             base_version = base.version
             tail_events = self.store.list_after_version(session_id, base.version)

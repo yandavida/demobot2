@@ -1,5 +1,5 @@
 from api.v2.portfolio_schemas import PortfolioSummaryOut, MoneyOut, ExposureOut, ConstraintsOut
-from api.v2.service import v2_service
+from api.v2.service import get_v2_service
 from core.portfolio.v2_reducer import reduce_portfolio_state
 from core.portfolio.v2_aggregation import aggregate_portfolio
 from core.portfolio.v2_constraints import evaluate_constraints
@@ -7,10 +7,11 @@ from fastapi import HTTPException
 
 def get_portfolio_summary(session_id: str) -> PortfolioSummaryOut:
     # Load events from EventStore
-    events = v2_service.event_store.list(session_id)
+    svc = get_v2_service()
+    events = svc.event_store.list(session_id)
     if not events:
         raise HTTPException(status_code=404, detail="Session not found")
-    snapshot = v2_service.snapshot_store.latest(session_id)
+    snapshot = svc.snapshot_store.latest(session_id)
     version = snapshot.version if snapshot else len(events)
     import logging
     logger = logging.getLogger("demobot.v2")

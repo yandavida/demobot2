@@ -3,7 +3,7 @@ from fastapi.testclient import TestClient
 from api.main import app
 from api.v2.service import enable_force_raise_for_tests, reset_for_tests
 
-client = TestClient(app)
+client = TestClient(app, raise_server_exceptions=True)
 
 @pytest.fixture(autouse=True)
 def reset_service():
@@ -16,7 +16,6 @@ def test_500_correlation_id_provided():
     assert resp.status_code == 500
     assert resp.headers["X-Correlation-Id"] == "cid-500"
     assert resp.json() == {"detail": "Internal Server Error"}
-    enable_force_raise_for_tests(False)
 
 def test_500_correlation_id_autogen():
     enable_force_raise_for_tests(True)
@@ -25,7 +24,6 @@ def test_500_correlation_id_autogen():
     assert "X-Correlation-Id" in resp.headers
     assert resp.headers["X-Correlation-Id"]
     assert resp.json() == {"detail": "Internal Server Error"}
-    enable_force_raise_for_tests(False)
 
 
 def test_correlation_id_passthrough():
@@ -71,7 +69,9 @@ def test_snapshot_determinism():
     for req in reqs:
         client.post(f"/api/v2/sessions/{session_id}/events", json=req)
     snap1 = client.get(f"/api/v2/sessions/{session_id}/snapshot")
+    assert snap1.status_code == 200, f"snapshot1 failed: {snap1.status_code} body={snap1.text}"
     snap2 = client.get(f"/api/v2/sessions/{session_id}/snapshot")
+    assert snap2.status_code == 200, f"snapshot2 failed: {snap2.status_code} body={snap2.text}"
     assert snap1.json()["state_hash"] == snap2.json()["state_hash"]
     assert snap1.json()["version"] == snap2.json()["version"]
 

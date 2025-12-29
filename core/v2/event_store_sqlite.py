@@ -3,18 +3,31 @@ import json
 from datetime import datetime
 from core.v2.models import V2Event
 from core.v2.sqlite_schema import ensure_schema
-from core.v2.persistence_config import V2_DB_PATH, ensure_var_dir_exists
+from core.v2.persistence_config import get_v2_db_path, ensure_var_dir_exists
+
+from contextlib import closing
 
 class SqliteEventStore:
-    def __init__(self, db_path: str = V2_DB_PATH):
-        ensure_var_dir_exists()
-        self.conn = sqlite3.connect(db_path, check_same_thread=False)
-        ensure_schema(self.conn)
+    def __init__(self, db_path: str = None):
+        if db_path is None:
+            db_path = get_v2_db_path()
+        self.db_path = db_path
+
+    def _connect(self):
+        ensure_var_dir_exists(self.db_path)
+        conn = sqlite3.connect(self.db_path, check_same_thread=False)
+        conn.execute("PRAGMA foreign_keys=ON")
+        conn.execute("PRAGMA journal_mode=WAL")
+        conn.execute("PRAGMA synchronous=NORMAL")
+        ensure_schema(conn)
+        return conn
+
+    def close(self):
+        pass  # No-op: no long-lived connection
 
     def append(self, event: V2Event) -> bool:
-        cur = self.conn.cursor()
         now = datetime.utcnow().isoformat()
-        try:
+        with closing(self._connect()) as conn, closing(conn.cursor()) as cur:
             cur.execute(
                 """
                 INSERT OR IGNORE INTO events (
@@ -31,14 +44,11 @@ class SqliteEventStore:
                     now,
                 ),
             )
-            self.conn.commit()
+            conn.commit()
             return cur.rowcount == 1
-        finally:
-            cur.close()
 
     def list(self, session_id: str, after_version: int | None = None, limit: int | None = None):
-        cur = self.conn.cursor()
-        try:
+        with closing(self._connect()) as conn, closing(conn.cursor()) as cur:
             q = "SELECT event_id, ts, type, payload_json, payload_hash FROM events WHERE session_id = ? ORDER BY ts, event_id"
             params = [session_id]
             # after_version/limit not implemented for now (API compatibility)
@@ -55,5 +65,3 @@ class SqliteEventStore:
                     payload_hash=payload_hash,
                 ))
             return events
-        finally:
-            cur.close()
