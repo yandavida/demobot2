@@ -6,7 +6,7 @@ from __future__ import annotations
 import sqlite3
 import json
 from datetime import datetime
-from typing import Optional, List
+from typing import Optional
 from contextlib import closing
 from core.v2.models import Snapshot, hash_snapshot
 
