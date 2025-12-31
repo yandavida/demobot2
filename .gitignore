@@ -22,3 +22,6 @@ var/**/*.sqlite
 
 # Local runtime artifacts
 var/*.sqlite
+
+# Local persistence artifacts
+var/*.sqlite
