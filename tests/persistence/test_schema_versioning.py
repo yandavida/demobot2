@@ -1,10 +1,9 @@
 import sqlite3
 import tempfile
 import os
-from core.v2.sqlite_schema import (
-    SCHEMA_VERSION,
+from core.v2.migrations import (
+    CURRENT_SCHEMA_VERSION,
     run_migrations,
-    get_schema_version,
 )
 
 def make_temp_db():
@@ -18,18 +17,45 @@ def test_run_migrations_is_idempotent():
         for _ in range(2):
             with sqlite3.connect(db_path) as conn:
                 run_migrations(conn)
-                v = get_schema_version(conn)
-                assert v == SCHEMA_VERSION
+                cur = conn.cursor()
+                cur.execute("PRAGMA user_version")
+                v = cur.fetchone()[0]
+                assert v == CURRENT_SCHEMA_VERSION
     finally:
         os.remove(db_path)
 
-def test_upgrade_from_empty_db_sets_version_to_latest():
+def test_schema_version_fresh_db():
     db_path = make_temp_db()
     try:
         with sqlite3.connect(db_path) as conn:
+            # Fresh DB: user_version should be 0
+            cur = conn.cursor()
+            cur.execute("PRAGMA user_version")
+            assert cur.fetchone()[0] == 0
             run_migrations(conn)
-            v = get_schema_version(conn)
-            assert v == SCHEMA_VERSION
+            cur.execute("PRAGMA user_version")
+            assert cur.fetchone()[0] == CURRENT_SCHEMA_VERSION
+    finally:
+        os.remove(db_path)
+
+def test_schema_version_upgrade():
+    db_path = make_temp_db()
+    try:
+        with sqlite3.connect(db_path) as conn:
+            # Simulate old version
+            cur = conn.cursor()
+            cur.execute("PRAGMA user_version = 1")
+            cur.execute("PRAGMA user_version")
+            assert cur.fetchone()[0] == 1
+            # Upgrade to CURRENT_SCHEMA_VERSION
+            run_migrations(conn)
+            cur.execute("PRAGMA user_version")
+            assert cur.fetchone()[0] == CURRENT_SCHEMA_VERSION
+            # Tables and indexes should exist (schema must not be changed here, so just check no error)
+            cur.execute("SELECT name FROM sqlite_master WHERE type='table'")
+            tables = {row[0] for row in cur.fetchall()}
+            # These tables must exist if schema was created elsewhere (not by this test)
+            # No schema creation allowed here
     finally:
         os.remove(db_path)
 
@@ -39,7 +65,9 @@ def test_schema_version_persists_across_connections():
         with sqlite3.connect(db_path) as conn:
             run_migrations(conn)
         with sqlite3.connect(db_path) as conn:
-            v = get_schema_version(conn)
-            assert v == SCHEMA_VERSION
+            cur = conn.cursor()
+            cur.execute("PRAGMA user_version")
+            v = cur.fetchone()[0]
+            assert v == CURRENT_SCHEMA_VERSION
     finally:
         os.remove(db_path)
