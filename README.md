@@ -36,4 +36,16 @@ streamlit run app.py
 
 ---
 
+
+## Run CI locally
+To run the full CI pipeline locally, execute:
+
+	./scripts/ci.sh
+
+או:
+
+	make ci
+
+CI יריץ: ruff → mypy → pytest, בדיוק כמו בשרת.
+
 For full institutional audit, see docs/AUDIT_GUIDE.md and docs/v1/LOCKS.md.
