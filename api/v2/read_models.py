@@ -30,23 +30,25 @@ def list_events(session_id: str, *, limit: int, include_payload: bool) -> Events
     if svc.get_session(session_id) is None:
         raise HTTPException(status_code=404, detail="Session not found")
     start = time.perf_counter()
+    from core.v2.event_ordering import stable_sort_events, event_id, unwrap_event
     events = svc.event_store.list(session_id) if hasattr(svc, "event_store") else []
-    sorted_events = sorted(events, key=lambda e: (e.ts, e.event_id))
+    sorted_events = stable_sort_events(events)
     seen = set()
     items: List[EventViewItem] = []
     applied_version = 0
     for e in sorted_events:
-        if e.event_id in seen:
+        ev = unwrap_event(e)
+        if event_id(e) in seen:
             continue
-        seen.add(e.event_id)
+        seen.add(event_id(e))
         applied_version += 1
         kwargs = dict(
-            event_id=e.event_id,
-            ts=e.ts,
-            type=_etype_str(e.type),
-            payload_hash=e.payload_hash,
+            event_id=event_id(e),
+            ts=ev.ts,
+            type=_etype_str(ev.type),
+            payload_hash=ev.payload_hash,
             state_version=applied_version,
-            payload=_payload_dict(e.payload) if include_payload else None
+            payload=_payload_dict(ev.payload) if include_payload else None
         )
         items.append(EventViewItem(**kwargs))
         if len(items) >= limit:
@@ -82,25 +84,46 @@ def list_compute_requests(session_id: str, *, limit: int, include_params: bool) 
     start = time.perf_counter()
     if not (1 <= limit <= 500):
         raise HTTPException(status_code=400, detail="limit must be between 1 and 500")
+
     svc = get_v2_service()
     if svc.get_session(session_id) is None:
         raise HTTPException(status_code=404, detail="Session not found")
+
+    from core.v2.event_ordering import stable_sort_events, event_id, unwrap_event
+
     events = svc.event_store.list(session_id) if hasattr(svc, "event_store") else []
-    compute_events = [e for e in events if _etype_str(e.type) == "COMPUTE_REQUESTED"] if events else []
-    compute_events = sorted(compute_events, key=lambda e: (e.ts, e.event_id))[:limit] if compute_events else []
+    sorted_events = stable_sort_events(events)
+
+    seen = set()
     items: List[ComputeRequestViewItem] = []
-    for e in compute_events:
-        payload = _payload_dict(e.payload)
+
+    for e in sorted_events:
+        ev = unwrap_event(e)
+        eid = event_id(e)
+
+        if eid in seen:
+            continue
+        seen.add(eid)
+
+        if _etype_str(ev.type) != "COMPUTE_REQUESTED":
+            continue
+
+        payload = _payload_dict(ev.payload)
         kind = payload.get("kind") or payload.get("compute_type") or payload.get("type") or "UNKNOWN"
         params = payload.get("params") or payload.get("parameters") or {}
+
         kwargs = dict(
-            event_id=e.event_id,
-            ts=e.ts,
+            event_id=eid,
+            ts=ev.ts,
             kind=kind,
-            params_hash=e.payload_hash,
-            params=params if include_params else None
+            params_hash=ev.payload_hash,
+            params=params if include_params else None,
         )
         items.append(ComputeRequestViewItem(**kwargs))
+
+        if len(items) >= limit:
+            break
+
     elapsed_ms = (time.perf_counter() - start) * 1000
     logger.debug(
         "v2_read_model name=list_compute_requests session_id=%s limit=%s returned=%d elapsed_ms=%.2f",
