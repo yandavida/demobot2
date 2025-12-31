@@ -4,7 +4,6 @@ import json
 from datetime import datetime
 from contextlib import closing
 from core.v2.models import V2Event
-from core.v2.sqlite_schema import ensure_schema
 from core.v2.persistence_config import get_v2_db_path, ensure_var_dir_exists
 from core.v2.errors import EventConflictError
 
@@ -15,12 +14,13 @@ class SqliteEventStore:
         self.db_path = db_path
 
     def _connect(self):
+        from core.v2.sqlite_schema import run_migrations
         ensure_var_dir_exists(self.db_path)
         conn = sqlite3.connect(self.db_path, check_same_thread=False)
         conn.execute("PRAGMA foreign_keys=ON")
         conn.execute("PRAGMA journal_mode=WAL")
         conn.execute("PRAGMA synchronous=NORMAL")
-        ensure_schema(conn)
+        run_migrations(conn)
         return conn
 
     def close(self):
