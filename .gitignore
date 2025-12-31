@@ -19,3 +19,6 @@ __pycache__/
 var/*.sqlite
 var/*.sqlite
 var/**/*.sqlite
+
+# Local runtime artifacts
+var/*.sqlite
