@@ -17,3 +17,5 @@ venv/
 .vscode/
 __pycache__/
 var/*.sqlite
+var/*.sqlite
+var/**/*.sqlite

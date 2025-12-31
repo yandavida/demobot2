@@ -1,11 +1,12 @@
+
 import sqlite3
 import json
 from datetime import datetime
+from contextlib import closing
 from core.v2.models import V2Event
 from core.v2.sqlite_schema import ensure_schema
 from core.v2.persistence_config import get_v2_db_path, ensure_var_dir_exists
-
-from contextlib import closing
+from core.v2.errors import EventConflictError
 
 class SqliteEventStore:
     def __init__(self, db_path: str = None):
@@ -28,24 +29,46 @@ class SqliteEventStore:
     def append(self, event: V2Event) -> bool:
         now = datetime.utcnow().isoformat()
         with closing(self._connect()) as conn, closing(conn.cursor()) as cur:
-            cur.execute(
-                """
-                INSERT OR IGNORE INTO events (
-                    session_id, event_id, ts, type, payload_json, payload_hash, inserted_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?)
-                """,
-                (
+            try:
+                cur.execute(
+                    """
+                    INSERT INTO events (
+                        session_id, event_id, ts, type, payload_json, payload_hash, inserted_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        event.session_id,
+                        event.event_id,
+                        event.ts.isoformat(),
+                        event.type,
+                        json.dumps(event.payload, separators=(",", ":"), sort_keys=True, ensure_ascii=False),
+                        event.payload_hash,
+                        now,
+                    ),
+                )
+                conn.commit()
+                return True
+            except sqlite3.IntegrityError:
+                cur.execute(
+                    "SELECT type, payload_hash FROM events WHERE session_id = ? AND event_id = ?",
+                    (event.session_id, event.event_id),
+                )
+                row = cur.fetchone()
+                if row is None:
+                    raise
+                existing_type, existing_hash = row
+                incoming_type = event.type
+                incoming_hash = event.payload_hash
+                if existing_hash == incoming_hash and existing_type == incoming_type:
+                    return False
+                raise EventConflictError(
                     event.session_id,
                     event.event_id,
-                    event.ts.isoformat(),
-                    event.type,
-                    json.dumps(event.payload, separators=(",", ":"), sort_keys=True, ensure_ascii=False),
-                    event.payload_hash,
-                    now,
-                ),
-            )
-            conn.commit()
-            return cur.rowcount == 1
+                    existing_type,
+                    incoming_type,
+                    existing_hash,
+                    incoming_hash,
+                )
 
     def list(self, session_id: str, after_version: int | None = None, limit: int | None = None):
         with closing(self._connect()) as conn, closing(conn.cursor()) as cur:
