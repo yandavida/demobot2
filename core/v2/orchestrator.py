@@ -1,5 +1,5 @@
-from __future__ import annotations
 
+from __future__ import annotations
 from core.v2.models import V2Event, SessionState, Snapshot, hash_snapshot, AppliedEvent
 from core.v2.event_store import EventStore
 from core.v2.snapshot_store import SnapshotStore
@@ -11,6 +11,20 @@ import logging
 import time
 
 class V2RuntimeOrchestrator:
+    def replay(self, session_id: str, return_start_version: bool = False):
+        """
+        Internal: For test instrumentation only. Replays session and returns (replay_start_version, SessionState).
+        """
+        base = None
+        replay_start_version = 0
+        if self.snapshot_store is not None:
+            base = self.snapshot_store.latest(session_id)
+        if base is not None:
+            replay_start_version = base.version
+        state = self.recover(session_id)
+        if return_start_version:
+            return replay_start_version, state
+        return state
     """
     Orchestrates event ingestion and snapshot building for a session.
     - All events are appended to the store (including duplicates)
