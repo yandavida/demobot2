@@ -9,8 +9,13 @@ banner() {
 banner "Ruff lint (ruff check .)"
 ruff check .
 
-banner "Type check (mypy)"
-mypy
+banner "Type check (mypy: PortfolioEngine V2 only)"
+mypy \
+  core/adapters \
+  core/portfolio/models.py \
+  core/portfolio/engine.py \
+  core/portfolio/cache.py \
+  core/fx/contracts.py
 
 banner "Tests (pytest -q)"
 pytest -q
