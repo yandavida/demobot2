@@ -107,16 +107,29 @@ class V2ServiceSqlite:
         return state.version, applied
 
     def get_snapshot(self, session_id: str) -> Snapshot:
+        """
+        Returns a materialized snapshot view: always includes all applied events up to latest version.
+        Does NOT persist a new snapshot on read.
+        """
         self._require_session(session_id)
-        snap = self.snapshot_store.latest(session_id)
-        if snap is not None:
-            if getattr(snap, "state_hash", None):
-                return snap
-        built = self.orchestrator.build_snapshot(session_id)
-        self.snapshot_store.put(built)
-        snap_db = self.snapshot_store.latest(session_id)
-        if snap_db is None or not getattr(snap_db, "state_hash", None):
-            raise RuntimeError("Persisted snapshot missing state_hash")
-        return snap_db
+        state = self.orchestrator.recover(session_id)
+        from core.v2.models import hash_snapshot, Snapshot
+        data = {}
+        # סדר דטרמיניסטי
+        for eid in sorted(state.applied.keys()):
+            # state.applied: event_id -> version
+            # state.data: event_id -> payload
+            data[eid] = state.data[eid] if hasattr(state, 'data') and eid in getattr(state, 'data', {}) else None
+        version = state.version
+        state_hash = hash_snapshot(data)
+        from datetime import datetime
+        snap = Snapshot(
+            session_id=session_id,
+            version=version,
+            created_at=datetime.utcnow(),  # לא רלוונטי לחוזה, רק פורמלי
+            state_hash=state_hash,
+            data=data,
+        )
+        return snap
 
 # Singleton instance for router import

@@ -151,6 +151,13 @@ class V2RuntimeOrchestrator:
         applied_log = self._applied_log.setdefault(event.session_id, [])
         if state is None:
             state = SessionState(session_id=event.session_id, version=0, applied={})
+        snapshot_store = self.snapshot_store
+        snapshot_policy = self.snapshot_policy
+        last_snapshot_version = None
+        if snapshot_store is not None:
+            last_snapshot = snapshot_store.latest(event.session_id)
+            if last_snapshot is not None:
+                last_snapshot_version = last_snapshot.version
         if event.event_id not in state.applied:
             self.store.append(event)
             new_applied = dict(state.applied)
@@ -160,6 +167,18 @@ class V2RuntimeOrchestrator:
             applied_event = AppliedEvent(event=event, state_version=new_version, applied_at=datetime.utcnow())
             applied_log.append(applied_event)
             self._session_states[event.session_id] = state
+            # Snapshot cadence policy integration
+            if snapshot_store is not None and snapshot_policy is not None:
+                should_snap, target_version = snapshot_policy.should_snapshot(
+                    event.session_id,
+                    last_snapshot_version,
+                    new_version,
+                )
+                if should_snap and target_version == new_version:
+                    # Build and persist snapshot at this version
+                    snap = self.build_snapshot(event.session_id)
+                    # build_snapshot will persist if policy allows, but we want to guarantee it here
+                    snapshot_store.save(snap)
             return state
         else:
             # Idempotent: do not append duplicate event, do not increment version
@@ -196,8 +215,4 @@ class V2RuntimeOrchestrator:
             "build_snapshot: mode=%s session_id=%s base_version=%d tail_len=%d final_version=%d elapsed_ms=%.2f",
             mode, session_id, base_version, tail_len, snap.version, elapsed_ms
         )
-        # Optionally save snapshot
-        if self.snapshot_store is not None and self.snapshot_policy is not None:
-            if self.snapshot_policy.should_snapshot(snap.version):
-                self.snapshot_store.save(snap)
         return snap
