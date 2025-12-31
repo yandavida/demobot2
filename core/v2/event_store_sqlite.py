@@ -8,6 +8,25 @@ from core.v2.persistence_config import get_v2_db_path, ensure_var_dir_exists
 from core.v2.errors import EventConflictError
 
 class SqliteEventStore:
+    def list_after_version(self, session_id: str, after_version: int):
+        """
+        Institutional-grade: מחזיר את כל האירועים עבור session_id עם applied_version > after_version, בסדר דטרמיניסטי (ts, event_id).
+        לא מסתמך על אינדקס/אורך הרשימה, אלא על מונה applied_version דטרמיניסטי (כמו InMemoryEventStore והחוזה).
+        """
+        events = self.list(session_id)
+        from core.v2.event_ordering import stable_sort_events
+        events = stable_sort_events(events)
+        seen = set()
+        applied_version = 0
+        tail = []
+        for e in events:
+            if e.event_id in seen:
+                continue
+            seen.add(e.event_id)
+            applied_version += 1
+            if applied_version > after_version:
+                tail.append(e)
+        return tail
     def __init__(self, db_path: str = None):
         if db_path is None:
             db_path = get_v2_db_path()
