@@ -11,6 +11,20 @@ import logging
 import time
 
 class V2RuntimeOrchestrator:
+    """
+    Orchestrates event ingestion and snapshot building for a session.
+    - All events are appended to the store (including duplicates)
+    - Session state (applied, version) is updated only on first application of an event_id
+    - build_snapshot uses bounded replay from latest snapshot if available
+    - Maintains applied_log[session_id]: list[AppliedEvent]
+    """
+
+    from typing import overload, Literal
+
+    @overload
+    def replay(self, session_id: str, return_start_version: Literal[False] = False) -> SessionState: ...
+    @overload
+    def replay(self, session_id: str, return_start_version: Literal[True]) -> tuple[int, SessionState]: ...
     def replay(self, session_id: str, return_start_version: bool = False):
         """
         Internal: For test instrumentation only. Replays session and returns (replay_start_version, SessionState).
