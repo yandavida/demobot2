@@ -91,8 +91,9 @@ def validate_ingest_event_command(cmd: Any) -> Union[None, ErrorEnvelope]:
             message="data must be dict",
             details={"path": "payload.data", "reason": "type"},
         )
-    # Blacklist: no callables, datetime, generators, etc.
-    for v in cmd.payload.data.values():
+    # Blacklist: no callables, datetime, generators, etc. (deterministic traversal)
+    for k in sorted(cmd.payload.data.keys()):
+        v = cmd.payload.data[k]
         if callable(v):
             return ErrorEnvelope(
                 category="VALIDATION",
