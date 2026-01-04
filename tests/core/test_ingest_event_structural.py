@@ -1,4 +1,3 @@
-import pytest
 from core.validation.ingest_event_structural import (
     IngestEventCommand, IngestEventPayload, validate_ingest_event_command, ErrorEnvelope
 )
