@@ -10,6 +10,8 @@ Code = Literal[
     "UNKNOWN_COMMAND_KIND",
     "OUT_OF_ORDER",
     "IDEMPOTENCY_CONFLICT",
+    "MISSING_SCHEMA_VERSION",
+    "UNSUPPORTED_SCHEMA_VERSION",
 ]
 
 
@@ -19,6 +21,8 @@ _MESSAGE_MAP: dict[str, str] = {
     "UNKNOWN_COMMAND_KIND": "unsupported command kind",
     "OUT_OF_ORDER": "command violates ordering rules",
     "IDEMPOTENCY_CONFLICT": "command conflicts with previous execution",
+    "MISSING_SCHEMA_VERSION": "missing or invalid schema_version",
+    "UNSUPPORTED_SCHEMA_VERSION": "unsupported schema_version for command kind",
 }
 
 
@@ -29,6 +33,8 @@ def _category_for_code(code: str) -> Category:
         return "SEMANTIC"
     if code == "IDEMPOTENCY_CONFLICT":
         return "CONFLICT"
+    if code in {"MISSING_SCHEMA_VERSION", "UNSUPPORTED_SCHEMA_VERSION"}:
+        return "VALIDATION"
     # fallback
     return "VALIDATION"
 
