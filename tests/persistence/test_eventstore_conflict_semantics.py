@@ -1,4 +1,3 @@
-import pytest
 from datetime import datetime
 
 from core.v2.event_store_sqlite import SqliteEventStore
