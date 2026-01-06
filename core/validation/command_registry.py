@@ -9,7 +9,8 @@ from .error_taxonomy import make_error
 SUPPORTED_SCHEMA_VERSIONS_BY_KIND: Dict[str, Set[int]] = {
     "INGEST_EVENT": {1},
     "INGEST_QUOTE": {1},
-    "SNAPSHOT": {1},
+    "SNAPSHOT_REQUEST": {1},
+    "COMPUTE_REQUEST": {1},
     "PORTFOLIO_RISK": {1},
     "SCENARIO_GRID": {1},
 }
@@ -20,7 +21,8 @@ SUPPORTED_SCHEMA_VERSIONS_BY_KIND: Dict[str, Set[int]] = {
 ALLOWED_COMMAND_KINDS: Set[str] = {
     "INGEST_EVENT",
     "INGEST_QUOTE",
-    "SNAPSHOT",
+    "SNAPSHOT_REQUEST",
+    "COMPUTE_REQUEST",
     "PORTFOLIO_RISK",
     "SCENARIO_GRID",
 }
