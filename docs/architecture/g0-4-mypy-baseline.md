@@ -4,16 +4,39 @@ Goal
 - Provide a pragmatic, institutional-grade mypy baseline for an Always‑Green SaaS.
 - Ensure deterministic, incremental typing progress without blocking development.
 
-Phase 1 Scope (IN)
-- core/contracts/  — typed data contracts and DTOs.
-- core/validation/ — validators and canonical error factories.
-- core/commands/   — typed command contracts and small command helpers.
-- Optional: `api/v2/` (schemas/validators) only if its surface is stable; otherwise defer to Phase 2.
+## What this PR Explicitly Does NOT Do
 
-Phase 1 Out of Scope (OUT)
-- `ui/` (interactive UI/Streamlit/etc.)
-- legacy modules and experimental packages (`sandbox/`, `pages/`, `strategies_legacy.py`, etc.)
-- most tests unless explicitly added to Phase 1
+This document is intentionally non-operative.
+
+This PR does NOT:
+- modify mypy configuration (pyproject.toml / mypy.ini)
+- change CI behavior or gates
+- require any production or test code changes
+- claim mypy cleanliness outside the defined baseline scope
+- imply readiness for `mypy .` at repository level
+
+Its sole purpose is to define scope, policy, and sequencing.
+
+## Baseline Scope Definition (Phase 1)
+
+The initial mypy baseline is intentionally narrow and risk-contained.
+
+### Included in Phase 1
+- `core/validation/**`
+- `core/commands/**`
+
+These paths are:
+- deterministic
+- side-effect free
+- foundational to system correctness
+
+### Explicitly Excluded (Phase 1)
+- legacy finance / pricing modules
+- portfolio math and analytics
+- adapters, API layers, UI, and CLI
+- tests (except strict contract tests, if applicable)
+
+Expansion beyond this scope requires an explicit, versioned gate.
 
 Policy (enforceable rules)
 - Baseline is expressed by an explicit mypy configuration that uses `files=` / `packages=` / `exclude=` to limit scope.
@@ -31,9 +54,14 @@ Incremental expansion process
 No regressions rule
 - Any PR that modifies baseline-scoped files must preserve the mypy-green status for that scoped baseline. Breaks must be fixed before merge.
 
-Exit criteria for G0.4a
-- This document is reviewed and approved by the core team.
-- An initial `mypy` scope config (not part of this PR) is agreed that lists Phase 1 targets.
+## Exit Criteria — G0.4a
+
+G0.4a is considered complete when:
+- the mypy baseline scope is explicitly documented
+- expansion policy is clearly defined
+- no code, configuration, or CI changes are introduced
+
+This gate is documentation-only and establishes policy, not enforcement.
 
 Notes
 - This PR is docs-only and does not change code, CI, or mypy configuration. It defines the institutional policy for an incremental mypy rollout.
