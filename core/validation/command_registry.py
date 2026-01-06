@@ -1,6 +1,7 @@
 from typing import Optional, Set
 
 from .operational_outcome import ErrorEnvelope
+from .error_taxonomy import make_error
 
 
 # Allowlist of command kinds that exist in the codebase today.
@@ -22,10 +23,4 @@ def validate_command_kind(kind: str) -> Optional[ErrorEnvelope]:
     if kind in ALLOWED_COMMAND_KINDS:
         return None
 
-    return ErrorEnvelope(
-        category="VALIDATION",
-        code="UNKNOWN_COMMAND_KIND",
-        message="unsupported command kind",
-        details={"path": "kind", "reason": f"unknown kind: {kind}"},
-        error_count=1,
-    )
+    return make_error("UNKNOWN_COMMAND_KIND", details={"path": "kind", "reason": f"unknown kind: {kind}"})
