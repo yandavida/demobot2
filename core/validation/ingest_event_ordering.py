@@ -1,6 +1,7 @@
 from typing import Optional
 from dataclasses import dataclass
 from .error_envelope import ErrorEnvelope
+from .error_taxonomy import make_error
 
 
 @dataclass(frozen=True)
@@ -15,14 +16,8 @@ def validate_ingest_event_ordering(state: IngestOrderState, cmd) -> Optional[Err
         return None
     expected = state.next_client_sequence
     if client_seq != expected:
-        return ErrorEnvelope(
-            category="SEMANTIC",
-            code="OUT_OF_ORDER",
-            message="command violates ordering rules",
-            details={
-                "path": "payload.client_sequence",
-                "reason": f"expected={expected}, got={client_seq}"
-            },
-            error_count=1
-        )
+        return make_error("OUT_OF_ORDER", details={
+            "path": "payload.client_sequence",
+            "reason": f"expected={expected}, got={client_seq}"
+        })
     return None

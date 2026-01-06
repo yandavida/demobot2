@@ -1,6 +1,7 @@
 from typing import Literal, Optional, Dict, Any, Tuple
 from dataclasses import dataclass
 from .error_envelope import ErrorEnvelope
+from .error_taxonomy import make_error
 
 @dataclass(frozen=True)
 class OperationalOutcome:
@@ -37,13 +38,7 @@ def map_classification_to_outcome(
             diagnostics=diagnostics,
         )
     if classification == "CONFLICT":
-        err = ErrorEnvelope(
-            category="CONFLICT",
-            code="IDEMPOTENCY_CONFLICT",
-            message="command conflicts with previous execution",
-            details={"path": "", "reason": "conflict with previous fingerprint"},
-            error_count=1,
-        )
+        err = make_error("IDEMPOTENCY_CONFLICT", details={"path": "", "reason": "conflict with previous fingerprint"})
         return OperationalOutcome(
             command_id=command_id,
             session_id=session_id,
