@@ -1,13 +1,6 @@
 from typing import Literal, Optional, Dict, Any, Tuple
 from dataclasses import dataclass
-
-@dataclass(frozen=True)
-class ErrorEnvelope:
-    category: str
-    code: str
-    message: str
-    details: Dict[str, Any]
-    error_count: int
+from .error_envelope import ErrorEnvelope
 
 @dataclass(frozen=True)
 class OperationalOutcome:
