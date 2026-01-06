@@ -1,17 +1,12 @@
 from typing import Optional
 from dataclasses import dataclass
+from .error_envelope import ErrorEnvelope
+
 
 @dataclass(frozen=True)
 class IngestOrderState:
     next_client_sequence: int
 
-@dataclass(frozen=True)
-class ErrorEnvelope:
-    category: str
-    code: str
-    message: str
-    details: dict
-    error_count: int
 
 def validate_ingest_event_ordering(state: IngestOrderState, cmd) -> Optional[ErrorEnvelope]:
     # cmd.payload.client_sequence may be None

@@ -1,6 +1,7 @@
 from typing import Any, Dict, Literal, Optional, Union
 from dataclasses import dataclass
 import json
+from .error_envelope import ErrorEnvelope
 
 # --- Command Spec ---
 @dataclass(frozen=True)
@@ -19,12 +20,7 @@ class IngestEventCommand:
     meta: Optional[Dict[str, Any]] = None
 
 # --- Error Envelope ---
-@dataclass(frozen=True)
-class ErrorEnvelope:
-    category: str
-    code: str
-    message: str
-    details: Dict[str, Any]
+# Reuse canonical ErrorEnvelope from core.validation.error_envelope
 
 # --- Validation Logic ---
 def is_json_serializable(obj: Any) -> bool:
