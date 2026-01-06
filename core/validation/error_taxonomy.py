@@ -12,6 +12,7 @@ Code = Literal[
     "IDEMPOTENCY_CONFLICT",
     "MISSING_SCHEMA_VERSION",
     "UNSUPPORTED_SCHEMA_VERSION",
+    "ILLEGAL_SEQUENCE",
 ]
 
 
@@ -23,6 +24,7 @@ _MESSAGE_MAP: dict[str, str] = {
     "IDEMPOTENCY_CONFLICT": "command conflicts with previous execution",
     "MISSING_SCHEMA_VERSION": "missing or invalid schema_version",
     "UNSUPPORTED_SCHEMA_VERSION": "unsupported schema_version for command kind",
+    "ILLEGAL_SEQUENCE": "illegal command sequence for workflow",
 }
 
 
@@ -35,6 +37,8 @@ def _category_for_code(code: str) -> Category:
         return "CONFLICT"
     if code in {"MISSING_SCHEMA_VERSION", "UNSUPPORTED_SCHEMA_VERSION"}:
         return "VALIDATION"
+    if code == "ILLEGAL_SEQUENCE":
+        return "SEMANTIC"
     # fallback
     return "VALIDATION"
 
