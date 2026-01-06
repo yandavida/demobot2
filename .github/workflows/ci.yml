@@ -43,13 +43,43 @@ jobs:
         run: ruff check .
 
       - name: Run mypy (PortfolioEngine V2 only)
+        # Ensure bash is used so arrays and process-substitution work predictably
+        shell: bash
         run: |
-          mypy \
-            core/adapters \
-            core/portfolio/models.py \
-            core/portfolio/engine.py \
-            core/portfolio/cache.py \
+          set -euo pipefail
+
+          CANDIDATES=(
+            core/adapters
+            core/portfolio/models.py
+            core/portfolio/engine.py
+            core/portfolio/cache.py
             core/fx/contracts.py
+          )
+
+          TARGETS=()
+
+          for P in "${CANDIDATES[@]}"; do
+            if [ -f "$P" ]; then
+              # explicit file target
+              TARGETS+=("$P")
+            elif [ -d "$P" ]; then
+              # prefer passing individual .py files rather than empty directories
+              mapfile -t FOUND < <(find "$P" -type f -name '*.py' -print)
+              if [ "${#FOUND[@]}" -gt 0 ]; then
+                for F in "${FOUND[@]}"; do
+                  TARGETS+=("$F")
+                done
+              fi
+            fi
+          done
+
+          if [ "${#TARGETS[@]}" -eq 0 ]; then
+            echo "No mypy targets found; skipping mypy."
+            exit 0
+          fi
+
+          echo "Running mypy on ${#TARGETS[@]} targets"
+          mypy "${TARGETS[@]}"
 
   tests:
     name: Test suite (pytest)
