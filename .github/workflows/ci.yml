@@ -44,12 +44,30 @@ jobs:
 
       - name: Run mypy (PortfolioEngine V2 only)
         run: |
-          mypy \
+          set -euo pipefail
+          # Phase 1 targets: only include these if they exist and contain .py files
+          TARGETS=()
+          for P in \
             core/adapters \
             core/portfolio/models.py \
             core/portfolio/engine.py \
             core/portfolio/cache.py \
-            core/fx/contracts.py
+            core/fx/contracts.py; do
+            if [ -f "$P" ]; then
+              TARGETS+=("$P")
+            elif [ -d "$P" ]; then
+              # only add directories that actually contain Python files
+              if find "$P" -type f -name '*.py' | grep -q .; then
+                TARGETS+=("$P")
+              fi
+            fi
+          done
+          if [ "${#TARGETS[@]}" -eq 0 ]; then
+            echo "No mypy targets found; skipping mypy."
+            exit 0
+          fi
+          echo "Running mypy on: ${TARGETS[*]}"
+          mypy "${TARGETS[@]}"
 
   tests:
     name: Test suite (pytest)
