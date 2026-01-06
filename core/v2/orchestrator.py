@@ -158,8 +158,14 @@ class V2RuntimeOrchestrator:
             last_snapshot = snapshot_store.latest(event.session_id)
             if last_snapshot is not None:
                 last_snapshot_version = last_snapshot.version
+        # Always attempt to persist the incoming event to the EventStore so
+        # conflict detection at the store layer is exercised and any
+        # EventConflictError is propagated out of core unchanged.
+        # The store will perform idempotent handling for identical events
+        # (returning False) and raise EventConflictError for differing payloads.
+        self.store.append(event)
+
         if event.event_id not in state.applied:
-            self.store.append(event)
             new_applied = dict(state.applied)
             new_version = state.version + 1
             new_applied[event.event_id] = new_version
