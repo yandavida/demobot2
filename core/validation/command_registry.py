@@ -8,6 +8,7 @@ from .error_taxonomy import make_error
 # Keep this set minimal and only include kinds already used elsewhere.
 ALLOWED_COMMAND_KINDS: Set[str] = {
     "INGEST_EVENT",
+    "INGEST_QUOTE",
     "SNAPSHOT",
     "PORTFOLIO_RISK",
     "SCENARIO_GRID",
