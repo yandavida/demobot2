@@ -37,9 +37,18 @@ class V2CorrelationMiddleware(BaseHTTPMiddleware):
         try:
             response = await call_next(request)
         except Exception:
+            # Return canonical envelope for V2 internal errors
             response = JSONResponse(
                 status_code=500,
-                content={"detail": "Internal Server Error"},
+                content={
+                    "detail": {
+                        "category": "SERVER",
+                        "code": "internal_error",
+                        "message": "Internal Server Error",
+                        "details": {},
+                        "error_count": 1,
+                    }
+                },
             )
         response.headers[CORRELATION_ID_HEADER] = cid
         return response
