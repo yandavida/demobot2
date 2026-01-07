@@ -1,23 +1,22 @@
 
 from __future__ import annotations
 from typing import Any, Dict
-from fastapi import HTTPException
 
 from core.validation.error_envelope import ErrorEnvelope as CoreErrorEnvelope
-from api.v2.http_errors import raise_http
+from api.v2.http_errors import raise_http, bad_request
 
 def validate_compute_payload(payload: Dict[str, Any]) -> None:
     if not isinstance(payload, dict):
-        raise HTTPException(status_code=400, detail={"detail": "payload must be an object"})
+        bad_request("invalid_payload", "payload must be an object")
 
     kind = payload.get("kind")
     params = payload.get("params")
 
     if kind not in {"SNAPSHOT", "PORTFOLIO_RISK", "SCENARIO_GRID"}:
-        raise HTTPException(status_code=400, detail={"detail": "payload.kind must be one of: SNAPSHOT, PORTFOLIO_RISK, SCENARIO_GRID"})
+        bad_request("invalid_payload_kind", "payload.kind must be one of: SNAPSHOT, PORTFOLIO_RISK, SCENARIO_GRID")
 
     if not isinstance(params, dict) or len(params) == 0:
-        raise HTTPException(status_code=400, detail={"detail": "payload.params must be a non-empty object"})
+        bad_request("invalid_payload_params", "payload.params must be a non-empty object")
 
     # For SNAPSHOT compute requests, require a canonical market_snapshot_id (string)
     if kind == "SNAPSHOT":
@@ -32,6 +31,6 @@ def validate_compute_payload(payload: Dict[str, Any]) -> None:
 
 def validate_quote_payload(payload: Dict[str, Any]) -> None:
     if not isinstance(payload, dict):
-        raise HTTPException(status_code=400, detail={"detail": "payload must be an object"})
+        bad_request("invalid_payload", "payload must be an object")
     if len(payload) == 0:
-        raise HTTPException(status_code=400, detail={"detail": "payload must not be empty"})
+        bad_request("invalid_payload", "payload must not be empty")
