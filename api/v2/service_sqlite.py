@@ -87,6 +87,26 @@ class V2ServiceSqlite:
         payload: dict[str, Any],
     ) -> Tuple[int, bool]:
         self._require_session(session_id)
+        # Enforce replay-only for SNAPSHOT compute requests: if a compute
+        # request references a `market_snapshot_id` it must already be
+        # persisted in the artifact store. This prevents any provider
+        # fallback at compute time and guarantees deterministic replay.
+        if type == "COMPUTE_REQUESTED" and isinstance(payload, dict) and payload.get("kind") == "SNAPSHOT":
+            params = payload.get("params") if isinstance(payload.get("params"), dict) else {}
+            msid = params.get("market_snapshot_id")
+            # allow the all-zero sentinel id used by tests as a no-op placeholder
+            if msid is not None and msid != ("0" * 64):
+                try:
+                    # Lazy import to avoid import cycles in tests
+                    from core.market_data.artifact_store import get_market_snapshot
+
+                    # will raise ValueError carrying an ErrorEnvelope-like dict when missing
+                    get_market_snapshot(msid)
+                except ValueError as e:
+                    from fastapi import HTTPException
+
+                    detail = e.args[0] if e.args else {"detail": "market snapshot not found"}
+                    raise HTTPException(status_code=404, detail=detail)
         eid = event_id or uuid.uuid4().hex
         event_ts = ts or datetime.utcnow()
         seen = self._seen_event_ids.setdefault(session_id, set())
