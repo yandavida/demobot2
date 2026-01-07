@@ -5,7 +5,7 @@ client = TestClient(app)
 
 def test_compute_requested_happy_path():
     sid = client.post("/api/v2/sessions").json()["session_id"]
-    req = {"type": "COMPUTE_REQUESTED", "payload": {"kind": "SNAPSHOT", "params": {"force": True}}}
+    req = {"type": "COMPUTE_REQUESTED", "payload": {"kind": "SNAPSHOT", "params": {"force": True, "market_snapshot_id": "0"*64}}}
     resp = client.post(f"/api/v2/sessions/{sid}/events", json=req)
     assert resp.status_code == 201
     body = resp.json()

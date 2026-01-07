@@ -15,6 +15,9 @@ def ingest_quote(session_id, payload):
     return resp.json()
 
 def ingest_compute(session_id, kind, params):
+    # ensure SNAPSHOT requests include a market_snapshot_id for M1 binding
+    if kind == "SNAPSHOT" and "market_snapshot_id" not in params:
+        params = {**params, "market_snapshot_id": "0" * 64}
     req = {"type": "COMPUTE_REQUESTED", "payload": {"kind": kind, "params": params}}
     resp = client.post(f"/api/v2/sessions/{session_id}/events", json=req)
     assert resp.status_code == 201
