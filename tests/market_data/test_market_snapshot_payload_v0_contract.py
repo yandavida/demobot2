@@ -1,5 +1,3 @@
-import json
-
 from core.market_data.market_snapshot_payload_v0 import (
     MarketSnapshotPayloadV0,
     FxRates,
