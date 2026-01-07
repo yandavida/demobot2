@@ -112,7 +112,9 @@ class V2ServiceSqlite:
                     err = validate_market_requirements(req_payload, snapshot)
                     if err is not None:
                         # semantic errors map to HTTP 422 per Gate B contract
-                        raise HTTPException(status_code=422, detail=asdict(err))
+                        from api.v2.http_errors import raise_http
+
+                        raise_http(err, 422)
                 except ValueError as e:
                     detail = e.args[0] if e.args else {"detail": "market snapshot not found"}
                     raise HTTPException(status_code=404, detail=detail)

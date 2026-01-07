@@ -3,7 +3,8 @@ from __future__ import annotations
 from typing import Any, Dict
 from fastapi import HTTPException
 
-from api.v2.gate_b import ErrorEnvelope
+from core.validation.error_envelope import ErrorEnvelope as CoreErrorEnvelope
+from api.v2.http_errors import raise_http
 
 def validate_compute_payload(payload: Dict[str, Any]) -> None:
     if not isinstance(payload, dict):
@@ -22,12 +23,12 @@ def validate_compute_payload(payload: Dict[str, Any]) -> None:
     if kind == "SNAPSHOT":
         msid = params.get("market_snapshot_id")
         if not isinstance(msid, str) or len(msid) == 0:
-            env = ErrorEnvelope("validation", "missing_market_snapshot_id", "`market_snapshot_id` is required in payload.params for SNAPSHOT", {})
-            raise HTTPException(status_code=400, detail=env.to_dict())
+            env = CoreErrorEnvelope(category="VALIDATION", code="missing_market_snapshot_id", message="`market_snapshot_id` is required in payload.params for SNAPSHOT", details={})
+            raise_http(env, 400)
         # optional: basic format check (sha256 hex length)
         if not (len(msid) == 64 and all(c in "0123456789abcdef" for c in msid.lower())):
-            env = ErrorEnvelope("validation", "invalid_market_snapshot_id", "`market_snapshot_id` format invalid", {"value": msid})
-            raise HTTPException(status_code=400, detail=env.to_dict())
+            env = CoreErrorEnvelope(category="VALIDATION", code="invalid_market_snapshot_id", message="`market_snapshot_id` format invalid", details={"value": msid})
+            raise_http(env, 400)
 
 def validate_quote_payload(payload: Dict[str, Any]) -> None:
     if not isinstance(payload, dict):
