@@ -1,0 +1,9 @@
+1787256d77064da861aa2cd3962843f5cbe9adbf
+api/v2/http_errors.py
+api/v2/portfolio_read_model.py
+api/v2/read_models.py
+api/v2/router.py
+api/v2/service_sqlite.py
+api/v2/validators.py
+var/verification/working_changes.patch
+var/verification/working_changes_files.txt
