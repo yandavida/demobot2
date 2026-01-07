@@ -3,16 +3,8 @@ from __future__ import annotations
 
 from typing import List, Dict, Any
 
-from api.schemas.fx import (
-    FxForwardRequest,
-    FxCurvePoint,
-    FxPlSummary,
-    FxRiskProfile,
-    FxScenarioResult,
-)
 
-
-def analyze_fx_forward_service(req: FxForwardRequest) -> Dict[str, Any]:
+def analyze_fx_forward_service(req: Any) -> Dict[str, Any]:
     """
     מנוע חישוב בסיסי לעסקת FX Forward אחת.
 
@@ -31,7 +23,7 @@ def analyze_fx_forward_service(req: FxForwardRequest) -> Dict[str, Any]:
 
     step = (req.curve_max_pct - req.curve_min_pct) / (req.curve_points - 1)
 
-    curve: List[FxCurvePoint] = []
+    curve: List[Dict[str, Any]] = []
     pl_values: List[float] = []
 
     direction_sign = 1.0 if req.direction == "BUY" else -1.0
@@ -41,7 +33,7 @@ def analyze_fx_forward_service(req: FxForwardRequest) -> Dict[str, Any]:
         s_t = req.spot * (1.0 + pct_move)
 
         pl = direction_sign * (s_t - req.forward_rate) * req.notional
-        curve.append(FxCurvePoint(underlying=s_t, pl=pl))
+        curve.append({"underlying": s_t, "pl": pl})
         pl_values.append(pl)
 
     if not pl_values:
@@ -56,13 +48,13 @@ def analyze_fx_forward_service(req: FxForwardRequest) -> Dict[str, Any]:
     max_profit = max(pl_values)
     max_loss = min(pl_values)
 
-    pl_summary = FxPlSummary(
-        max_profit=max_profit,
-        max_loss=max_loss,
-        expected_pl=None,
-        pl_at_spot=pl_at_spot,
-        pl_at_forward=pl_at_forward,
-    )
+    pl_summary = {
+        "max_profit": max_profit,
+        "max_loss": max_loss,
+        "expected_pl": None,
+        "pl_at_spot": pl_at_spot,
+        "pl_at_forward": pl_at_forward,
+    }
 
     # ------------------------------
     # פרופיל סיכון בסיסי
@@ -79,20 +71,20 @@ def analyze_fx_forward_service(req: FxForwardRequest) -> Dict[str, Any]:
     else:
         risk_level = "High"
 
-    risk_profile = FxRiskProfile(
-        risk_level=risk_level,
-        risk_score=min(loss_ratio, 1.0),
-        tags=[risk_level],
-        comments=[
+    risk_profile = {
+        "risk_level": risk_level,
+        "risk_score": min(loss_ratio, 1.0),
+        "tags": [risk_level],
+        "comments": [
             f"Max loss ≈ {loss_ratio:.2%} מהנומינלי (base*spot).",
             "מודל סיכון בסיסי ל-V2 – ניתן לשיפור בהמשך.",
         ],
-    )
+    }
 
     # ------------------------------
     # תרחישים לדוגמה
     # ------------------------------
-    scenarios: List[FxScenarioResult] = []
+    scenarios: List[Dict[str, Any]] = []
 
     for name, pct in [
         ("Spot -5%", -0.05),
@@ -101,19 +93,17 @@ def analyze_fx_forward_service(req: FxForwardRequest) -> Dict[str, Any]:
     ]:
         s_t = req.spot * (1.0 + pct)
         pl = direction_sign * (s_t - req.forward_rate) * req.notional
-        scenarios.append(
-            FxScenarioResult(
-                name=name,
-                description=f"תרחיש {name} על שער ה-Spot.",
-                pl=pl,
-                probability=None,
-            )
-        )
+        scenarios.append({
+            "name": name,
+            "description": f"תרחיש {name} על שער ה-Spot.",
+            "pl": pl,
+            "probability": None,
+        })
 
     # נחזיר dict פשוט – ה-router יעשה ממנו ResponseModel
     return {
-        "curve": [c.dict() for c in curve],
-        "pl_summary": pl_summary.dict(),
-        "risk_profile": risk_profile.dict(),
-        "scenarios": [s.dict() for s in scenarios],
+        "curve": curve,
+        "pl_summary": pl_summary,
+        "risk_profile": risk_profile,
+        "scenarios": scenarios,
     }

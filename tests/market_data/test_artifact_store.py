@@ -44,9 +44,10 @@ def test_get_missing_raises_valueerror(tmp_path, monkeypatch):
 
     monkeypatch.setattr(artifact_store, "SqliteEventStore", store_factory)
 
-    with pytest.raises(ValueError) as ei:
+    from core.market_data.errors import MarketSnapshotNotFoundError
+
+    with pytest.raises(MarketSnapshotNotFoundError) as ei:
         artifact_store.get_market_snapshot("0" * 64)
-    # The ValueError should contain an ErrorEnvelope-like dict
-    data = ei.value.args[0]
-    assert isinstance(data, dict)
-    assert data.get("code") == "market_snapshot_not_found"
+    exc = ei.value
+    assert hasattr(exc, "snapshot_id")
+    assert exc.snapshot_id == "0" * 64
