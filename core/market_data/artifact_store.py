@@ -44,8 +44,7 @@ def put_market_snapshot(payload: MarketSnapshotPayloadV0) -> str:
 
 def get_market_snapshot(snapshot_id: str) -> MarketSnapshotPayloadV0:
     """Retrieve a previously stored snapshot payload by id.
-
-    Raises ValueError containing an ErrorEnvelope-like dict when not found.
+    Raises MarketSnapshotNotFoundError when not found.
     The API layer will convert this to an ErrorEnvelope/HTTP error as needed.
     """
     event_store = SqliteEventStore()
@@ -53,7 +52,6 @@ def get_market_snapshot(snapshot_id: str) -> MarketSnapshotPayloadV0:
     for e in events:
         if e.event_id == snapshot_id:
             return MarketSnapshotPayloadV0.model_validate(e.payload)
-    from api.v2.gate_b import ErrorEnvelope
+    from core.market_data.errors import MarketSnapshotNotFoundError
 
-    env = ErrorEnvelope("validation", "market_snapshot_not_found", f"Market snapshot {snapshot_id} not found", {})
-    raise ValueError(env.to_dict())
+    raise MarketSnapshotNotFoundError(snapshot_id)

@@ -121,6 +121,23 @@ async def ingest_event(session_id: str, req: V2IngestCommand, request: Request):
                 },
             )
             raise_http(env, status.HTTP_409_CONFLICT)
+        except Exception:
+            # Map core MarketSnapshotNotFoundError -> 404
+            from core.market_data.errors import MarketSnapshotNotFoundError
+
+            try:
+                raise
+            except MarketSnapshotNotFoundError as mne:
+                from api.v2.http_errors import raise_http
+                from core.validation.error_envelope import ErrorEnvelope
+
+                env = ErrorEnvelope(
+                    category="VALIDATION",
+                    code="market_snapshot_not_found",
+                    message="Market snapshot not found",
+                    details={"snapshot_id": getattr(mne, "snapshot_id", None)},
+                )
+                raise_http(env, status.HTTP_404_NOT_FOUND)
         except HTTPException:
             raise
         except Exception:
