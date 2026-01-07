@@ -98,12 +98,38 @@ async def ingest_event(session_id: str, req: V2IngestCommand, request: Request):
     except HTTPException:
         raise
     except Exception:
-        from api.v2.service import should_force_raise_for_tests
-        if should_force_raise_for_tests():
-            raise
-        from api.v2.http_errors import internal_error
+        from core.v2.errors import EventConflictError
 
-        internal_error()
+        if isinstance(Exception, EventConflictError):
+            # defensive noop; keep logic explicit below
+            pass
+
+        # Re-raise locally to route EventConflictError to a 409 mapping
+        try:
+            raise
+        except EventConflictError as exc:
+            from api.v2.http_errors import raise_http
+            from core.validation.error_envelope import ErrorEnvelope
+
+            env = ErrorEnvelope(
+                category="CONFLICT",
+                code="event_conflict",
+                message="Event conflict",
+                details={
+                    "reason": "conflicting event payload for existing event_id",
+                    "event_id": getattr(exc, "event_id", None),
+                },
+            )
+            raise_http(env, status.HTTP_409_CONFLICT)
+        except HTTPException:
+            raise
+        except Exception:
+            from api.v2.service import should_force_raise_for_tests
+            if should_force_raise_for_tests():
+                raise
+            from api.v2.http_errors import internal_error
+
+            internal_error()
 
 @router.post("/sessions/{session_id}/snapshot", response_model=SnapshotResponse)
 async def create_snapshot(session_id: str, request: Request, response: Response, cid: str = Depends(correlation_id_dep)):
