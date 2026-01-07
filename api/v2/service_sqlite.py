@@ -102,7 +102,6 @@ class V2ServiceSqlite:
                     # validate market requirements (Gate M3) before compute/pricing
                     from core.market_data.validate_requirements import validate_market_requirements
                     from core.commands.compute_request_command import ComputeRequestPayload
-                    from dataclasses import asdict
 
                     # will raise ValueError carrying an ErrorEnvelope-like dict when missing
                     snapshot = get_market_snapshot(msid)
