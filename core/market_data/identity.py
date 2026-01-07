@@ -1,8 +1,6 @@
 from __future__ import annotations
 import hashlib
 import json
-from typing import Any
-
 from core.market_data.market_snapshot_payload_v0 import MarketSnapshotPayloadV0
 
 
