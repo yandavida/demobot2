@@ -6,7 +6,6 @@ from core.v2.persistence_config import get_v2_db_path
 from core.v2.orchestrator import V2RuntimeOrchestrator
 from core.v2.snapshot_policy import EveryNSnapshotPolicy
 from core.v2.models import EventType, Snapshot, V2Event, hash_payload
-from fastapi import HTTPException
 import uuid
 from datetime import datetime
 from typing import Any, Tuple
@@ -75,7 +74,9 @@ class V2ServiceSqlite:
 
     def _require_session(self, session_id: str) -> None:
         if not self.session_store.exists(session_id):
-            raise HTTPException(status_code=404, detail={"detail": "Session not found"})
+            from api.v2.http_errors import not_found
+
+            not_found("session_not_found", "Session not found")
 
     def ingest_event(
         self,
@@ -116,7 +117,13 @@ class V2ServiceSqlite:
                         raise_http(err, 422)
                 except ValueError as e:
                     detail = e.args[0] if e.args else {"detail": "market snapshot not found"}
-                    raise HTTPException(status_code=404, detail=detail)
+                    # If the ValueError carries an envelope/dict use raise_http, otherwise map to not_found
+                    from api.v2.http_errors import raise_http, not_found
+
+                    if isinstance(detail, dict):
+                        raise_http(detail, 404)
+                    else:
+                        not_found("market_snapshot_not_found", str(detail))
         eid = event_id or uuid.uuid4().hex
         event_ts = ts or datetime.utcnow()
         seen = self._seen_event_ids.setdefault(session_id, set())

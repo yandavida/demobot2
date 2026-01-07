@@ -1,0 +1,293 @@
+diff --git a/api/v2/http_errors.py b/api/v2/http_errors.py
+index f7ace38..54f0ab6 100644
+--- a/api/v2/http_errors.py
++++ b/api/v2/http_errors.py
+@@ -2,6 +2,9 @@ from dataclasses import asdict, is_dataclass
+ from typing import Any, Dict, NoReturn
+ from fastapi import HTTPException
+ 
++# Use the canonical ErrorEnvelope from core as the single source of truth
++from core.validation.error_envelope import ErrorEnvelope
++
+ 
+ def envelope_to_detail(env: Any) -> Dict[str, Any]:
+     """Normalize an error envelope (dataclass / object / dict) to a plain dict.
+@@ -29,3 +32,23 @@ def raise_http(env: Any, status_code: int) -> NoReturn:
+     Use this helper to ensure all API errors use `detail=<envelope dict>`.
+     """
+     raise HTTPException(status_code=status_code, detail=envelope_to_detail(env))
++
++
++def bad_request(code: str, message: str, details: Dict[str, Any] | None = None) -> NoReturn:
++    env = ErrorEnvelope(category="VALIDATION", code=code, message=message, details=details or {})
++    raise_http(env, 400)
++
++
++def not_found(code: str, message: str, details: Dict[str, Any] | None = None) -> NoReturn:
++    env = ErrorEnvelope(category="NOT_FOUND", code=code, message=message, details=details or {})
++    raise_http(env, 404)
++
++
++def unprocessable(code: str, message: str, details: Dict[str, Any] | None = None) -> NoReturn:
++    env = ErrorEnvelope(category="VALIDATION", code=code, message=message, details=details or {})
++    raise_http(env, 422)
++
++
++def internal_error(message: str = "Internal Server Error") -> NoReturn:
++    env = ErrorEnvelope(category="SERVER", code="internal_error", message=message, details={})
++    raise_http(env, 500)
+diff --git a/api/v2/portfolio_read_model.py b/api/v2/portfolio_read_model.py
+index ad5b6f1..112ba45 100644
+--- a/api/v2/portfolio_read_model.py
++++ b/api/v2/portfolio_read_model.py
+@@ -3,14 +3,15 @@ from api.v2.service import get_v2_service
+ from core.portfolio.v2_reducer import reduce_portfolio_state
+ from core.portfolio.v2_aggregation import aggregate_portfolio
+ from core.portfolio.v2_constraints import evaluate_constraints
+-from fastapi import HTTPException
+ 
+ def get_portfolio_summary(session_id: str) -> PortfolioSummaryOut:
+     # Load events from EventStore
+     svc = get_v2_service()
+     events = svc.event_store.list(session_id)
+     if not events:
+-        raise HTTPException(status_code=404, detail="Session not found")
++        from api.v2.http_errors import not_found
++
++        not_found("session_not_found", "Session not found")
+     snapshot = svc.snapshot_store.latest(session_id)
+     version = snapshot.version if snapshot else len(events)
+     import logging
+@@ -18,7 +19,9 @@ def get_portfolio_summary(session_id: str) -> PortfolioSummaryOut:
+     try:
+         state = reduce_portfolio_state(events)
+         if state is None:
+-            raise HTTPException(status_code=404, detail="Portfolio not found")
++            from api.v2.http_errors import not_found
++
++            not_found("portfolio_not_found", "Portfolio not found")
+         totals = aggregate_portfolio(state)
+         constraints_report = evaluate_constraints(state, totals)
+         exposures = [
+@@ -40,7 +43,9 @@ def get_portfolio_summary(session_id: str) -> PortfolioSummaryOut:
+             ),
+         )
+     except ValueError as exc:
+-        raise HTTPException(status_code=400, detail={"detail": str(exc)}) from exc
++        from api.v2.http_errors import bad_request
++
++        bad_request("invalid_portfolio", str(exc))
+     except Exception as exc:
+         logger.exception("portfolio.summary failed", extra={"session_id": session_id})
+         raise
+diff --git a/api/v2/read_models.py b/api/v2/read_models.py
+index ea5b6ea..3a0e619 100644
+--- a/api/v2/read_models.py
++++ b/api/v2/read_models.py
+@@ -2,7 +2,6 @@
+ from typing import Any, Dict, List
+ import time
+ import logging
+-from fastapi import HTTPException
+ from api.v2.read_models_schemas import (
+     EventViewItem,
+     EventsListResponse,
+@@ -25,10 +24,14 @@ def _payload_dict(p: Any) -> Dict[str, Any]:
+ 
+ def list_events(session_id: str, *, limit: int, include_payload: bool) -> EventsListResponse:
+     if not (1 <= limit <= 500):
+-        raise HTTPException(status_code=400, detail="limit must be between 1 and 500")
++           from api.v2.http_errors import bad_request
++
++           bad_request("invalid_limit", "limit must be between 1 and 500")
+     svc = get_v2_service()
+     if svc.get_session(session_id) is None:
+-        raise HTTPException(status_code=404, detail="Session not found")
++           from api.v2.http_errors import not_found
++
++           not_found("session_not_found", "Session not found")
+     start = time.perf_counter()
+     from core.v2.event_ordering import stable_sort_events, event_id, unwrap_event
+     events = svc.event_store.list(session_id) if hasattr(svc, "event_store") else []
+@@ -66,7 +69,9 @@ def get_snapshot_metadata(session_id: str) -> SnapshotMetadataResponse:
+     svc = get_v2_service()
+     snap = svc.snapshot_store.latest(session_id)
+     if snap is None:
+-        raise HTTPException(status_code=404, detail="Snapshot not found")
++           from api.v2.http_errors import not_found
++
++           not_found("snapshot_not_found", "Snapshot not found")
+     elapsed_ms = (time.perf_counter() - start) * 1000
+     logger.debug(
+         "v2_read_model name=get_snapshot_metadata session_id=%s limit=None returned=1 elapsed_ms=%.2f",
+@@ -83,11 +88,15 @@ def get_snapshot_metadata(session_id: str) -> SnapshotMetadataResponse:
+ def list_compute_requests(session_id: str, *, limit: int, include_params: bool) -> ComputeRequestsListResponse:
+     start = time.perf_counter()
+     if not (1 <= limit <= 500):
+-        raise HTTPException(status_code=400, detail="limit must be between 1 and 500")
++        from api.v2.http_errors import bad_request
++
++        bad_request("invalid_limit", "limit must be between 1 and 500")
+ 
+     svc = get_v2_service()
+     if svc.get_session(session_id) is None:
+-        raise HTTPException(status_code=404, detail="Session not found")
++        from api.v2.http_errors import not_found
++
++        not_found("session_not_found", "Session not found")
+ 
+     from core.v2.event_ordering import stable_sort_events, event_id, unwrap_event
+ 
+diff --git a/api/v2/router.py b/api/v2/router.py
+index c0c5fb7..1f08698 100644
+--- a/api/v2/router.py
++++ b/api/v2/router.py
+@@ -29,7 +29,9 @@ async def correlation_id_dep(request: Request, response: Response):
+ def assert_session_exists(session_id: str) -> None:
+     svc = get_v2_service()
+     if svc.get_session(session_id) is None:
+-        raise HTTPException(status_code=404, detail="Session not found")
++        # Preserve legacy behaviour for minimal API: raise HTTPException with
++        # a plain-string detail (tests expect `{"detail": "Session not found"}`).
++        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Session not found")
+ 
+ # --- Endpoints ---
+ 
+@@ -53,21 +55,31 @@ async def ingest_event(session_id: str, req: V2IngestCommand, request: Request):
+         validate_compute_payload(req.payload)
+     elif req.type in {"PORTFOLIO_CREATED", "PORTFOLIO_POSITION_UPSERTED", "PORTFOLIO_POSITION_REMOVED"}:
+         if not isinstance(req.payload, dict):
+-            raise HTTPException(status_code=400, detail={"detail": "payload must be a dict for portfolio events"})
++            from api.v2.http_errors import bad_request
++
++            bad_request("invalid_portfolio_payload", "payload must be a dict for portfolio events")
+         if req.type == "PORTFOLIO_CREATED":
+             portfolio = req.payload.get("portfolio")
+             if portfolio is not None and not isinstance(portfolio, dict):
+-                raise HTTPException(status_code=400, detail={"detail": "portfolio must be a dict if present"})
++                from api.v2.http_errors import bad_request
++
++                bad_request("invalid_portfolio_payload", "portfolio must be a dict if present")
+         elif req.type == "PORTFOLIO_POSITION_UPSERTED":
+             position = req.payload.get("position")
+             if not isinstance(position, dict):
+-                raise HTTPException(status_code=400, detail={"detail": "position must be a dict"})
++                from api.v2.http_errors import bad_request
++
++                bad_request("invalid_portfolio_payload", "position must be a dict")
+         elif req.type == "PORTFOLIO_POSITION_REMOVED":
+             position_id = req.payload.get("position_id")
+             if not (isinstance(position_id, str) or (hasattr(position_id, "__str__") and not isinstance(position_id, dict))):
+-                raise HTTPException(status_code=400, detail={"detail": "position_id must be a string-like value"})
++                from api.v2.http_errors import bad_request
++
++                bad_request("invalid_portfolio_payload", "position_id must be a string-like value")
+     else:
+-        raise HTTPException(status_code=400, detail={"detail": f"unsupported command type: {req.type}"})
++        from api.v2.http_errors import bad_request
++
++        bad_request("unsupported_command_type", f"unsupported command type: {req.type}")
+     try:
+         state_version, applied = svc.ingest_event(
+             session_id=session_id,
+@@ -88,7 +100,9 @@ async def ingest_event(session_id: str, req: V2IngestCommand, request: Request):
+         from api.v2.service import should_force_raise_for_tests
+         if should_force_raise_for_tests():
+             raise
+-        raise HTTPException(status_code=500, detail={"detail": "Internal Server Error"})
++        from api.v2.http_errors import internal_error
++
++        internal_error()
+ 
+ @router.post("/sessions/{session_id}/snapshot", response_model=SnapshotResponse)
+ async def create_snapshot(session_id: str, request: Request, response: Response, cid: str = Depends(correlation_id_dep)):
+@@ -101,7 +115,9 @@ async def create_snapshot(session_id: str, request: Request, response: Response,
+         from api.v2.service import should_force_raise_for_tests
+         if should_force_raise_for_tests():
+             raise
+-        raise HTTPException(status_code=500, detail="Internal Server Error")
++        from api.v2.http_errors import internal_error
++
++        internal_error()
+     response.status_code = status.HTTP_201_CREATED
+     return SnapshotResponse(
+         session_id=snap.session_id,
+diff --git a/api/v2/service_sqlite.py b/api/v2/service_sqlite.py
+index a832cd6..92c063a 100644
+--- a/api/v2/service_sqlite.py
++++ b/api/v2/service_sqlite.py
+@@ -6,7 +6,6 @@ from core.v2.persistence_config import get_v2_db_path
+ from core.v2.orchestrator import V2RuntimeOrchestrator
+ from core.v2.snapshot_policy import EveryNSnapshotPolicy
+ from core.v2.models import EventType, Snapshot, V2Event, hash_payload
+-from fastapi import HTTPException
+ import uuid
+ from datetime import datetime
+ from typing import Any, Tuple
+@@ -75,7 +74,9 @@ class V2ServiceSqlite:
+ 
+     def _require_session(self, session_id: str) -> None:
+         if not self.session_store.exists(session_id):
+-            raise HTTPException(status_code=404, detail={"detail": "Session not found"})
++            from api.v2.http_errors import not_found
++
++            not_found("session_not_found", "Session not found")
+ 
+     def ingest_event(
+         self,
+@@ -116,7 +117,13 @@ class V2ServiceSqlite:
+                         raise_http(err, 422)
+                 except ValueError as e:
+                     detail = e.args[0] if e.args else {"detail": "market snapshot not found"}
+-                    raise HTTPException(status_code=404, detail=detail)
++                    # If the ValueError carries an envelope/dict use raise_http, otherwise map to not_found
++                    from api.v2.http_errors import raise_http, not_found
++
++                    if isinstance(detail, dict):
++                        raise_http(detail, 404)
++                    else:
++                        not_found("market_snapshot_not_found", str(detail))
+         eid = event_id or uuid.uuid4().hex
+         event_ts = ts or datetime.utcnow()
+         seen = self._seen_event_ids.setdefault(session_id, set())
+diff --git a/api/v2/validators.py b/api/v2/validators.py
+index 0d680d5..aea1c2e 100644
+--- a/api/v2/validators.py
++++ b/api/v2/validators.py
+@@ -1,23 +1,22 @@
+ 
+ from __future__ import annotations
+ from typing import Any, Dict
+-from fastapi import HTTPException
+ 
+ from core.validation.error_envelope import ErrorEnvelope as CoreErrorEnvelope
+-from api.v2.http_errors import raise_http
++from api.v2.http_errors import raise_http, bad_request
+ 
+ def validate_compute_payload(payload: Dict[str, Any]) -> None:
+     if not isinstance(payload, dict):
+-        raise HTTPException(status_code=400, detail={"detail": "payload must be an object"})
++        bad_request("invalid_payload", "payload must be an object")
+ 
+     kind = payload.get("kind")
+     params = payload.get("params")
+ 
+     if kind not in {"SNAPSHOT", "PORTFOLIO_RISK", "SCENARIO_GRID"}:
+-        raise HTTPException(status_code=400, detail={"detail": "payload.kind must be one of: SNAPSHOT, PORTFOLIO_RISK, SCENARIO_GRID"})
++        bad_request("invalid_payload_kind", "payload.kind must be one of: SNAPSHOT, PORTFOLIO_RISK, SCENARIO_GRID")
+ 
+     if not isinstance(params, dict) or len(params) == 0:
+-        raise HTTPException(status_code=400, detail={"detail": "payload.params must be a non-empty object"})
++        bad_request("invalid_payload_params", "payload.params must be a non-empty object")
+ 
+     # For SNAPSHOT compute requests, require a canonical market_snapshot_id (string)
+     if kind == "SNAPSHOT":
+@@ -32,6 +31,6 @@ def validate_compute_payload(payload: Dict[str, Any]) -> None:
+ 
+ def validate_quote_payload(payload: Dict[str, Any]) -> None:
+     if not isinstance(payload, dict):
+-        raise HTTPException(status_code=400, detail={"detail": "payload must be an object"})
++        bad_request("invalid_payload", "payload must be an object")
+     if len(payload) == 0:
+-        raise HTTPException(status_code=400, detail={"detail": "payload must not be empty"})
++        bad_request("invalid_payload", "payload must not be empty")

@@ -29,7 +29,9 @@ async def correlation_id_dep(request: Request, response: Response):
 def assert_session_exists(session_id: str) -> None:
     svc = get_v2_service()
     if svc.get_session(session_id) is None:
-        raise HTTPException(status_code=404, detail="Session not found")
+        # Preserve legacy behaviour for minimal API: raise HTTPException with
+        # a plain-string detail (tests expect `{"detail": "Session not found"}`).
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Session not found")
 
 # --- Endpoints ---
 
@@ -53,21 +55,31 @@ async def ingest_event(session_id: str, req: V2IngestCommand, request: Request):
         validate_compute_payload(req.payload)
     elif req.type in {"PORTFOLIO_CREATED", "PORTFOLIO_POSITION_UPSERTED", "PORTFOLIO_POSITION_REMOVED"}:
         if not isinstance(req.payload, dict):
-            raise HTTPException(status_code=400, detail={"detail": "payload must be a dict for portfolio events"})
+            from api.v2.http_errors import bad_request
+
+            bad_request("invalid_portfolio_payload", "payload must be a dict for portfolio events")
         if req.type == "PORTFOLIO_CREATED":
             portfolio = req.payload.get("portfolio")
             if portfolio is not None and not isinstance(portfolio, dict):
-                raise HTTPException(status_code=400, detail={"detail": "portfolio must be a dict if present"})
+                from api.v2.http_errors import bad_request
+
+                bad_request("invalid_portfolio_payload", "portfolio must be a dict if present")
         elif req.type == "PORTFOLIO_POSITION_UPSERTED":
             position = req.payload.get("position")
             if not isinstance(position, dict):
-                raise HTTPException(status_code=400, detail={"detail": "position must be a dict"})
+                from api.v2.http_errors import bad_request
+
+                bad_request("invalid_portfolio_payload", "position must be a dict")
         elif req.type == "PORTFOLIO_POSITION_REMOVED":
             position_id = req.payload.get("position_id")
             if not (isinstance(position_id, str) or (hasattr(position_id, "__str__") and not isinstance(position_id, dict))):
-                raise HTTPException(status_code=400, detail={"detail": "position_id must be a string-like value"})
+                from api.v2.http_errors import bad_request
+
+                bad_request("invalid_portfolio_payload", "position_id must be a string-like value")
     else:
-        raise HTTPException(status_code=400, detail={"detail": f"unsupported command type: {req.type}"})
+        from api.v2.http_errors import bad_request
+
+        bad_request("unsupported_command_type", f"unsupported command type: {req.type}")
     try:
         state_version, applied = svc.ingest_event(
             session_id=session_id,
@@ -88,7 +100,9 @@ async def ingest_event(session_id: str, req: V2IngestCommand, request: Request):
         from api.v2.service import should_force_raise_for_tests
         if should_force_raise_for_tests():
             raise
-        raise HTTPException(status_code=500, detail={"detail": "Internal Server Error"})
+        from api.v2.http_errors import internal_error
+
+        internal_error()
 
 @router.post("/sessions/{session_id}/snapshot", response_model=SnapshotResponse)
 async def create_snapshot(session_id: str, request: Request, response: Response, cid: str = Depends(correlation_id_dep)):
@@ -101,7 +115,9 @@ async def create_snapshot(session_id: str, request: Request, response: Response,
         from api.v2.service import should_force_raise_for_tests
         if should_force_raise_for_tests():
             raise
-        raise HTTPException(status_code=500, detail="Internal Server Error")
+        from api.v2.http_errors import internal_error
+
+        internal_error()
     response.status_code = status.HTTP_201_CREATED
     return SnapshotResponse(
         session_id=snap.session_id,

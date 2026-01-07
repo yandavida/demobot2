@@ -2,7 +2,6 @@
 from typing import Any, Dict, List
 import time
 import logging
-from fastapi import HTTPException
 from api.v2.read_models_schemas import (
     EventViewItem,
     EventsListResponse,
@@ -25,10 +24,14 @@ def _payload_dict(p: Any) -> Dict[str, Any]:
 
 def list_events(session_id: str, *, limit: int, include_payload: bool) -> EventsListResponse:
     if not (1 <= limit <= 500):
-        raise HTTPException(status_code=400, detail="limit must be between 1 and 500")
+           from api.v2.http_errors import bad_request
+
+           bad_request("invalid_limit", "limit must be between 1 and 500")
     svc = get_v2_service()
     if svc.get_session(session_id) is None:
-        raise HTTPException(status_code=404, detail="Session not found")
+           from api.v2.http_errors import not_found
+
+           not_found("session_not_found", "Session not found")
     start = time.perf_counter()
     from core.v2.event_ordering import stable_sort_events, event_id, unwrap_event
     events = svc.event_store.list(session_id) if hasattr(svc, "event_store") else []
@@ -66,7 +69,9 @@ def get_snapshot_metadata(session_id: str) -> SnapshotMetadataResponse:
     svc = get_v2_service()
     snap = svc.snapshot_store.latest(session_id)
     if snap is None:
-        raise HTTPException(status_code=404, detail="Snapshot not found")
+           from api.v2.http_errors import not_found
+
+           not_found("snapshot_not_found", "Snapshot not found")
     elapsed_ms = (time.perf_counter() - start) * 1000
     logger.debug(
         "v2_read_model name=get_snapshot_metadata session_id=%s limit=None returned=1 elapsed_ms=%.2f",
@@ -83,11 +88,15 @@ def get_snapshot_metadata(session_id: str) -> SnapshotMetadataResponse:
 def list_compute_requests(session_id: str, *, limit: int, include_params: bool) -> ComputeRequestsListResponse:
     start = time.perf_counter()
     if not (1 <= limit <= 500):
-        raise HTTPException(status_code=400, detail="limit must be between 1 and 500")
+        from api.v2.http_errors import bad_request
+
+        bad_request("invalid_limit", "limit must be between 1 and 500")
 
     svc = get_v2_service()
     if svc.get_session(session_id) is None:
-        raise HTTPException(status_code=404, detail="Session not found")
+        from api.v2.http_errors import not_found
+
+        not_found("session_not_found", "Session not found")
 
     from core.v2.event_ordering import stable_sort_events, event_id, unwrap_event
 
