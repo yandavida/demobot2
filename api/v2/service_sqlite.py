@@ -99,12 +99,21 @@ class V2ServiceSqlite:
                 try:
                     # Lazy import to avoid import cycles in tests
                     from core.market_data.artifact_store import get_market_snapshot
+                    # validate market requirements (Gate M3) before compute/pricing
+                    from core.market_data.validate_requirements import validate_market_requirements
+                    from core.commands.compute_request_command import ComputeRequestPayload
+                    from dataclasses import asdict
 
                     # will raise ValueError carrying an ErrorEnvelope-like dict when missing
-                    get_market_snapshot(msid)
-                except ValueError as e:
-                    from fastapi import HTTPException
+                    snapshot = get_market_snapshot(msid)
 
+                    # Construct a minimal ComputeRequestPayload dataclass for validation
+                    req_payload = ComputeRequestPayload(kind=payload.get("kind"), params=params)
+                    err = validate_market_requirements(req_payload, snapshot)
+                    if err is not None:
+                        # semantic errors map to HTTP 422 per Gate B contract
+                        raise HTTPException(status_code=422, detail=asdict(err))
+                except ValueError as e:
                     detail = e.args[0] if e.args else {"detail": "market snapshot not found"}
                     raise HTTPException(status_code=404, detail=detail)
         eid = event_id or uuid.uuid4().hex
