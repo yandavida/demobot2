@@ -15,7 +15,15 @@ def test_500_correlation_id_provided():
     resp = client.post("/api/v2/sessions", headers={"X-Correlation-Id": "cid-500"})
     assert resp.status_code == 500
     assert resp.headers["X-Correlation-Id"] == "cid-500"
-    assert resp.json() == {"detail": "Internal Server Error"}
+    assert resp.json() == {
+        "detail": {
+            "category": "SERVER",
+            "code": "internal_error",
+            "message": "Internal Server Error",
+            "details": {},
+            "error_count": 1,
+        }
+    }
 
 def test_500_correlation_id_autogen():
     enable_force_raise_for_tests(True)
@@ -23,7 +31,15 @@ def test_500_correlation_id_autogen():
     assert resp.status_code == 500
     assert "X-Correlation-Id" in resp.headers
     assert resp.headers["X-Correlation-Id"]
-    assert resp.json() == {"detail": "Internal Server Error"}
+    assert resp.json() == {
+        "detail": {
+            "category": "SERVER",
+            "code": "internal_error",
+            "message": "Internal Server Error",
+            "details": {},
+            "error_count": 1,
+        }
+    }
 
 
 def test_correlation_id_passthrough():
@@ -110,7 +126,15 @@ def test_404_correlation_id_provided():
     assert resp.status_code == 404
     assert resp.headers["X-Correlation-Id"] == "cid-404"
     # Error body unchanged
-    assert resp.json() == {"detail": "Session not found"}
+    assert resp.json() == {
+        "detail": {
+            "category": "NOT_FOUND",
+            "code": "session_not_found",
+            "message": "Session not found",
+            "details": {},
+            "error_count": 1,
+        }
+    }
 
 
 def test_404_correlation_id_autogen():
@@ -119,7 +143,15 @@ def test_404_correlation_id_autogen():
     assert "X-Correlation-Id" in resp.headers
     assert resp.headers["X-Correlation-Id"]
     # Error body unchanged
-    assert resp.json() == {"detail": "Session not found"}
+    assert resp.json() == {
+        "detail": {
+            "category": "NOT_FOUND",
+            "code": "session_not_found",
+            "message": "Session not found",
+            "details": {},
+            "error_count": 1,
+        }
+    }
 
 
 def test_v1_404_no_correlation_id():

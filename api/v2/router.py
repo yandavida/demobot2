@@ -29,9 +29,10 @@ async def correlation_id_dep(request: Request, response: Response):
 def assert_session_exists(session_id: str) -> None:
     svc = get_v2_service()
     if svc.get_session(session_id) is None:
-        # Preserve legacy behaviour for minimal API: raise HTTPException with
-        # a plain-string detail (tests expect `{"detail": "Session not found"}`).
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Session not found")
+        # Use canonical envelope for not-found errors.
+        from api.v2.http_errors import not_found
+
+        not_found("session_not_found", "Session not found")
 
 # --- Endpoints ---
 
