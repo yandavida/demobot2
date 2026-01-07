@@ -102,7 +102,6 @@ class V2ServiceSqlite:
                     # validate market requirements (Gate M3) before compute/pricing
                     from core.market_data.validate_requirements import validate_market_requirements
                     from core.commands.compute_request_command import ComputeRequestPayload
-                    from dataclasses import asdict
 
                     # will raise ValueError carrying an ErrorEnvelope-like dict when missing
                     snapshot = get_market_snapshot(msid)
@@ -112,7 +111,9 @@ class V2ServiceSqlite:
                     err = validate_market_requirements(req_payload, snapshot)
                     if err is not None:
                         # semantic errors map to HTTP 422 per Gate B contract
-                        raise HTTPException(status_code=422, detail=asdict(err))
+                        from api.v2.http_errors import raise_http
+
+                        raise_http(err, 422)
                 except ValueError as e:
                     detail = e.args[0] if e.args else {"detail": "market snapshot not found"}
                     raise HTTPException(status_code=404, detail=detail)
