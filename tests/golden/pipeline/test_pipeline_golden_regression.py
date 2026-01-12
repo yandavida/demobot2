@@ -1,5 +1,4 @@
 import json
-import math
 from pathlib import Path
 
 from core.numeric_policy import DEFAULT_TOLERANCES, MetricClass
