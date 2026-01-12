@@ -1,6 +1,9 @@
 import json
 import hashlib
 from pathlib import Path
+import pytest
+
+pytestmark = pytest.mark.golden
 
 
 def sha256_hex(path: Path) -> str:

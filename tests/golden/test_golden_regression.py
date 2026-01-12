@@ -1,4 +1,6 @@
 import json
+import pytest
+pytestmark = pytest.mark.golden
 import hashlib
 from pathlib import Path
 import math
