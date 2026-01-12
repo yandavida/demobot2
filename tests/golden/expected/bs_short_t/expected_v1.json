@@ -1,0 +1,22 @@
+{
+  "dataset_id": "bs_short_t",
+  "version": 1,
+  "policy_ref": "core.numeric_policy.DEFAULT_TOLERANCES",
+  "units": {
+    "vega": "per_1pct_iv",
+    "theta": "per_calendar_day"
+  },
+  "cases": [
+    {
+      "id": "case1",
+      "metrics": {
+        "price": 1.0440498704451926,
+        "delta": 0.505220249352226,
+        "gamma": 0.15242258086804913,
+        "vega": 0.020879805598362892,
+        "theta": -0.5219951399590723,
+        "rho": 0.1355560960678833
+      }
+    }
+  ]
+}

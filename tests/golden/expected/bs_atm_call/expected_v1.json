@@ -1,0 +1,22 @@
+{
+  "dataset_id": "bs_atm_call",
+  "version": 1,
+  "policy_ref": "core.numeric_policy.DEFAULT_TOLERANCES",
+  "units": {
+    "vega": "per_1pct_iv",
+    "theta": "per_calendar_day"
+  },
+  "cases": [
+    {
+      "id": "case1",
+      "metrics": {
+        "price": 2.2871506280449694,
+        "delta": 0.5114357531402248,
+        "gamma": 0.06954844076977439,
+        "vega": 0.11432620400510857,
+        "theta": -0.038108734668369525,
+        "rho": 4.015596549532399
+      }
+    }
+  ]
+}

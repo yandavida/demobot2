@@ -1,0 +1,22 @@
+{
+  "dataset_id": "bs_deep_itm_call",
+  "version": 1,
+  "policy_ref": "core.numeric_policy.DEFAULT_TOLERANCES",
+  "units": {
+    "vega": "per_1pct_iv",
+    "theta": "per_calendar_day"
+  },
+  "cases": [
+    {
+      "id": "case1",
+      "metrics": {
+        "price": 100.24627159517482,
+        "delta": 0.9999999999999976,
+        "gamma": 1.1093101807460978e-15,
+        "vega": 1.9694054715711542e-14,
+        "theta": -0.0027329788604081254,
+        "rho": 24.596809743655406
+      }
+    }
+  ]
+}
