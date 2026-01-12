@@ -1,0 +1,22 @@
+{
+  "dataset_id": "bs_deep_otm_put",
+  "version": 1,
+  "policy_ref": "core.numeric_policy.DEFAULT_TOLERANCES",
+  "units": {
+    "vega": "per_1pct_iv",
+    "theta": "per_calendar_day"
+  },
+  "cases": [
+    {
+      "id": "case1",
+      "metrics": {
+        "price": 100.0000000001883,
+        "delta": -0.9999999998518758,
+        "gamma": 1.1112329539118079e-10,
+        "vega": 2.740026461700348e-10,
+        "theta": -3.425033077125435e-11,
+        "rho": -49.31506849077767
+      }
+    }
+  ]
+}

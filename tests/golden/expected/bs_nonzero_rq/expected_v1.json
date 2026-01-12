@@ -1,0 +1,22 @@
+{
+  "dataset_id": "bs_nonzero_rq",
+  "version": 1,
+  "policy_ref": "core.numeric_policy.DEFAULT_TOLERANCES",
+  "units": {
+    "vega": "per_1pct_iv",
+    "theta": "per_calendar_day"
+  },
+  "cases": [
+    {
+      "id": "case1",
+      "metrics": {
+        "price": 6.386810108754048,
+        "delta": 0.7716240306286545,
+        "gamma": 0.038872471383434685,
+        "vega": 0.10543492238246671,
+        "theta": -0.031240190852710837,
+        "rho": 8.72575803543839
+      }
+    }
+  ]
+}

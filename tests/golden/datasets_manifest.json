@@ -7,6 +7,54 @@
       "domain": "pricing",
       "input_file": "tests/golden/datasets/bs_smoke/inputs_v1.json",
       "input_sha256": "61718fedd4f4cce86cdbdc913f690ad81a94a35543768e2ba167349ee207ffc0"
+    },
+    {
+      "dataset_id": "bs_atm_call",
+      "version": 1,
+      "description": "Auto-generated bs_atm_call dataset",
+      "domain": "pricing",
+      "input_file": "tests/golden/datasets/bs_atm_call/inputs_v1.json",
+      "input_sha256": "d33451bb4111a39931d129bddff3da5abb6d6e9feea3d7a598eb9a38e07c1c07"
+    },
+    {
+      "dataset_id": "bs_atm_put",
+      "version": 1,
+      "description": "Auto-generated bs_atm_put dataset",
+      "domain": "pricing",
+      "input_file": "tests/golden/datasets/bs_atm_put/inputs_v1.json",
+      "input_sha256": "3a4d4b45262b3c98ec6431c052ce5d63e4cb723cb2a353e083c11021cc991a5f"
+    },
+    {
+      "dataset_id": "bs_deep_itm_call",
+      "version": 1,
+      "description": "Auto-generated bs_deep_itm_call dataset",
+      "domain": "pricing",
+      "input_file": "tests/golden/datasets/bs_deep_itm_call/inputs_v1.json",
+      "input_sha256": "f222e17186bf7c92dacee8f11694bcd40699816372219cfeea2b6f5921af69a5"
+    },
+    {
+      "dataset_id": "bs_deep_otm_put",
+      "version": 1,
+      "description": "Auto-generated bs_deep_otm_put dataset",
+      "domain": "pricing",
+      "input_file": "tests/golden/datasets/bs_deep_otm_put/inputs_v1.json",
+      "input_sha256": "27f26a8fade7c1cfc1d39e4ef7c3bc2cce22065fed68f6ee9716ba45d1fc9746"
+    },
+    {
+      "dataset_id": "bs_short_t",
+      "version": 1,
+      "description": "Auto-generated bs_short_t dataset",
+      "domain": "pricing",
+      "input_file": "tests/golden/datasets/bs_short_t/inputs_v1.json",
+      "input_sha256": "6af88da0778d012efc90961ecdddc5e3604f9b32cffb167d508ab691b949fa4f"
+    },
+    {
+      "dataset_id": "bs_nonzero_rq",
+      "version": 1,
+      "description": "Auto-generated bs_nonzero_rq dataset",
+      "domain": "pricing",
+      "input_file": "tests/golden/datasets/bs_nonzero_rq/inputs_v1.json",
+      "input_sha256": "bd49f99232525188de82fd56a05009e56ce036f804a834cb2a6249126e967860"
     }
   ]
 }
