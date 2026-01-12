@@ -1,0 +1,12 @@
+{
+  "datasets": [
+    {
+      "dataset_id": "bs_smoke",
+      "version": 1,
+      "description": "Small deterministic Black-Scholes input set (pricing-level only)",
+      "domain": "pricing",
+      "input_file": "tests/golden/datasets/bs_smoke/inputs_v1.json",
+      "input_sha256": "61718fedd4f4cce86cdbdc913f690ad81a94a35543768e2ba167349ee207ffc0"
+    }
+  ]
+}
