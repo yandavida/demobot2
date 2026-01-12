@@ -3,6 +3,7 @@ import pytest
 from core.market_data.market_snapshot_payload_v0 import MarketSnapshotPayloadV0
 import core.market_data.artifact_store as artifact_store
 from core.v2.event_store_sqlite import SqliteEventStore
+from core.market_data.identity import market_snapshot_id
 
 
 def make_payload() -> MarketSnapshotPayloadV0:
@@ -51,3 +52,22 @@ def test_get_missing_raises_valueerror(tmp_path, monkeypatch):
     exc = ei.value
     assert hasattr(exc, "snapshot_id")
     assert exc.snapshot_id == "0" * 64
+
+
+def test_get_payload_rehashes_to_same_market_snapshot_id(tmp_path, monkeypatch):
+    db_file = tmp_path / "v2.sqlite"
+
+    def store_factory(db_path=None):
+        return SqliteEventStore(str(db_file))
+
+    monkeypatch.setattr(artifact_store, "SqliteEventStore", store_factory)
+
+    p = make_payload()
+    # store returns the canonical market_snapshot_id
+    msid = artifact_store.put_market_snapshot(p)
+    assert isinstance(msid, str) and len(msid) == 64
+
+    # fetch the payload and re-hash using the canonical identity function
+    fetched = artifact_store.get_market_snapshot(msid)
+    rehashed = market_snapshot_id(fetched)
+    assert rehashed == msid
