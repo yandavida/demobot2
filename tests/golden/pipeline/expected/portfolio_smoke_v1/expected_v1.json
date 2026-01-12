@@ -1,0 +1,16 @@
+{
+  "dataset_id": "portfolio_smoke_v1",
+  "version": 1,
+  "base_currency": "USD",
+  "per_position": [
+    {
+      "instrument_id": "TEST_OPT_1",
+      "pv": 1000.0,
+      "currency": "USD"
+    }
+  ],
+  "total_pv": 1000.0,
+  "metadata": {
+    "policy_ref": "Gate N DEFAULT_TOLERANCES"
+  }
+}
