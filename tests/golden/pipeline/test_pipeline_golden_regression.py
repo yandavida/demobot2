@@ -1,4 +1,5 @@
 import json
+import pytest
 from pathlib import Path
 
 from core.numeric_policy import DEFAULT_TOLERANCES, MetricClass
@@ -6,6 +7,9 @@ from core.services.portfolio_valuation import PublicValuationRequest, PublicPosi
 
 
 MANIFEST = Path("tests/golden/pipeline/datasets_manifest.json")
+
+
+pytestmark = pytest.mark.pipeline_golden
 
 
 def nearly_equal(a: float, b: float, tol) -> bool:
