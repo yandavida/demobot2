@@ -46,10 +46,21 @@ class MetricClass(Enum):
     PNL = "pnl"
 
 
-# DEFAULT_TOLERANCES is intentionally placeholder-only; concrete values
-# will be pinned in a future Gate (N3) based on golden micro cases.
+# DEFAULT_TOLERANCES is populated with conservative, wide-first
+# initial tolerance values. These are policy values only and may be
+# tightened in a future Gate (N3) once empirical baselines exist.
 DEFAULT_TOLERANCES: Dict[MetricClass, Tolerance] = {
-    mc: Tolerance(abs=None, rel=None) for mc in MetricClass
+    MetricClass.PRICE: Tolerance(abs=1e-6, rel=1e-8),
+    MetricClass.RATE: Tolerance(abs=1e-10, rel=1e-8),
+    MetricClass.VOL: Tolerance(abs=1e-10, rel=1e-8),
+
+    MetricClass.DELTA: Tolerance(abs=1e-8, rel=1e-8),
+    MetricClass.GAMMA: Tolerance(abs=1e-10, rel=1e-8),
+    MetricClass.VEGA: Tolerance(abs=1e-6, rel=1e-6),
+    MetricClass.THETA: Tolerance(abs=1e-6, rel=1e-6),
+    MetricClass.RHO: Tolerance(abs=1e-6, rel=1e-6),
+
+    MetricClass.PNL: Tolerance(abs=1e-6, rel=1e-6),
 }
 
 
