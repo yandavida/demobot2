@@ -111,3 +111,13 @@ jobs:
             exit 0
           fi
           exit "$exit_code"
+
+      - name: Run golden pytest
+        run: |
+          exit_code=0
+          pytest -q -m golden || exit_code=$?
+          if [ "$exit_code" -eq 5 ]; then
+            echo "Pytest reported 'no tests ran' for golden marker (exit code 5); treating as success."
+            exit 0
+          fi
+          exit "$exit_code"
