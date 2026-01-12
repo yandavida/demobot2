@@ -154,3 +154,34 @@ def test_service_restart_determinism(tmp_path, monkeypatch):
     assert isinstance(state_before[0], int) and isinstance(state_before[1], bool)
     assert isinstance(state_after[0], int) and isinstance(state_after[1], bool)
     svc2.close()
+
+
+def test_snapshot_compute_does_not_use_runtime_clock():
+    """Scoped static scan for forbidden runtime clock usage in Gate M modules.
+
+    This is a scoped fallback test: it scans `core/market_data/` for occurrences
+    of `.now(` or `utcnow(` which would indicate runtime clock usage that
+    could introduce nondeterminism at Gate M. This test intentionally scans
+    only the market-data boundary modules (Gate M) to avoid false positives
+    from general service timestamping in `api.v2.service_sqlite` or
+    `core.v2.orchestrator` which legitimately use clocks for metadata.
+    """
+    import pathlib
+
+    repo_root = pathlib.Path(__file__).resolve().parents[3]
+    # Scope the static scan to the files directly involved in Gate M acceptance
+    targets = [
+        repo_root / "core" / "market_data" / "artifact_store.py",
+        repo_root / "core" / "market_data" / "identity.py",
+        repo_root / "core" / "market_data" / "validate_requirements.py",
+    ]
+    forbidden_patterns = [".now(", "utcnow(", "datetime.utcnow", "datetime.now"]
+    matches = []
+    for path in targets:
+        if not path.exists():
+            continue
+        txt = path.read_text(encoding="utf-8")
+        for pat in forbidden_patterns:
+            if pat in txt:
+                matches.append(f"{path.relative_to(repo_root)}: contains '{pat}'")
+    assert matches == [], "Found runtime clock usage in Gate M acceptance modules:\n" + "\n".join(matches)
