@@ -1,0 +1,33 @@
+{
+  "dataset_id": "bs_smoke",
+  "version": 1,
+  "policy_ref": "core.numeric_policy.DEFAULT_TOLERANCES",
+  "units": {
+    "vega": "per_1pct_iv",
+    "theta": "per_calendar_day"
+  },
+  "cases": [
+    {
+      "id": "case1",
+      "metrics": {
+        "price": 7.965567455405804,
+        "delta": 0.539827837277029,
+        "gamma": 0.01984762737385059,
+        "vega": 0.39695254747701175,
+        "theta": -0.010875412259644158,
+        "rho": 46.0172162722971
+      }
+    },
+    {
+      "id": "case2",
+      "metrics": {
+        "price": 12.467768375055968,
+        "delta": -0.6841503565260657,
+        "gamma": 0.0223537324032733,
+        "vega": 0.2263315405831422,
+        "theta": -0.013473631534122014,
+        "rho": -37.02065023120094
+      }
+    }
+  ]
+}
