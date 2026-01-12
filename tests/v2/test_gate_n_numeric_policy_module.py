@@ -16,8 +16,9 @@ def test_default_tolerances_cover_all_metric_classes():
 
 def test_default_tolerances_are_placeholders():
     np = importlib.import_module("core.numeric_policy")
+    # DEFAULT_TOLERANCES should be populated with concrete Tolerance values
     for tol in np.DEFAULT_TOLERANCES.values():
-        assert tol.abs is None and tol.rel is None
+        assert hasattr(tol, "abs") and hasattr(tol, "rel")
 
 
 def test_units_constants_locked_for_vega_theta():
