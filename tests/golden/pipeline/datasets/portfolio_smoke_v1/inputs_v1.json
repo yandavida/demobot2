@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "base_currency": "USD",
+  "positions": [
+    {
+      "instrument_id": "TEST_OPT_1",
+      "quantity": 10
+    }
+  ],
+  "market_snapshot_ref": "snapshot_0001"
+}
