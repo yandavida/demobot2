@@ -1,0 +1,11 @@
+[
+  {
+    "dataset_id": "portfolio_smoke_v1",
+    "version": 1,
+    "description": "Minimal deterministic pipeline inputs for Gate P smoke test.",
+    "input_file": "tests/golden/pipeline/datasets/portfolio_smoke_v1/inputs_v1.json",
+    "input_sha256": "057d7635ae50391483ece9a1154f34d6ea410197b039c128e19cfebd6ca2a766",
+    "generator": "manual",
+    "notes": ""
+  }
+]
