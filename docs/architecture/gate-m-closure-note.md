@@ -1,10 +1,27 @@
-# Gate M Closure Note
 
-- Gate M enforces SNAPSHOT compute to be `market_snapshot_id`-anchored (no implicit/live lookup).
-- Snapshot identity is content-addressed via `market_snapshot_id = sha256(canonical_json(payload))` (see `core/market_data/identity.py`).
-- Artifact storage is immutable and idempotent (`put_market_snapshot` / `get_market_snapshot`) — tested by `tests/market_data/test_artifact_store.py`.
-- Validators enforce schema-level requirements: missing/invalid `market_snapshot_id` → 400 (see `tests/api/v2/test_v2_compute_snapshot_id_validation.py`).
-- Service boundary enforces replay-only resolution and maps errors: missing artifact → 404, semantic mismatch → 422 (see `api/v2/service_sqlite.py` and `tests/api/v2/test_v2_compute_snapshot_integration.py`).
-- Semantic market validations (M3) are unit-tested for missing symbol/FX/curve/tenor cases (`tests/market_data/test_market_requirements_validation.py`).
-- Replay evidence (M4) includes permutation-invariance and restart determinism tests (`tests/api/v2/test_v2_m4_replay_evidence.py`).
-- No production code changes or schema edits were required to close M4; evidence is tests-only.
+## Update — Gate M Hardening Completed
+
+**Status:** Gate M — CLOSED & HARDENED
+
+Following the merge of the final hardening PRs, Gate M is now fully closed with additional institutional safeguards:
+
+### Added Hardening Guarantees
+- **Artifact Integrity Re-hash (M2.I1)**  
+	Retrieved snapshot payloads are re-hashed using the canonical identity function and must reproduce the original `market_snapshot_id`. This guards against silent corruption and serialization drift.
+
+- **No-Clock Enforcement (M4.C1)**  
+	A scoped enforcement test ensures that no runtime clock usage (`now/utcnow`) exists within Gate M acceptance modules, preventing nondeterministic behavior and preserving replay safety.
+
+### Evidence
+- Integrity re-hash test: `tests/market_data/test_artifact_store.py`
+- No-clock enforcement: `tests/api/v2/test_v2_m4_replay_evidence.py`
+- CI gates: ruff / compileall / pytest (green)
+
+### Final Assessment
+Gate M now provides:
+- Deterministic, replay-only market data resolution
+- Immutable, content-addressed snapshot artifacts
+- Explicit prevention of provider fallback and runtime clock dependency
+- SSOT documentation with evidence index
+
+**Conclusion:** Gate M is complete, hardened, and suitable for institutional-grade audit and replay requirements.
