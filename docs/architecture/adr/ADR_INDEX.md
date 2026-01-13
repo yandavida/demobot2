@@ -12,18 +12,23 @@ Any new ADR must:
 
 - **ADR-001 — Command Schema Versioning**
   - Path: `docs/adr/adr-001-command-schema-versioning.md`
+  - Evidence: `tests/architecture/test_adr_001_command_schema_versioning.py`
 
 - **ADR-002 — Validation Modes: Strict vs Lenient**
   - Path: `docs/adr/adr-002-validation-modes-strict-lenient.md`
+  - Evidence: `tests/architecture/test_adr_002_validation_modes.py`
 
 - **ADR-003 — Error Taxonomy Stability**
   - Path: `docs/adr/adr-003-error-taxonomy-stability.md`
+  - Evidence: `tests/architecture/test_adr_003_error_taxonomy_stability.py`
 
 - **ADR-004 — Gate B ↔ Gate A Integration Guarantees**
   - Path: `docs/adr/adr-004-gate-b-gate-a-integration-guarantees.md`
+  - Evidence: `tests/architecture/test_adr_004_determinism_reproducibility_guards.py`
 
 - **ADR-005 — Institutional Default Bias**
   - Path: `docs/adr/adr-005-institutional-default-bias.md`
+  - Evidence: `tests/architecture/test_adr_005_institutional_default_bias.py`
 
 ---
 
@@ -31,9 +36,11 @@ Any new ADR must:
 
 - **ADR-006 — Market Snapshot Determinism & Immutability**
   - Path: `docs/architecture/adr/adr-006-market-snapshot-determinism-immutability.md`
+  - Evidence: `tests/architecture/test_adr_006_market_snapshot_determinism_immutability.py`
 
 - **ADR-007 — Canonical Market Validation Boundary**
   - Path: `docs/architecture/adr/adr-007-canonical-market-validation-boundary.md`
+  - Evidence: `tests/architecture/test_adr_007_canonical_market_validation_boundary.py`
 
 ---
 
@@ -44,6 +51,7 @@ Any new ADR must:
 
 - **ADR-009 — Policy vs Coverage Separation**
   - Path: `docs/architecture/adr/adr-009-policy-vs-coverage-separation.md`
+  - Evidence: `tests/architecture/test_adr_009_policy_vs_coverage_separation.py`
 
 ---
 
