@@ -6,7 +6,6 @@ import pytest
 
 from api.v2.service_sqlite import V2ServiceSqlite
 from core.validation.error_envelope import ErrorEnvelope
-from core.v2.models import EventType
 
 
 def _assert_validation_missing_ts(exc: Exception) -> None:

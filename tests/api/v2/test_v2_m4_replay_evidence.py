@@ -13,6 +13,7 @@ from core.market_data.artifact_store import put_market_snapshot, get_market_snap
 from core.market_data.identity import market_snapshot_id
 from core.v2.event_store_sqlite import SqliteEventStore
 from api.v2.service_sqlite import V2ServiceSqlite
+from datetime import datetime
 
 client = TestClient(app)
 
@@ -135,7 +136,8 @@ def test_service_restart_determinism(tmp_path, monkeypatch):
     msid = put_market_snapshot(p)
 
     # Ingest compute via service instance 1
-    state_before = svc1.ingest_event(sid, event_id=None, ts=None, type="COMPUTE_REQUESTED", payload={"kind": "SNAPSHOT", "params": {"market_snapshot_id": msid}})
+    ts_val = datetime.fromisoformat("2025-01-01T00:00:00+00:00")
+    state_before = svc1.ingest_event(sid, event_id=None, ts=ts_val, type="COMPUTE_REQUESTED", payload={"kind": "SNAPSHOT", "params": {"market_snapshot_id": msid}})
     snap1 = svc1.get_snapshot(sid)
     svc1.close()
 
@@ -150,7 +152,7 @@ def test_service_restart_determinism(tmp_path, monkeypatch):
     assert snap1.data == snap2.data
 
     # Ingesting the same compute on restarted service should be accepted
-    state_after = svc2.ingest_event(sid, event_id=None, ts=None, type="COMPUTE_REQUESTED", payload={"kind": "SNAPSHOT", "params": {"market_snapshot_id": msid}})
+    state_after = svc2.ingest_event(sid, event_id=None, ts=ts_val, type="COMPUTE_REQUESTED", payload={"kind": "SNAPSHOT", "params": {"market_snapshot_id": msid}})
     assert isinstance(state_before[0], int) and isinstance(state_before[1], bool)
     assert isinstance(state_after[0], int) and isinstance(state_after[1], bool)
     svc2.close()

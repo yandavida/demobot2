@@ -97,6 +97,15 @@ async def ingest_event(session_id: str, req: V2IngestCommand, request: Request):
         )
     except HTTPException:
         raise
+    except ValueError as ve:
+        # Map service-raised ErrorEnvelope carried in ValueError -> HTTP 400
+        from core.validation.error_envelope import ErrorEnvelope
+        from api.v2.http_errors import raise_http
+
+        detail = ve.args[0] if ve.args else None
+        if isinstance(detail, ErrorEnvelope) or (isinstance(detail, dict) and detail.get("category") is not None):
+            raise_http(detail, 400)
+        raise
     except Exception:
         from core.v2.errors import EventConflictError
 
