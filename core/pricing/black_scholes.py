@@ -1,4 +1,5 @@
 from math import erf, exp, log, pi, sqrt
+from core.numeric_policy import DEFAULT_TOLERANCES, MetricClass
 from dataclasses import dataclass
 from typing import Literal
 from core.pricing.units import to_canonical_greeks
@@ -21,8 +22,12 @@ def _norm_cdf(x: float) -> float:
     return 0.5 * (1.0 + erf(x / sqrt(2.0)))
 
 def _sanitize_sigma_T(sigma: float, T: float) -> tuple[float, float]:
-    sigma = max(1e-8, float(sigma))
-    T = max(1e-8, float(T))
+    # Use numeric policy defaults instead of hardcoded small constants
+    min_sigma = DEFAULT_TOLERANCES[MetricClass.VOL].abs
+    min_T = DEFAULT_TOLERANCES[MetricClass.TIME].abs
+
+    sigma = max(min_sigma, float(sigma))
+    T = max(min_T, float(T))
     return sigma, T
 
 def bs_price_greeks(
