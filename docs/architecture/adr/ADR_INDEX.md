@@ -79,6 +79,7 @@ Any new ADR must:
 
 - **ADR-014 — Deterministic Event Time and Replay**
   - Path: `docs/architecture/adr/adr-014-deterministic-event-time-and-replay.md`
+  - Evidence: `tests/architecture/test_no_wallclock_fields_in_contract_surfaces.py`
 
 ---
 
