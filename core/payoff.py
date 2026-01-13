@@ -96,12 +96,18 @@ def calc_max_loss(curve: PayoffCurve) -> float:
     return float(curve.pl.min())
 
 
-def calc_break_even_points(curve: PayoffCurve, tol: float = 1e-6) -> List[float]:
+def calc_break_even_points(curve: PayoffCurve, tol: float | None = None) -> List[float]:
     """
     חישוב נקודות איזון (Break Even) כנקודות שבהן P/L חוצה את 0.
 
     נעשה אינטרפולציה ליניארית בין נקודות סמוכות שמשנות סימן.
     """
+    from core.numeric_policy import DEFAULT_TOLERANCES, MetricClass
+
+    # Resolve tolerance via Numeric Policy SSOT if not provided
+    if tol is None:
+        tol = DEFAULT_TOLERANCES[MetricClass.TIME].abs
+
     prices = curve.prices
     pl = curve.pl
 
