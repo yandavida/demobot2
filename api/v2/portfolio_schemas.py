@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, model_validator
 from typing import List
 
 class MoneyOut(BaseModel):
@@ -21,3 +21,12 @@ class PortfolioSummaryOut(BaseModel):
     delta: float
     exposures: List[ExposureOut]
     constraints: ConstraintsOut
+
+    @model_validator(mode="after")
+    def _canonicalize_exposures(self) -> "PortfolioSummaryOut":
+        # Ensure deterministic canonical ordering for exposures at model boundary
+        try:
+            self.exposures.sort(key=lambda e: e.underlying)
+        except Exception:
+            pass
+        return self
