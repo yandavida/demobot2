@@ -31,6 +31,8 @@ def get_portfolio_summary(session_id: str) -> PortfolioSummaryOut:
                 delta=ex.delta,
             ) for u, ex in totals.exposures
         ]
+        # enforce canonical deterministic ordering for exposures at the API boundary
+        exposures.sort(key=lambda e: e.underlying)
         return PortfolioSummaryOut(
             session_id=session_id,
             version=version,
