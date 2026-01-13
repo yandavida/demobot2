@@ -64,3 +64,8 @@ def fx_forward_payoff_curve(*args, **kwargs):
         "curve": curve,
     }
     return summary
+
+
+def summarize_fx_pl(*args, **kwargs):
+    """Backward-compatible alias used by higher layers."""
+    return fx_forward_payoff_curve(*args, **kwargs)
