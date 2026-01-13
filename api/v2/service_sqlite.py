@@ -9,6 +9,7 @@ from core.v2.models import EventType, Snapshot, V2Event, hash_payload
 import uuid
 from datetime import datetime
 from typing import Any, Tuple
+from core.validation.error_envelope import ErrorEnvelope
 
 
 # גלובלי עבור בדיקות
@@ -125,7 +126,17 @@ class V2ServiceSqlite:
                     else:
                         not_found("market_snapshot_not_found", str(detail))
         eid = event_id or uuid.uuid4().hex
-        event_ts = ts or datetime.utcnow()
+        # Deterministic replay requires canonical, caller-supplied event.ts (ADR-014 / Gate D).
+        if ts is None:
+            raise ValueError(
+                ErrorEnvelope(
+                    category="VALIDATION",
+                    code="MISSING_EVENT_TS",
+                    message="event.ts is required for deterministic ingestion",
+                    details={"field": "ts"},
+                )
+            )
+        event_ts = ts
         seen = self._seen_event_ids.setdefault(session_id, set())
         pre_exists = eid in seen
         payload_hash = hash_payload(payload)
