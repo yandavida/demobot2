@@ -126,7 +126,12 @@ def calc_position_greeks(
     T = max(dte_days, 1e-6) / 365.0
     sigma = max(iv, 1e-6)
 
-    total = Greeks(0.0, 0.0, 0.0, 0.0, 0.0)
+    # Accumulate into local scalars to avoid mutating frozen dataclass instances
+    delta_total = 0.0
+    gamma_total = 0.0
+    vega_total = 0.0
+    theta_total = 0.0
+    rho_total = 0.0
 
     for leg in position.legs:
         side_sign = 1.0 if leg.side == "long" else -1.0
@@ -143,15 +148,21 @@ def calc_position_greeks(
 
         qty_factor = side_sign * float(leg.quantity) * float(multiplier)
 
-        total.delta += g.delta * qty_factor
-        total.gamma += g.gamma * qty_factor
-        total.vega += g.vega * qty_factor
-        total.theta += g.theta * qty_factor
-        total.rho += g.rho * qty_factor
+        delta_total += g.delta * qty_factor
+        gamma_total += g.gamma * qty_factor
+        vega_total += g.vega * qty_factor
+        theta_total += g.theta * qty_factor
+        rho_total += g.rho * qty_factor
 
     # התאמה ליחידות "נוחות"
-    total.vega /= 100.0  # פר 1% שינוי ב-IV
-    total.rho /= 100.0  # פר 1% שינוי בריבית
-    total.theta /= 365.0  # פר יום (T+1)
+    vega_total /= 100.0  # פר 1% שינוי ב-IV
+    rho_total /= 100.0  # פר 1% שינוי בריבית
+    theta_total /= 365.0  # פר יום (T+1)
 
-    return total
+    return Greeks(
+        delta=delta_total,
+        gamma=gamma_total,
+        vega=vega_total,
+        theta=theta_total,
+        rho=rho_total,
+    )
