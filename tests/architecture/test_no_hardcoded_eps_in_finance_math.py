@@ -72,9 +72,8 @@ def test_no_hardcoded_eps_in_finance_math():
     violations = []
 
     # Baseline allowlist of existing violations (path, line, rule_id)
-    BASELINE = {
-        ("core/payoff.py", 99, "sci_notation"),
-    }
+    # Shrunk: payoff violation removed in F2.3
+    BASELINE = set()
 
     for fp in files:
         try:
