@@ -42,6 +42,7 @@ class MetricClass(Enum):
     GAMMA = "gamma"
     VEGA = "vega"
     THETA = "theta"
+    TIME = "time"
     RHO = "rho"
     PNL = "pnl"
 
@@ -58,6 +59,7 @@ DEFAULT_TOLERANCES: Dict[MetricClass, Tolerance] = {
     MetricClass.GAMMA: Tolerance(abs=1e-10, rel=1e-8),
     MetricClass.VEGA: Tolerance(abs=1e-6, rel=1e-6),
     MetricClass.THETA: Tolerance(abs=1e-6, rel=1e-6),
+    MetricClass.TIME: Tolerance(abs=1e-6, rel=1e-6),
     MetricClass.RHO: Tolerance(abs=1e-6, rel=1e-6),
 
     MetricClass.PNL: Tolerance(abs=1e-6, rel=1e-6),

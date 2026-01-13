@@ -29,6 +29,7 @@ def aggregate_greeks(g, qty=None, contract_multiplier=None, *args, **kwargs):
 
 __all__ = ["Greeks", "aggregate_greeks"]
 from math import log, sqrt, exp, erf, pi
+from core.numeric_policy import DEFAULT_TOLERANCES, MetricClass
 
 
 def _norm_cdf(x: float) -> float:
@@ -123,8 +124,12 @@ def calc_position_greeks(
       theta      – שינוי בסכום ליום (T+1)
       rho        – שינוי בסכום ל-1% שינוי בריבית
     """
-    T = max(dte_days, 1e-6) / 365.0
-    sigma = max(iv, 1e-6)
+    # Use policy SSOT for numeric floors to avoid hardcoded epsilons
+    min_days = DEFAULT_TOLERANCES[MetricClass.TIME].abs
+    min_sigma = DEFAULT_TOLERANCES[MetricClass.VOL].abs
+
+    T = max(dte_days, min_days) / 365.0
+    sigma = max(iv, min_sigma)
 
     # Accumulate into local scalars to avoid mutating frozen dataclass instances
     delta_total = 0.0
