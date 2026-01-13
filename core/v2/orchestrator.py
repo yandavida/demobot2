@@ -170,7 +170,7 @@ class V2RuntimeOrchestrator:
             new_version = state.version + 1
             new_applied[event.event_id] = new_version
             state = SessionState(session_id=event.session_id, version=new_version, applied=new_applied)
-            applied_event = AppliedEvent(event=event, state_version=new_version, applied_at=datetime.utcnow())
+            applied_event = AppliedEvent(event=event, state_version=new_version, applied_at=event.ts)
             applied_log.append(applied_event)
             self._session_states[event.session_id] = state
             # Snapshot cadence policy integration
