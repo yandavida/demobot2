@@ -55,6 +55,14 @@
       "domain": "pricing",
       "input_file": "tests/golden/datasets/bs_nonzero_rq/inputs_v1.json",
       "input_sha256": "bd49f99232525188de82fd56a05009e56ce036f804a834cb2a6249126e967860"
+    },
+    {
+      "dataset_id": "bs_canonical",
+      "version": 1,
+      "description": "Canonical Black-Scholes dataset for price+greeks (BS canonical v1)",
+      "domain": "pricing",
+      "input_file": "tests/golden/datasets/bs_canonical/inputs_v1.json",
+      "input_sha256": "d6a279c85f2cb420895685e196f738126f4c2b8061713178ec741ac1ef9a45bb"
     }
   ]
 }
