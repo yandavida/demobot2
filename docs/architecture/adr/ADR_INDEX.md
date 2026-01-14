@@ -68,6 +68,11 @@ Any new ADR must:
 
 ---
 
+## Gate Closure Notes
+
+- **Gate F3 — European Options (Black–Scholes) — Closure Note**
+  - Path: `docs/architecture/gates/gate-f3-closure-note.md`
+
 ## Gate P — Pipeline Golden Regression (System-level)
 
 - **ADR-013 — Pipeline Golden Regression Boundary**
