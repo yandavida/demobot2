@@ -88,13 +88,6 @@ Any new ADR must:
 
 ---
 
-## Gate F — American Options (V2)
-
-- **ADR-F4.6 — American Options Pricing Engine (Binomial, Deterministic)**
-  - Path: `docs/architecture/adr/adr-013-f4-6-american-pricing-engine.md`
-  - Status: ACCEPTED
-  - Short: Canonical deterministic binomial engine for American options (Gate F4)
-
 ## Cross-References (Non-ADR but normative)
 These are not ADRs, but are normative SSOT references frequently cited by ADRs/PRs:
 - Codex working protocol: `docs/architecture/codex-working-protocol.md`
