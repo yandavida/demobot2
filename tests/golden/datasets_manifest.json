@@ -63,6 +63,14 @@
       "domain": "pricing",
       "input_file": "tests/golden/datasets/bs_canonical/inputs_v1.json",
       "input_sha256": "d6a279c85f2cb420895685e196f738126f4c2b8061713178ec741ac1ef9a45bb"
+    },
+    {
+      "dataset_id": "bs_canonical_ext",
+      "version": 1,
+      "description": "Extended BS canonical dataset (renamed from american_canonical)",
+      "domain": "pricing",
+      "input_file": "tests/golden/datasets/bs_canonical_ext/inputs_v1.json",
+      "input_sha256": "4593b1aac0022a8833bc16fe8df7a4c13e36dbc12385ab2280975fdaac546a5c"
     }
   ]
 }
