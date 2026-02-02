@@ -8,4 +8,6 @@
   "tests/golden/expected/bs_nonzero_rq/expected_v1.json": "5f901c257a41c1febffe6c8b89ace2783480fbb7da0083328e15f5f10f5dfbd0",
   "tests/golden/expected/bs_canonical/expected_v1.json": "0abe121bce804a61e0b7e553ba44a9fd6b83dcb177ec70a5cbbc693b7cae8da3",
   "tests/golden/expected/bs_canonical_ext/expected_v1.json": "4eaece368b41005a0c67fa6a0fc9a436ee5532c7780ecb7cb921acddfc6b7a77"
+  ,
+  "tests/golden/expected/hedging_canonical/expected_v1.json": "edf287f0b4b59b36b91926c4ba1ac719e72bf9dc5e185975ee938b867a82e458"
 }
