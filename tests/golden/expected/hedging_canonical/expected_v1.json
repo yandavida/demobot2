@@ -1,0 +1,214 @@
+{
+  "dataset_id": "hedging_canonical",
+  "version": 1,
+  "policy_ref": "core.numeric_policy.DEFAULT_TOLERANCES",
+  "units": {
+    "vega": "per_1pct_iv",
+    "theta": "per_calendar_day"
+  },
+  "cases": [
+    {
+      "id": "scaling_dp_-100",
+      "metrics": {
+        "price": 0.7978712629263214,
+        "delta": 0.5039893563146316,
+        "gamma": 0.19946116689304108,
+        "vega": 0.03989223337860822,
+        "theta": -0.10929379007837868,
+        "rho": 0.4960106436853684
+      },
+      "hedge": {
+        "hedge_type": "delta",
+        "hedge_quantity": 200.0,
+        "residuals": {
+          "delta": 0.0
+        }
+      }
+    },
+    {
+      "id": "scaling_dp_-10",
+      "metrics": {
+        "price": 0.7978712629263214,
+        "delta": 0.5039893563146316,
+        "gamma": 0.19946116689304108,
+        "vega": 0.03989223337860822,
+        "theta": -0.10929379007837868,
+        "rho": 0.4960106436853684
+      },
+      "hedge": {
+        "hedge_type": "delta",
+        "hedge_quantity": 20.0,
+        "residuals": {
+          "delta": 0.0
+        }
+      }
+    },
+    {
+      "id": "scaling_dp_-1",
+      "metrics": {
+        "price": 0.7978712629263214,
+        "delta": 0.5039893563146316,
+        "gamma": 0.19946116689304108,
+        "vega": 0.03989223337860822,
+        "theta": -0.10929379007837868,
+        "rho": 0.4960106436853684
+      },
+      "hedge": {
+        "hedge_type": "delta",
+        "hedge_quantity": 2.0,
+        "residuals": {
+          "delta": 0.0
+        }
+      }
+    },
+    {
+      "id": "scaling_dp_0",
+      "metrics": {
+        "price": 0.7978712629263214,
+        "delta": 0.5039893563146316,
+        "gamma": 0.19946116689304108,
+        "vega": 0.03989223337860822,
+        "theta": -0.10929379007837868,
+        "rho": 0.4960106436853684
+      },
+      "hedge": {
+        "hedge_type": "delta",
+        "hedge_quantity": 0.0,
+        "residuals": {
+          "delta": 0.0
+        }
+      }
+    },
+    {
+      "id": "scaling_dp_1",
+      "metrics": {
+        "price": 0.7978712629263214,
+        "delta": 0.5039893563146316,
+        "gamma": 0.19946116689304108,
+        "vega": 0.03989223337860822,
+        "theta": -0.10929379007837868,
+        "rho": 0.4960106436853684
+      },
+      "hedge": {
+        "hedge_type": "delta",
+        "hedge_quantity": -2.0,
+        "residuals": {
+          "delta": 0.0
+        }
+      }
+    },
+    {
+      "id": "scaling_dp_10",
+      "metrics": {
+        "price": 0.7978712629263214,
+        "delta": 0.5039893563146316,
+        "gamma": 0.19946116689304108,
+        "vega": 0.03989223337860822,
+        "theta": -0.10929379007837868,
+        "rho": 0.4960106436853684
+      },
+      "hedge": {
+        "hedge_type": "delta",
+        "hedge_quantity": -20.0,
+        "residuals": {
+          "delta": 0.0
+        }
+      }
+    },
+    {
+      "id": "scaling_dp_100",
+      "metrics": {
+        "price": 0.7978712629263214,
+        "delta": 0.5039893563146316,
+        "gamma": 0.19946116689304108,
+        "vega": 0.03989223337860822,
+        "theta": -0.10929379007837868,
+        "rho": 0.4960106436853684
+      },
+      "hedge": {
+        "hedge_type": "delta",
+        "hedge_quantity": -200.0,
+        "residuals": {
+          "delta": 0.0
+        }
+      }
+    },
+    {
+      "id": "multi_eq_mag_tie",
+      "metrics": {
+        "price": 0.7978712629263214,
+        "delta": 0.5039893563146316,
+        "gamma": 0.19946116689304108,
+        "vega": 0.03989223337860822,
+        "theta": -0.10929379007837868,
+        "rho": 0.4960106436853684
+      },
+      "hedge": {
+        "hedge_type": "multi_delta",
+        "quantities": [
+          1.0,
+          -1.0
+        ],
+        "instrument_ids": [
+          "a",
+          "b"
+        ],
+        "residuals": {
+          "delta": 0.0
+        }
+      }
+    },
+    {
+      "id": "multi_mixed_signs",
+      "metrics": {
+        "price": 0.7978712629263214,
+        "delta": 0.5039893563146316,
+        "gamma": 0.19946116689304108,
+        "vega": 0.03989223337860822,
+        "theta": -0.10929379007837868,
+        "rho": 0.4960106436853684
+      },
+      "hedge": {
+        "hedge_type": "multi_delta",
+        "quantities": [
+          6.666666666666667,
+          0.0,
+          0.0
+        ],
+        "instrument_ids": [
+          "a",
+          "b",
+          "c"
+        ],
+        "residuals": {
+          "delta": 0.0
+        }
+      }
+    },
+    {
+      "id": "multi_dominant",
+      "metrics": {
+        "price": 0.7978712629263214,
+        "delta": 0.5039893563146316,
+        "gamma": 0.19946116689304108,
+        "vega": 0.03989223337860822,
+        "theta": -0.10929379007837868,
+        "rho": 0.4960106436853684
+      },
+      "hedge": {
+        "hedge_type": "multi_delta",
+        "quantities": [
+          -5.555555555555555,
+          0.0
+        ],
+        "instrument_ids": [
+          "a",
+          "b"
+        ],
+        "residuals": {
+          "delta": 0.0
+        }
+      }
+    }
+  ]
+}

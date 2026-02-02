@@ -1,0 +1,122 @@
+[
+  {
+    "id": "scaling_dp_-100",
+    "option_type": "C",
+    "spot": 100.0,
+    "strike": 100.0,
+    "t": 0.01,
+    "rate": 0.0,
+    "div": 0.0,
+    "vol": 0.2,
+    "delta_portfolio": -100.0,
+    "deltas": [{"id": "h1", "delta": 0.5}]
+  },
+  {
+    "id": "scaling_dp_-10",
+    "option_type": "C",
+    "spot": 100.0,
+    "strike": 100.0,
+    "t": 0.01,
+    "rate": 0.0,
+    "div": 0.0,
+    "vol": 0.2,
+    "delta_portfolio": -10.0,
+    "deltas": [{"id": "h1", "delta": 0.5}]
+  },
+  {
+    "id": "scaling_dp_-1",
+    "option_type": "C",
+    "spot": 100.0,
+    "strike": 100.0,
+    "t": 0.01,
+    "rate": 0.0,
+    "div": 0.0,
+    "vol": 0.2,
+    "delta_portfolio": -1.0,
+    "deltas": [{"id": "h1", "delta": 0.5}]
+  },
+  {
+    "id": "scaling_dp_0",
+    "option_type": "C",
+    "spot": 100.0,
+    "strike": 100.0,
+    "t": 0.01,
+    "rate": 0.0,
+    "div": 0.0,
+    "vol": 0.2,
+    "delta_portfolio": 0.0,
+    "deltas": [{"id": "h1", "delta": 0.5}]
+  },
+  {
+    "id": "scaling_dp_1",
+    "option_type": "C",
+    "spot": 100.0,
+    "strike": 100.0,
+    "t": 0.01,
+    "rate": 0.0,
+    "div": 0.0,
+    "vol": 0.2,
+    "delta_portfolio": 1.0,
+    "deltas": [{"id": "h1", "delta": 0.5}]
+  },
+  {
+    "id": "scaling_dp_10",
+    "option_type": "C",
+    "spot": 100.0,
+    "strike": 100.0,
+    "t": 0.01,
+    "rate": 0.0,
+    "div": 0.0,
+    "vol": 0.2,
+    "delta_portfolio": 10.0,
+    "deltas": [{"id": "h1", "delta": 0.5}]
+  },
+  {
+    "id": "scaling_dp_100",
+    "option_type": "C",
+    "spot": 100.0,
+    "strike": 100.0,
+    "t": 0.01,
+    "rate": 0.0,
+    "div": 0.0,
+    "vol": 0.2,
+    "delta_portfolio": 100.0,
+    "deltas": [{"id": "h1", "delta": 0.5}]
+  },
+  {
+    "id": "multi_eq_mag_tie",
+    "option_type": "C",
+    "spot": 100.0,
+    "strike": 100.0,
+    "t": 0.01,
+    "rate": 0.0,
+    "div": 0.0,
+    "vol": 0.2,
+    "delta_portfolio": 1.0,
+    "deltas": [{"id": "a", "delta": 0.5}, {"id": "b", "delta": -0.5}]
+  },
+  {
+    "id": "multi_mixed_signs",
+    "option_type": "C",
+    "spot": 100.0,
+    "strike": 100.0,
+    "t": 0.01,
+    "rate": 0.0,
+    "div": 0.0,
+    "vol": 0.2,
+    "delta_portfolio": 2.0,
+    "deltas": [{"id": "a", "delta": 0.3}, {"id": "b", "delta": -0.2}, {"id": "c", "delta": 0.1}]
+  },
+  {
+    "id": "multi_dominant",
+    "option_type": "C",
+    "spot": 100.0,
+    "strike": 100.0,
+    "t": 0.01,
+    "rate": 0.0,
+    "div": 0.0,
+    "vol": 0.2,
+    "delta_portfolio": -5.0,
+    "deltas": [{"id": "a", "delta": 0.9}, {"id": "b", "delta": 0.1}]
+  }
+]

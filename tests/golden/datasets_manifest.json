@@ -72,5 +72,14 @@
       "input_file": "tests/golden/datasets/bs_canonical_ext/inputs_v1.json",
       "input_sha256": "4593b1aac0022a8833bc16fe8df7a4c13e36dbc12385ab2280975fdaac546a5c"
     }
+    ,
+    {
+      "dataset_id": "hedging_canonical",
+      "version": 1,
+      "description": "Canonical hedging dataset: delta + multi-instrument cases (v1)",
+      "domain": "hedging",
+      "input_file": "tests/golden/datasets/hedging_canonical/inputs_v1.json",
+      "input_sha256": "059daa4380a80f708e1fac7708cd98163208fdef13618f36c96fbe89648d8193"
+    }
   ]
 }
