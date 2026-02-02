@@ -33,7 +33,7 @@ def test_finance_models_no_dynamic_fields():
     models: List[type[BaseModel]] = [PortfolioSummaryOut, ExposureOut, MoneyOut, ConstraintsOut]
 
     for m in models:
-        for name, field in m.__fields__.items():
+        for name, field in m.model_fields.items():
             assert name not in FORBIDDEN_DYNAMIC_FIELDS, f"Forbidden dynamic field in {m.__name__}: {name}"
             assert not _field_is_datetime(field), f"Datetime-like field in {m.__name__}.{name} is not allowed"
 
@@ -56,4 +56,4 @@ def test_portfolio_exposures_ordering_invariant():
     p_b = PortfolioSummaryOut(**{**base, "exposures": exposures_b})
 
     # Serialized dicts must be identical if the contract enforces stable ordering
-    assert p_a.dict() == p_b.dict(), "PortfolioSummaryOut exposures ordering is not canonical/permutation-invariant"
+    assert p_a.model_dump() == p_b.model_dump(), "PortfolioSummaryOut exposures ordering is not canonical/permutation-invariant"
