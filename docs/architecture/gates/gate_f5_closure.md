@@ -46,6 +46,15 @@
 - CI ירוק ומעבר על בדיקות Golden/Pipeline/Architecture הושלם בהצלחה לפני פתיחת ה‑PR.
 - קבלת ההחלטה על סגירה נעשתה על סמך tests‑first, בדיקות יחידה, ובדיקות זהירות של harness‑הזהב.
 
+**ADR references (normative):**
+
+- `docs/adr/adr-004-gate-b-gate-a-integration-guarantees.md` (Determinism / integration guarantees)
+- `docs/adr/adr-005-institutional-default-bias.md` (Math / institutional defaults)
+- `docs/architecture/adr/adr-008-numeric-policy-first-class-contract.md` (Numeric policy as first-class contract)
+- `docs/architecture/adr/adr-010-golden-regression-governance.md` (Golden regression governance)
+- `docs/architecture/adr/adr-012-ci-enforcement-golden-regression.md` (CI enforcement for golden regression)
+- `docs/architecture/adr/adr-014-deterministic-event-time-and-replay.md` (Deterministic event time & replay)
+
 ## נקודות הרחבה / שערים עתידיים (לא המלצה, אלא הכנה פורמלית)
 - הרחבה ל‑multi‑target hedging (gamma/vega multi‑objective) — ידרוש ADR מוצהר לשינוי מדיניות הנומרית והוספת מטרות אופטימיזציה.
 - הוספת מגבלות עסקיות (מסחריות, כמותיות) ושילוב עלות־טרנזקציה — ידרוש Gate נפרד.
