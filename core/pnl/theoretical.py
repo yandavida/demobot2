@@ -7,6 +7,10 @@ from core.pricing.types import PriceResult
 from core.contracts.money import Currency
 from core.fx.converter import FxConverter
 from core.market_data.types import MarketSnapshot
+# NOTE: this wiring module does not use numeric guards; remove unused imports.
+# For wiring from v2 portfolio state -> totals
+from core.portfolio.v2_models import PortfolioStateV2
+from core.portfolio.v2_aggregation import aggregate_portfolio as aggregate_portfolio_v2
 
 PnLMode = Literal["step", "cumulative"]
 
@@ -196,3 +200,50 @@ def compute_portfolio_pnl(
         positions=tuple(pos_pnls),
         currency=base_currency,
     )
+
+
+def compute_portfolio_theoretical_from_state(*, state: PortfolioStateV2, market_snapshot: MarketSnapshot, as_of_ts, fx_converter: FxConverter):
+    """Wire a deterministic portfolio-level theoretical surface from a V2 portfolio state.
+
+    Parameters
+    - state: PortfolioStateV2 (required)
+    - market_snapshot: MarketSnapshot (required)
+    - as_of_ts: event timestamp (required) — must be provided by caller and is used as the deterministic as-of.
+    - fx_converter: FxConverter for currency conversions
+
+    Returns a dict with stable keys:
+      {"as_of_ts": as_of_ts, "base_currency": ..., "pv": float, "greeks": {"delta":..., ...},
+       "realized_pnl": 0.0, "unrealized_pnl": 0.0}
+
+    Notes:
+    - Realized PnL ledger/realization events are NOT implemented in this F6.2 slice; `realized_pnl` is 0.0.
+    - This function is intentionally minimal: it delegates to `core.portfolio.v2_aggregation.aggregate_portfolio`.
+    - Determinism: caller must pass `as_of_ts` (no defaults, no wall-clock usage).
+    """
+    if as_of_ts is None:
+        raise ValueError("as_of_ts (event timestamp) is required and must be provided explicitly")
+
+    totals = aggregate_portfolio_v2(state)
+
+    # Convert greeks dataclass to a stable ordered mapping
+    greeks_obj = totals.greeks
+    greeks_map = {
+        "delta": float(getattr(greeks_obj, "delta", 0.0)),
+        "gamma": float(getattr(greeks_obj, "gamma", 0.0)),
+        "vega": float(getattr(greeks_obj, "vega", 0.0)),
+        "theta": float(getattr(greeks_obj, "theta", 0.0)),
+        "rho": float(getattr(greeks_obj, "rho", 0.0)),
+    }
+
+    result = {
+        "as_of_ts": as_of_ts,
+        "base_currency": getattr(state, "base_currency", None),
+        "pv": float(totals.pv),
+        "greeks": tuple(sorted(greeks_map.items(), key=lambda kv: kv[0])),
+        # Realized PnL not implemented in this slice
+        "realized_pnl": 0.0,
+        # Unrealized/theoretical PnL is not computed as delta vs prior in this minimal slice;
+        # consumers can compute step/cumulative PnL using prior snapshots and this surface.
+        "unrealized_pnl": 0.0,
+    }
+    return result
