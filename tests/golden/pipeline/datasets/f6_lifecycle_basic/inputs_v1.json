@@ -1,0 +1,19 @@
+{
+  "dataset_schema_version": 1,
+  "dataset_id": "f6_lifecycle_basic",
+  "base_currency": "USD",
+  "positions": [
+    {
+      "instrument_id": "SIMPLE_EQ_1",
+      "quantity": 1,
+      "fields": {}
+    }
+  ],
+  "market": {
+    "as_of": "2026-01-01T00:00:00Z",
+    "quotes": {
+      "SIMPLE_EQ_1": { "price": 42.0, "currency": "USD" }
+    }
+  },
+  "fx": { "base": "USD", "rates": {} }
+}
