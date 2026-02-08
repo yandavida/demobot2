@@ -1,0 +1,14 @@
+{
+  "dataset_id": "f6_lifecycle_basic",
+  "version": 1,
+  "base_currency": "USD",
+  "per_position": [
+    {
+      "instrument_id": "SIMPLE_EQ_1",
+      "pv": 42.0,
+      "currency": "USD"
+    }
+  ],
+  "total_pv": 42.0,
+  "metadata": { "policy_ref": "Gate N DEFAULT_TOLERANCES" }
+}

@@ -8,4 +8,14 @@
     "generator": "manual",
     "notes": ""
   }
+  ,
+  {
+    "dataset_id": "f6_lifecycle_basic",
+    "version": 1,
+    "description": "F6.5 minimal lifecycle dataset: OPEN->SNAPSHOT->CLOSE (deterministic)",
+    "input_file": "tests/golden/pipeline/datasets/f6_lifecycle_basic/inputs_v1.json",
+    "input_sha256": "367004dd59ac1ef2734262acc4c4498f15b1158fd1f66c42e937b2af5496556d",
+    "generator": "manual",
+    "notes": "Created for Gate F6.5"
+  }
 ]
