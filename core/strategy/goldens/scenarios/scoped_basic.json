@@ -1,0 +1,12 @@
+{
+  "portfolio_targets": { "delta": 100.0, "gamma": null, "vega": null },
+  "current_portfolio_exposures": { "delta": 50.0, "gamma": 0.0, "vega": 0.0 },
+  "scoped_targets": {
+    "stratA": { "delta": 10.0, "gamma": null, "vega": 0.1 },
+    "stratB": { "delta": null, "gamma": 0.5, "vega": null }
+  },
+  "current_by_strategy": {
+    "stratA": { "delta": 8.0, "gamma": 0.0, "vega": 0.0 },
+    "stratB": { "delta": 0.0, "gamma": 0.1, "vega": 0.0 }
+  }
+}
