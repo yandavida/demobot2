@@ -1,0 +1,10 @@
+{
+  "scenarios": [
+    "scenarios/portfolio_only.json",
+    "scenarios/scoped_basic.json",
+    "scenarios/none_semantics.json",
+    "scenarios/monotonic_step0.json",
+    "scenarios/monotonic_step1.json",
+    "scenarios/monotonic_step2.json"
+  ]
+}
