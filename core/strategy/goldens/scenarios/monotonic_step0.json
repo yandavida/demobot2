@@ -1,0 +1,6 @@
+{
+  "portfolio_targets": { "delta": 10.0, "gamma": null, "vega": null },
+  "current_portfolio_exposures": { "delta": 0.0, "gamma": 0.0, "vega": 0.0 },
+  "scoped_targets": {},
+  "current_by_strategy": {}
+}
