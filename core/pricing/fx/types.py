@@ -25,9 +25,16 @@ class FXForwardContract:
     quote_currency: str
     notional: float
     forward_date: datetime.date
+    forward_rate: Optional[float] = None
+    direction: Optional[str] = None
 
     def __post_init__(self):
         _ensure_finite(self.notional, "notional")
+        if self.forward_rate is not None:
+            _ensure_finite(self.forward_rate, "forward_rate")
+        if self.direction is not None:
+            if self.direction not in ("receive_foreign_pay_domestic", "pay_foreign_receive_domestic"):
+                raise ValueError(f"Invalid direction: {self.direction}")
 
 
 @dataclass(frozen=True)
@@ -41,11 +48,17 @@ class FxMarketSnapshot:
     as_of_ts: datetime.datetime
     spot_rate: float
     conventions: Optional[FxConventions] = None
+    df_domestic: Optional[float] = None
+    df_foreign: Optional[float] = None
 
     def __post_init__(self):
         if self.as_of_ts is None:
             raise ValueError("as_of_ts is required for market snapshots")
         _ensure_finite(self.spot_rate, "spot_rate")
+        if self.df_domestic is not None:
+            _ensure_finite(self.df_domestic, "df_domestic")
+        if self.df_foreign is not None:
+            _ensure_finite(self.df_foreign, "df_foreign")
 
 
 @dataclass(frozen=True)
