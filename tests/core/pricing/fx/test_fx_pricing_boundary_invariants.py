@@ -165,3 +165,45 @@ def test_market_snapshot_discount_factors_must_be_finite():
         fx_types.FxMarketSnapshot(
             as_of_ts=now, spot_rate=1.05, df_foreign=float("inf")
         )
+
+
+# F8.3X: Discount factor positivity validation
+
+def test_market_snapshot_df_domestic_zero_raises_value_error():
+    """df_domestic = 0 must be rejected (invalid discount factor)."""
+    now = datetime.datetime(2026, 2, 9, 0, 0)
+    
+    with pytest.raises(ValueError, match="df_domestic must be positive"):
+        fx_types.FxMarketSnapshot(
+            as_of_ts=now, spot_rate=1.05, df_domestic=0.0
+        )
+
+
+def test_market_snapshot_df_domestic_negative_raises_value_error():
+    """df_domestic < 0 must be rejected (invalid discount factor)."""
+    now = datetime.datetime(2026, 2, 9, 0, 0)
+    
+    with pytest.raises(ValueError, match="df_domestic must be positive"):
+        fx_types.FxMarketSnapshot(
+            as_of_ts=now, spot_rate=1.05, df_domestic=-0.995
+        )
+
+
+def test_market_snapshot_df_foreign_zero_raises_value_error():
+    """df_foreign = 0 must be rejected (invalid discount factor)."""
+    now = datetime.datetime(2026, 2, 9, 0, 0)
+    
+    with pytest.raises(ValueError, match="df_foreign must be positive"):
+        fx_types.FxMarketSnapshot(
+            as_of_ts=now, spot_rate=1.05, df_foreign=0.0
+        )
+
+
+def test_market_snapshot_df_foreign_negative_raises_value_error():
+    """df_foreign < 0 must be rejected (invalid discount factor)."""
+    now = datetime.datetime(2026, 2, 9, 0, 0)
+    
+    with pytest.raises(ValueError, match="df_foreign must be positive"):
+        fx_types.FxMarketSnapshot(
+            as_of_ts=now, spot_rate=1.05, df_foreign=-0.998
+        )
