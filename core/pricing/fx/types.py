@@ -19,6 +19,12 @@ def _ensure_finite(value: float, name: str) -> None:
         raise ValueError(f"{name} must be a finite number")
 
 
+def _ensure_positive(value: float, name: str) -> None:
+    """Ensure value is strictly positive (> 0)."""
+    if value <= 0:
+        raise ValueError(f"{name} must be positive (> 0), got {value}")
+
+
 @dataclass(frozen=True)
 class FXForwardContract:
     base_currency: str
@@ -57,8 +63,10 @@ class FxMarketSnapshot:
         _ensure_finite(self.spot_rate, "spot_rate")
         if self.df_domestic is not None:
             _ensure_finite(self.df_domestic, "df_domestic")
+            _ensure_positive(self.df_domestic, "df_domestic")
         if self.df_foreign is not None:
             _ensure_finite(self.df_foreign, "df_foreign")
+            _ensure_positive(self.df_foreign, "df_foreign")
 
 
 @dataclass(frozen=True)
