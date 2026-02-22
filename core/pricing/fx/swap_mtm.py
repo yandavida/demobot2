@@ -6,6 +6,7 @@ import math
 
 from core.pricing.fx.forward_mtm import price_fx_forward
 from core.pricing.fx.types import FXForwardContract, FxMarketSnapshot, PricingResult
+from core.pricing.fx.valuation_context import ValuationContext
 
 
 _ALLOWED_DIRECTIONS = (
@@ -92,4 +93,31 @@ def price_fx_swap(
     )
 
 
-__all__ = ["FxSwapLeg", "FxSwapContract", "price_fx_swap"]
+def price_fx_swap_ctx(
+    context: ValuationContext,
+    swap_contract: FxSwapContract,
+    near_snapshot: FxMarketSnapshot,
+    far_snapshot: FxMarketSnapshot,
+    conventions=None,
+    *,
+    kernel=None,
+) -> PricingResult:
+    if context.strict_mode:
+        if (
+            near_snapshot.as_of_ts != context.as_of_ts
+            or far_snapshot.as_of_ts != context.as_of_ts
+        ):
+            raise ValueError("swap snapshots as_of_ts must equal context.as_of_ts")
+
+    _ = conventions
+    _ = kernel
+
+    return price_fx_swap(
+        as_of_ts=context.as_of_ts,
+        contract=swap_contract,
+        market_near=near_snapshot,
+        market_far=far_snapshot,
+    )
+
+
+__all__ = ["FxSwapLeg", "FxSwapContract", "price_fx_swap", "price_fx_swap_ctx"]
