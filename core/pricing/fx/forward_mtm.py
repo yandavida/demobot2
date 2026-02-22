@@ -21,6 +21,7 @@ from typing import Optional
 
 from core.pricing.fx import types as fx_types
 from core.pricing.fx.kernels import DefaultFXForwardKernel
+from core.pricing.fx.valuation_context import ValuationContext
 
 
 _DEFAULT_KERNEL = DefaultFXForwardKernel()
@@ -54,4 +55,26 @@ def price_fx_forward(
     )
 
 
-__all__ = ["price_fx_forward"]
+def price_fx_forward_ctx(
+    context: ValuationContext,
+    contract: fx_types.FXForwardContract,
+    market_snapshot: fx_types.FxMarketSnapshot,
+    conventions: Optional[fx_types.FxConventions] = None,
+    *,
+    kernel=None,
+) -> fx_types.PricingResult:
+    if context.strict_mode:
+        if market_snapshot.as_of_ts != context.as_of_ts:
+            raise ValueError("market_snapshot.as_of_ts must equal context.as_of_ts")
+
+    _ = kernel
+
+    return price_fx_forward(
+        as_of_ts=context.as_of_ts,
+        contract=contract,
+        market_snapshot=market_snapshot,
+        conventions=conventions,
+    )
+
+
+__all__ = ["price_fx_forward", "price_fx_forward_ctx"]
