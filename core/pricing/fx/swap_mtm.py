@@ -4,6 +4,8 @@ import datetime
 from dataclasses import dataclass
 import math
 
+from core import numeric_policy
+from core.pricing.fx.forward_mtm import price_fx_forward_ctx
 from core.pricing.fx.forward_mtm import price_fx_forward
 from core.pricing.fx.types import FXForwardContract, FxMarketSnapshot, PricingResult
 from core.pricing.fx.valuation_context import ValuationContext
@@ -77,11 +79,16 @@ def price_fx_swap(
     near_result = price_fx_forward(as_of_ts, near_contract, market_near, market_near.conventions)
     far_result = price_fx_forward(as_of_ts, far_contract, market_far, market_far.conventions)
 
+    if near_result.currency != far_result.currency:
+        raise ValueError("swap leg reporting currencies must match")
+
     pv_total = near_result.pv + far_result.pv
 
     details = {
         "pv_near": near_result.pv,
         "pv_far": far_result.pv,
+        "pv_near_currency": near_result.currency,
+        "pv_far_currency": far_result.currency,
         "forward_market_near": near_result.details["forward_market"],
         "forward_market_far": far_result.details["forward_market"],
     }
@@ -90,6 +97,8 @@ def price_fx_swap(
         as_of_ts=as_of_ts,
         pv=pv_total,
         details=details,
+        currency=near_result.currency,
+        metric_class=numeric_policy.MetricClass.PRICE,
     )
 
 
@@ -112,11 +121,52 @@ def price_fx_swap_ctx(
     _ = conventions
     _ = kernel
 
-    return price_fx_swap(
+    near_contract = FXForwardContract(
+        base_currency=swap_contract.base_ccy,
+        quote_currency=swap_contract.quote_ccy,
+        notional=swap_contract.notional_foreign,
+        forward_date=swap_contract.near.settlement_date,
+        forward_rate=swap_contract.near.forward_rate,
+        direction=swap_contract.near.direction,
+    )
+    far_contract = FXForwardContract(
+        base_currency=swap_contract.base_ccy,
+        quote_currency=swap_contract.quote_ccy,
+        notional=swap_contract.notional_foreign,
+        forward_date=swap_contract.far.settlement_date,
+        forward_rate=swap_contract.far.forward_rate,
+        direction=swap_contract.far.direction,
+    )
+
+    near_result = price_fx_forward_ctx(
+        context=context,
+        contract=near_contract,
+        market_snapshot=near_snapshot,
+        conventions=near_snapshot.conventions,
+    )
+    far_result = price_fx_forward_ctx(
+        context=context,
+        contract=far_contract,
+        market_snapshot=far_snapshot,
+        conventions=far_snapshot.conventions,
+    )
+
+    if near_result.currency != context.domestic_currency or far_result.currency != context.domestic_currency:
+        raise ValueError("swap result currency must equal context.domestic_currency")
+
+    return PricingResult(
         as_of_ts=context.as_of_ts,
-        contract=swap_contract,
-        market_near=near_snapshot,
-        market_far=far_snapshot,
+        pv=near_result.pv + far_result.pv,
+        details={
+            "pv_near": near_result.pv,
+            "pv_far": far_result.pv,
+            "pv_near_currency": near_result.currency,
+            "pv_far_currency": far_result.currency,
+            "forward_market_near": near_result.details["forward_market"],
+            "forward_market_far": far_result.details["forward_market"],
+        },
+        currency=context.domestic_currency,
+        metric_class=numeric_policy.MetricClass.PRICE,
     )
 
 

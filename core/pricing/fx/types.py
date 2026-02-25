@@ -47,6 +47,11 @@ class FXForwardContract:
 class FxConventions:
     day_count: str
     compounding: str
+    domestic_currency: Optional[str] = None
+
+    def __post_init__(self):
+        if self.domestic_currency is not None and self.domestic_currency.strip() == "":
+            raise ValueError("domestic_currency must be non-empty when provided")
 
 
 @dataclass(frozen=True)
@@ -56,6 +61,7 @@ class FxMarketSnapshot:
     conventions: Optional[FxConventions] = None
     df_domestic: Optional[float] = None
     df_foreign: Optional[float] = None
+    domestic_currency: Optional[str] = None
 
     def __post_init__(self):
         if self.as_of_ts is None:
@@ -67,6 +73,8 @@ class FxMarketSnapshot:
         if self.df_foreign is not None:
             _ensure_finite(self.df_foreign, "df_foreign")
             _ensure_positive(self.df_foreign, "df_foreign")
+        if self.domestic_currency is not None and self.domestic_currency.strip() == "":
+            raise ValueError("domestic_currency must be non-empty when provided")
 
 
 @dataclass(frozen=True)
@@ -74,11 +82,15 @@ class PricingResult:
     as_of_ts: datetime.datetime
     pv: float
     details: Optional[dict] = None
+    currency: Optional[str] = None
+    metric_class: Optional[numeric_policy.MetricClass] = None
 
     def __post_init__(self):
         if self.as_of_ts is None:
             raise ValueError("as_of_ts is required for PricingResult")
         _ensure_finite(self.pv, "pv")
+        if self.currency is not None and self.currency.strip() == "":
+            raise ValueError("currency must be non-empty when provided")
 
 
 # Exported names

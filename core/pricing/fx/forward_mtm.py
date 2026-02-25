@@ -19,12 +19,26 @@ from __future__ import annotations
 import datetime
 from typing import Optional
 
+from core import numeric_policy
 from core.pricing.fx import types as fx_types
 from core.pricing.fx.kernels import DefaultFXForwardKernel
 from core.pricing.fx.valuation_context import ValuationContext
 
 
 _DEFAULT_KERNEL = DefaultFXForwardKernel()
+
+
+def _resolve_reporting_currency(
+    conventions: Optional[fx_types.FxConventions],
+    market_snapshot: fx_types.FxMarketSnapshot,
+) -> str:
+    if conventions is not None and conventions.domestic_currency:
+        return conventions.domestic_currency
+    if market_snapshot.domestic_currency:
+        return market_snapshot.domestic_currency
+    raise ValueError(
+        "domestic reporting currency is required via conventions.domestic_currency or market_snapshot.domestic_currency"
+    )
 
 
 def price_fx_forward(
@@ -93,6 +107,8 @@ def price_fx_forward(
         raise ValueError(f"Invalid contract direction: {direction}")
 
     # Build result with details
+    reporting_currency = _resolve_reporting_currency(conventions, market_snapshot)
+
     details = {
         "forward_market": F_mkt,
         "spot": S,
@@ -107,6 +123,8 @@ def price_fx_forward(
         as_of_ts=as_of_ts,
         pv=pv,
         details=details,
+        currency=reporting_currency,
+        metric_class=numeric_policy.MetricClass.PRICE,
     )
 
 
@@ -121,13 +139,35 @@ def price_fx_forward_ctx(
     if context.strict_mode:
         if market_snapshot.as_of_ts != context.as_of_ts:
             raise ValueError("market_snapshot.as_of_ts must equal context.as_of_ts")
+        if (
+            market_snapshot.domestic_currency is not None
+            and market_snapshot.domestic_currency != context.domestic_currency
+        ):
+            raise ValueError("reporting currency must equal context.domestic_currency")
+        if (
+            conventions is not None
+            and conventions.domestic_currency is not None
+            and conventions.domestic_currency != context.domestic_currency
+        ):
+            raise ValueError("reporting currency must equal context.domestic_currency")
 
     _ = kernel
+
+    snapshot_for_pricing = market_snapshot
+    if snapshot_for_pricing.domestic_currency is None:
+        snapshot_for_pricing = fx_types.FxMarketSnapshot(
+            as_of_ts=market_snapshot.as_of_ts,
+            spot_rate=market_snapshot.spot_rate,
+            conventions=market_snapshot.conventions,
+            df_domestic=market_snapshot.df_domestic,
+            df_foreign=market_snapshot.df_foreign,
+            domestic_currency=context.domestic_currency,
+        )
 
     return price_fx_forward(
         as_of_ts=context.as_of_ts,
         contract=contract,
-        market_snapshot=market_snapshot,
+        market_snapshot=snapshot_for_pricing,
         conventions=conventions,
     )
 
