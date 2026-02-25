@@ -4,6 +4,9 @@ import datetime
 from dataclasses import dataclass
 import math
 
+from core import numeric_policy
+from core.pricing.fx.forward_mtm import _resolve_reporting_currency
+from core.pricing.fx.forward_mtm import price_fx_forward_ctx
 from core.pricing.fx.forward_mtm import price_fx_forward
 from core.pricing.fx.types import FXForwardContract, FxMarketSnapshot, PricingResult
 from core.pricing.fx.valuation_context import ValuationContext
@@ -74,14 +77,18 @@ def price_fx_swap(
         direction=contract.far.direction,
     )
 
-    near_result = price_fx_forward(as_of_ts, near_contract, market_near, market_near.conventions)
-    far_result = price_fx_forward(as_of_ts, far_contract, market_far, market_far.conventions)
+    reporting_currency = _resolve_reporting_currency(None, contract)
+
+    near_result = price_fx_forward(as_of_ts, near_contract, market_near, None)
+    far_result = price_fx_forward(as_of_ts, far_contract, market_far, None)
 
     pv_total = near_result.pv + far_result.pv
 
     details = {
         "pv_near": near_result.pv,
         "pv_far": far_result.pv,
+        "pv_near_currency": reporting_currency,
+        "pv_far_currency": reporting_currency,
         "forward_market_near": near_result.details["forward_market"],
         "forward_market_far": far_result.details["forward_market"],
     }
@@ -90,6 +97,8 @@ def price_fx_swap(
         as_of_ts=as_of_ts,
         pv=pv_total,
         details=details,
+        currency=reporting_currency,
+        metric_class=numeric_policy.MetricClass.PRICE,
     )
 
 
@@ -112,11 +121,53 @@ def price_fx_swap_ctx(
     _ = conventions
     _ = kernel
 
-    return price_fx_swap(
+    reporting_currency = _resolve_reporting_currency(conventions, swap_contract)
+    if context.strict_mode and reporting_currency != context.domestic_currency:
+        raise ValueError("reporting currency must equal context.domestic_currency")
+
+    near_contract = FXForwardContract(
+        base_currency=swap_contract.base_ccy,
+        quote_currency=swap_contract.quote_ccy,
+        notional=swap_contract.notional_foreign,
+        forward_date=swap_contract.near.settlement_date,
+        forward_rate=swap_contract.near.forward_rate,
+        direction=swap_contract.near.direction,
+    )
+    far_contract = FXForwardContract(
+        base_currency=swap_contract.base_ccy,
+        quote_currency=swap_contract.quote_ccy,
+        notional=swap_contract.notional_foreign,
+        forward_date=swap_contract.far.settlement_date,
+        forward_rate=swap_contract.far.forward_rate,
+        direction=swap_contract.far.direction,
+    )
+
+    near_result = price_fx_forward_ctx(
+        context=context,
+        contract=near_contract,
+        market_snapshot=near_snapshot,
+        conventions=conventions,
+    )
+    far_result = price_fx_forward_ctx(
+        context=context,
+        contract=far_contract,
+        market_snapshot=far_snapshot,
+        conventions=conventions,
+    )
+
+    return PricingResult(
         as_of_ts=context.as_of_ts,
-        contract=swap_contract,
-        market_near=near_snapshot,
-        market_far=far_snapshot,
+        pv=near_result.pv + far_result.pv,
+        details={
+            "pv_near": near_result.pv,
+            "pv_far": far_result.pv,
+            "pv_near_currency": context.domestic_currency,
+            "pv_far_currency": context.domestic_currency,
+            "forward_market_near": near_result.details["forward_market"],
+            "forward_market_far": far_result.details["forward_market"],
+        },
+        currency=context.domestic_currency,
+        metric_class=numeric_policy.MetricClass.PRICE,
     )
 
 

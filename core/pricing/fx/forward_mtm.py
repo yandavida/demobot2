@@ -19,12 +19,36 @@ from __future__ import annotations
 import datetime
 from typing import Optional
 
+from core import numeric_policy
 from core.pricing.fx import types as fx_types
 from core.pricing.fx.kernels import DefaultFXForwardKernel
 from core.pricing.fx.valuation_context import ValuationContext
 
 
 _DEFAULT_KERNEL = DefaultFXForwardKernel()
+DEFAULT_REPORTING_CCY = "ILS"
+
+
+def _resolve_reporting_currency(
+    conventions: Optional[fx_types.FxConventions],
+    contract,
+) -> str:
+    if conventions is not None and conventions.domestic_currency:
+        return conventions.domestic_currency
+
+    contract_domestic = getattr(contract, "domestic_currency", None)
+    if isinstance(contract_domestic, str) and contract_domestic.strip() != "":
+        return contract_domestic
+
+    contract_quote_currency = getattr(contract, "quote_currency", None)
+    if isinstance(contract_quote_currency, str) and contract_quote_currency.strip() != "":
+        return contract_quote_currency
+
+    contract_quote_ccy = getattr(contract, "quote_ccy", None)
+    if isinstance(contract_quote_ccy, str) and contract_quote_ccy.strip() != "":
+        return contract_quote_ccy
+
+    return DEFAULT_REPORTING_CCY
 
 
 def price_fx_forward(
@@ -93,6 +117,8 @@ def price_fx_forward(
         raise ValueError(f"Invalid contract direction: {direction}")
 
     # Build result with details
+    reporting_currency = _resolve_reporting_currency(conventions, contract)
+
     details = {
         "forward_market": F_mkt,
         "spot": S,
@@ -107,6 +133,8 @@ def price_fx_forward(
         as_of_ts=as_of_ts,
         pv=pv,
         details=details,
+        currency=reporting_currency,
+        metric_class=numeric_policy.MetricClass.PRICE,
     )
 
 
@@ -121,6 +149,10 @@ def price_fx_forward_ctx(
     if context.strict_mode:
         if market_snapshot.as_of_ts != context.as_of_ts:
             raise ValueError("market_snapshot.as_of_ts must equal context.as_of_ts")
+
+        reporting_currency = _resolve_reporting_currency(conventions, contract)
+        if reporting_currency != context.domestic_currency:
+            raise ValueError("reporting currency must equal context.domestic_currency")
 
     _ = kernel
 

@@ -57,7 +57,7 @@ def test_closeout_parity_zero_pv_when_forward_equals_market():
         as_of_ts=as_of,
         spot_rate=S,
         df_domestic=DFd,
-        df_foreign=DFf
+        df_foreign=DFf,
     )
     
     result = forward_mtm.price_fx_forward(as_of, contract, snapshot, None)
@@ -81,7 +81,7 @@ def test_linearity_pv_scales_with_notional():
         as_of_ts=as_of,
         spot_rate=S,
         df_domestic=DFd,
-        df_foreign=DFf
+        df_foreign=DFf,
     )
     
     # Notional 1M
@@ -127,7 +127,7 @@ def test_symmetry_flip_direction_flips_pv_sign():
         as_of_ts=as_of,
         spot_rate=S,
         df_domestic=DFd,
-        df_foreign=DFf
+        df_foreign=DFf,
     )
     
     # Direction 1: receive foreign, pay domestic
@@ -173,7 +173,7 @@ def test_df_edge_case_no_discounting():
         as_of_ts=as_of,
         spot_rate=S,
         df_domestic=DFd,
-        df_foreign=DFf
+        df_foreign=DFf,
     )
     
     contract = fx_types.FXForwardContract(
@@ -218,7 +218,7 @@ def test_determinism_repeated_calls_identical():
         as_of_ts=as_of,
         spot_rate=S,
         df_domestic=DFd,
-        df_foreign=DFf
+        df_foreign=DFf,
     )
     
     result1 = forward_mtm.price_fx_forward(as_of, contract, snapshot, None)
@@ -251,7 +251,7 @@ def test_non_finite_rejection():
             as_of_ts=as_of,
             spot_rate=1.10,
             df_domestic=float("inf"),
-            df_foreign=0.98
+            df_foreign=0.98,
         )
 
 
@@ -274,7 +274,7 @@ def test_missing_market_inputs_deterministic_failure():
     snapshot_missing_dfd = fx_types.FxMarketSnapshot(
         as_of_ts=as_of,
         spot_rate=1.10,
-        df_foreign=0.98
+        df_foreign=0.98,
     )
     
     with pytest.raises(ValueError, match="df_domestic.*required|missing"):
@@ -284,7 +284,7 @@ def test_missing_market_inputs_deterministic_failure():
     snapshot_missing_dff = fx_types.FxMarketSnapshot(
         as_of_ts=as_of,
         spot_rate=1.10,
-        df_domestic=0.99
+        df_domestic=0.99,
     )
     
     with pytest.raises(ValueError, match="df_foreign.*required|missing"):
@@ -303,7 +303,7 @@ def test_missing_market_inputs_deterministic_failure():
         as_of_ts=as_of,
         spot_rate=1.10,
         df_domestic=0.99,
-        df_foreign=0.98
+        df_foreign=0.98,
     )
     
     with pytest.raises(ValueError, match="forward_rate.*required|missing"):
@@ -367,7 +367,7 @@ def test_formula_consistency_a_and_b():
         as_of_ts=as_of,
         spot_rate=S,
         df_domestic=DFd,
-        df_foreign=DFf
+        df_foreign=DFf,
     )
     
     result = forward_mtm.price_fx_forward(as_of, contract, snapshot, None)
