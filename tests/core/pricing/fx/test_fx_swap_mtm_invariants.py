@@ -58,7 +58,6 @@ def _near_market(as_of_ts: datetime.datetime) -> FxMarketSnapshot:
         spot_rate=3.70,
         df_domestic=0.995,
         df_foreign=0.998,
-        domestic_currency="ILS",
     )
 
 
@@ -68,7 +67,6 @@ def _far_market(as_of_ts: datetime.datetime) -> FxMarketSnapshot:
         spot_rate=3.71,
         df_domestic=0.985,
         df_foreign=0.992,
-        domestic_currency="ILS",
     )
 
 
@@ -266,7 +264,6 @@ def test_swap_missing_market_df_rejection_raises_value_error():
         spot_rate=3.70,
         df_domestic=None,
         df_foreign=0.998,
-        domestic_currency="ILS",
     )
     far_mkt = _far_market(as_of_ts)
 

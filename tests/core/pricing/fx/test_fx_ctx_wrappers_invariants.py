@@ -27,7 +27,6 @@ def _forward_snapshot(as_of_ts: datetime.datetime) -> fx_types.FxMarketSnapshot:
         spot_rate=3.70,
         df_domestic=0.995,
         df_foreign=0.998,
-        domestic_currency="ILS",
     )
 
 
@@ -57,7 +56,6 @@ def _near_snapshot(as_of_ts: datetime.datetime) -> fx_types.FxMarketSnapshot:
         spot_rate=3.70,
         df_domestic=0.995,
         df_foreign=0.998,
-        domestic_currency="ILS",
     )
 
 
@@ -67,7 +65,6 @@ def _far_snapshot(as_of_ts: datetime.datetime) -> fx_types.FxMarketSnapshot:
         spot_rate=3.71,
         df_domestic=0.985,
         df_foreign=0.992,
-        domestic_currency="ILS",
     )
 
 

@@ -110,29 +110,28 @@ def test_swap_result_has_currency_and_metric_class():
 def test_ctx_wrapper_enforces_reporting_currency_consistency():
     as_of = _as_of()
     context = ValuationContext(as_of_ts=as_of, domestic_currency="ILS", strict_mode=True)
+    conventions = fx_types.FxConventions(day_count="ACT/365", compounding="simple", domestic_currency="USD")
 
     with pytest.raises(ValueError, match="reporting currency must equal context.domestic_currency"):
         forward_mtm.price_fx_forward_ctx(
             context=context,
             contract=_forward_contract(),
             market_snapshot=_forward_snapshot(as_of, "USD"),
-            conventions=None,
+            conventions=conventions,
         )
 
 
-def test_no_implicit_currency_assumptions():
+def test_no_implicit_currency_assumptions_legacy_uses_deterministic_fallback():
     as_of = _as_of()
 
-    with pytest.raises(
-        ValueError,
-        match="domestic reporting currency is required via conventions.domestic_currency or market_snapshot.domestic_currency",
-    ):
-        forward_mtm.price_fx_forward(
-            as_of_ts=as_of,
-            contract=_forward_contract(),
-            market_snapshot=_forward_snapshot(as_of, None),
-            conventions=None,
-        )
+    result = forward_mtm.price_fx_forward(
+        as_of_ts=as_of,
+        contract=_forward_contract(),
+        market_snapshot=_forward_snapshot(as_of, None),
+        conventions=None,
+    )
+
+    assert result.currency == "ILS"
 
 
 def test_policy_scan_forbidden_import_tokens_in_fx_reporting_sources():

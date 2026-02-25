@@ -38,7 +38,6 @@ def test_price_fx_forward_default_path_matches_hand_formula():
         spot_rate=S,
         df_domestic=DFd,
         df_foreign=DFf,
-        domestic_currency="EUR",
     )
 
     result = forward_mtm.price_fx_forward(as_of, contract, snapshot, None)
@@ -67,7 +66,6 @@ def test_default_kernel_matches_public_forward_function_output():
         spot_rate=1.10,
         df_domestic=0.99,
         df_foreign=0.98,
-        domestic_currency="EUR",
     )
 
     kernel = DefaultFXForwardKernel()
@@ -95,7 +93,6 @@ def test_forward_details_payload_stays_stable():
         spot_rate=1.10,
         df_domestic=0.99,
         df_foreign=0.98,
-        domestic_currency="EUR",
     )
 
     result1 = forward_mtm.price_fx_forward(as_of, contract, snapshot, None)
