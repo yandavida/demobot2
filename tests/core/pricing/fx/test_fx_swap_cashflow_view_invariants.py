@@ -3,8 +3,11 @@ import datetime
 import inspect
 import re
 
+import pytest
+
 from core.pricing.fx import swap_mtm
 from core.pricing.fx import swap_view
+from core.pricing.fx import types as fx_types
 from core.pricing.fx.valuation_context import ValuationContext
 
 
@@ -120,6 +123,36 @@ def test_legs_order_is_stable_near_then_far():
     assert view.legs[0].leg_id == "near"
     assert view.legs[1].leg_id == "far"
     assert view.legs[0].settlement_date <= view.legs[1].settlement_date
+
+
+def test_domestic_currency_ssot_from_context():
+    with pytest.raises(
+        ValueError,
+        match="conventions.domestic_currency must match context.domestic_currency",
+    ):
+        swap_view.build_fx_swap_cashflow_view(
+            _context("ILS"),
+            _contract(),
+            conventions=fx_types.FxConventions(
+                day_count="ACT/365",
+                compounding="simple",
+                domestic_currency="USD",
+            ),
+        )
+
+
+def test_domestic_currency_ignores_conventions_when_matching():
+    view = swap_view.build_fx_swap_cashflow_view(
+        _context("ILS"),
+        _contract(),
+        conventions=fx_types.FxConventions(
+            day_count="ACT/365",
+            compounding="simple",
+            domestic_currency="ILS",
+        ),
+    )
+
+    assert view.domestic_currency == "ILS"
 
 
 def test_policy_scan_no_forbidden_imports_or_curve_construction_tokens():

@@ -137,9 +137,8 @@ def _build_leg_cashflows(
 def _resolve_domestic_currency(context: ValuationContext, conventions: Optional[object]) -> str:
     domestic_from_conventions = getattr(conventions, "domestic_currency", None)
     if isinstance(domestic_from_conventions, str) and domestic_from_conventions.strip() != "":
-        if context.strict_mode and domestic_from_conventions != context.domestic_currency:
-            raise ValueError("reporting currency must equal context.domestic_currency")
-        return domestic_from_conventions
+        if domestic_from_conventions != context.domestic_currency:
+            raise ValueError("conventions.domestic_currency must match context.domestic_currency")
     return context.domestic_currency
 
 
