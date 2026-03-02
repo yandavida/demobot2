@@ -1,0 +1,162 @@
+[
+  {
+    "case_id": "FWD_ATM_1M_USDILS",
+    "schema_version": "1.0",
+    "artifact": {
+      "valuation_context": {
+        "as_of_ts": "2026-03-02T12:00:00+02:00",
+        "domestic_currency": "ILS"
+      },
+      "contract": {
+        "product_type": "FX_FORWARD",
+        "pair": "USD/ILS",
+        "direction": "receive_foreign_pay_domestic",
+        "notional_foreign": "1000000",
+        "strike": "3.651718593",
+        "settlement_date": "2026-04-02"
+      },
+      "market_snapshot": {
+        "spot": "3.6400",
+        "df_domestic": "0.995000",
+        "df_foreign": "0.998200"
+      }
+    },
+    "expected": {
+      "pv_domestic": "-12.000035000133",
+      "currency": "ILS",
+      "metric_class": "MTM"
+    },
+    "tolerance": {
+      "abs": "1e-8"
+    },
+    "sha256": "3caf25db06f20c7bbf212b6198273a11bf8dea72ce943ac972a1fba8817c1a41"
+  },
+  {
+    "case_id": "FWD_DEEP_ITM_3M_USDILS",
+    "schema_version": "1.0",
+    "artifact": {
+      "valuation_context": {
+        "as_of_ts": "2026-03-02T12:00:00+02:00",
+        "domestic_currency": "ILS"
+      },
+      "contract": {
+        "product_type": "FX_FORWARD",
+        "pair": "USD/ILS",
+        "direction": "receive_foreign_pay_domestic",
+        "notional_foreign": "2000000",
+        "strike": "3.4500",
+        "settlement_date": "2026-06-02"
+      },
+      "market_snapshot": {
+        "spot": "3.7000",
+        "df_domestic": "0.985000",
+        "df_foreign": "0.993000"
+      }
+    },
+    "expected": {
+      "pv_domestic": "551700.000000000233",
+      "currency": "ILS",
+      "metric_class": "MTM"
+    },
+    "tolerance": {
+      "abs": "1e-8"
+    },
+    "sha256": "f5ff654a17d4c1ef2a4ee0f9d7e678f59b0a622a93f6f6fa9e959fc75dbb9855"
+  },
+  {
+    "case_id": "FWD_DEEP_OTM_3M_USDILS",
+    "schema_version": "1.0",
+    "artifact": {
+      "valuation_context": {
+        "as_of_ts": "2026-03-02T12:00:00+02:00",
+        "domestic_currency": "ILS"
+      },
+      "contract": {
+        "product_type": "FX_FORWARD",
+        "pair": "USD/ILS",
+        "direction": "receive_foreign_pay_domestic",
+        "notional_foreign": "1500000",
+        "strike": "3.9500",
+        "settlement_date": "2026-06-02"
+      },
+      "market_snapshot": {
+        "spot": "3.6800",
+        "df_domestic": "0.986500",
+        "df_foreign": "0.992500"
+      }
+    },
+    "expected": {
+      "pv_domestic": "-366412.499999999825",
+      "currency": "ILS",
+      "metric_class": "MTM"
+    },
+    "tolerance": {
+      "abs": "1e-8"
+    },
+    "sha256": "c8edebf6f30853f5cee40daafdd263605af38ca2ea36116488ebb78efa495b19"
+  },
+  {
+    "case_id": "FWD_LONG_TENOR_12M_USDILS",
+    "schema_version": "1.0",
+    "artifact": {
+      "valuation_context": {
+        "as_of_ts": "2026-03-02T12:00:00+02:00",
+        "domestic_currency": "ILS"
+      },
+      "contract": {
+        "product_type": "FX_FORWARD",
+        "pair": "USD/ILS",
+        "direction": "pay_foreign_receive_domestic",
+        "notional_foreign": "1200000",
+        "strike": "3.8200",
+        "settlement_date": "2027-03-02"
+      },
+      "market_snapshot": {
+        "spot": "3.7600",
+        "df_domestic": "0.935000",
+        "df_foreign": "0.955000"
+      }
+    },
+    "expected": {
+      "pv_domestic": "-22919.999999999582",
+      "currency": "ILS",
+      "metric_class": "MTM"
+    },
+    "tolerance": {
+      "abs": "1e-8"
+    },
+    "sha256": "fd1579c8727a7b94c3eed60adb043ef4692d8a27f5ef9889cc36dcce921246b2"
+  },
+  {
+    "case_id": "FWD_NEAR_SETTLEMENT_T1_USDILS",
+    "schema_version": "1.0",
+    "artifact": {
+      "valuation_context": {
+        "as_of_ts": "2026-03-02T12:00:00+02:00",
+        "domestic_currency": "ILS"
+      },
+      "contract": {
+        "product_type": "FX_FORWARD",
+        "pair": "USD/ILS",
+        "direction": "pay_foreign_receive_domestic",
+        "notional_foreign": "800000",
+        "strike": "3.6405",
+        "settlement_date": "2026-03-03"
+      },
+      "market_snapshot": {
+        "spot": "3.6400",
+        "df_domestic": "0.999900",
+        "df_foreign": "0.999950"
+      }
+    },
+    "expected": {
+      "pv_domestic": "254.359999999782",
+      "currency": "ILS",
+      "metric_class": "MTM"
+    },
+    "tolerance": {
+      "abs": "1e-8"
+    },
+    "sha256": "26dcced69595b534c27f17ecdfd787eab97deab9a1622dba9fb1c23f86d67f22"
+  }
+]
