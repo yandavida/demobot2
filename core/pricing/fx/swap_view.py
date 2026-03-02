@@ -101,10 +101,12 @@ def _build_leg_cashflows(
         raise ValueError("settlement_date is required")
     _ensure_finite(notional_foreign, "notional_foreign")
     _ensure_finite(forward_rate, "forward_rate")
+    if notional_foreign <= 0:
+        raise ValueError("notional must be positive")
     if direction not in _ALLOWED_DIRECTIONS:
         raise ValueError("direction must be one of: receive_foreign_pay_domestic, pay_foreign_receive_domestic")
 
-    notional = abs(notional_foreign)
+    notional = notional_foreign
 
     if direction == "receive_foreign_pay_domestic":
         foreign_amount = notional

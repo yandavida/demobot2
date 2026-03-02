@@ -155,6 +155,51 @@ def test_domestic_currency_ignores_conventions_when_matching():
     assert view.domestic_currency == "ILS"
 
 
+def test_negative_notional_raises_value_error():
+    with pytest.raises(ValueError, match="notional must be positive"):
+        swap_view.build_fx_swap_cashflow_view(
+            _context(),
+            _contract(notional=-1.0),
+        )
+
+
+def test_settlement_dates_are_date_objects_runtime():
+    leg_sig = inspect.signature(swap_mtm.FxSwapLeg)
+    leg_fields = set(leg_sig.parameters.keys())
+
+    def _make_leg(direction: str, forward_rate: float, settlement_date: datetime.date):
+        kwargs = {}
+        if "forward_rate" in leg_fields:
+            kwargs["forward_rate"] = forward_rate
+        if "direction" in leg_fields:
+            kwargs["direction"] = direction
+        if "settlement_date" in leg_fields:
+            kwargs["settlement_date"] = settlement_date
+        return swap_mtm.FxSwapLeg(**kwargs)
+
+    near = _make_leg("receive_foreign_pay_domestic", 3.72, datetime.date(2026, 2, 1))
+    far = _make_leg("pay_foreign_receive_domestic", 3.74, datetime.date(2026, 3, 1))
+
+    contract_sig = inspect.signature(swap_mtm.FxSwapContract)
+    contract_fields = set(contract_sig.parameters.keys())
+    contract_kwargs = {
+        "near": near,
+        "far": far,
+        "notional_foreign": 1_000_000.0,
+        "base_ccy": "USD",
+        "quote_ccy": "ILS",
+    }
+    contract = swap_mtm.FxSwapContract(
+        **{key: value for key, value in contract_kwargs.items() if key in contract_fields}
+    )
+
+    view = swap_view.build_fx_swap_cashflow_view(_context("ILS"), contract)
+
+    assert isinstance(view.legs[0].settlement_date, datetime.date)
+    assert isinstance(view.legs[0].foreign.settlement_date, datetime.date)
+    assert isinstance(view.legs[0].domestic.settlement_date, datetime.date)
+
+
 def test_policy_scan_no_forbidden_imports_or_curve_construction_tokens():
     source = inspect.getsource(swap_view)
     import_lines = [line.strip().lower() for line in source.splitlines() if line.strip().startswith(("import ", "from "))]
