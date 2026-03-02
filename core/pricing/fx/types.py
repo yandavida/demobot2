@@ -36,6 +36,8 @@ class FXForwardContract:
 
     def __post_init__(self):
         _ensure_finite(self.notional, "notional")
+        if self.notional <= 0:
+            raise ValueError("notional must be positive")
         if self.forward_rate is not None:
             _ensure_finite(self.forward_rate, "forward_rate")
         if self.direction is not None:
