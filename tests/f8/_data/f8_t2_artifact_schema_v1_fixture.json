@@ -1,0 +1,44 @@
+{
+  "schema": {
+    "name": "pe.f8.valuation_artifact",
+    "version": "1.0"
+  },
+  "engine": {
+    "name": "pe.f8.forward_mtm",
+    "version": "1.0"
+  },
+  "inputs": {
+    "valuation_context": {
+      "as_of_ts": "2026-03-02T12:00:00+02:00",
+      "domestic_currency": "ILS",
+      "strict_mode": true
+    },
+    "contract": {
+      "base_currency": "USD",
+      "quote_currency": "ILS",
+      "notional": 1000000.0,
+      "forward_date": "2026-04-02",
+      "forward_rate": 3.65,
+      "direction": "receive_foreign_pay_domestic"
+    },
+    "market_snapshot": {
+      "as_of_ts": "2026-03-02T12:00:00+02:00",
+      "spot_rate": 3.64,
+      "df_domestic": 0.995,
+      "df_foreign": 0.9982
+    }
+  },
+  "outputs": {
+    "pricing_result": {
+      "pv_domestic": 1697.9999999999684,
+      "currency": "ILS",
+      "metric_class": "price"
+    }
+  },
+  "hashing": {
+    "canonicalization": "json.sort_keys=True,separators=(',',':'),ensure_ascii=False",
+    "hash_scope": "artifact_excluding_sha256",
+    "algorithm": "sha256"
+  },
+  "sha256": "b4db501a229ffd6e539474bc1270fc4167798a261a3a0f091c5e5fb109903c81"
+}
