@@ -255,6 +255,57 @@ def test_non_finite_rejection():
         )
 
 
+def test_forward_zero_notional_raises_value_error():
+    maturity = datetime.date(2026, 5, 12)
+
+    with pytest.raises(ValueError, match="notional must be positive"):
+        fx_types.FXForwardContract(
+            base_currency="USD",
+            quote_currency="ILS",
+            notional=0.0,
+            forward_date=maturity,
+            forward_rate=3.65,
+            direction="receive_foreign_pay_domestic",
+        )
+
+
+def test_forward_negative_notional_raises_value_error():
+    maturity = datetime.date(2026, 5, 12)
+
+    with pytest.raises(ValueError, match="notional must be positive"):
+        fx_types.FXForwardContract(
+            base_currency="USD",
+            quote_currency="ILS",
+            notional=-1.0,
+            forward_date=maturity,
+            forward_rate=3.65,
+            direction="receive_foreign_pay_domestic",
+        )
+
+
+def test_forward_positive_notional_still_prices():
+    as_of = datetime.datetime(2026, 2, 12, 17, 0, 0, tzinfo=datetime.timezone.utc)
+    maturity = datetime.date(2026, 5, 12)
+
+    contract = fx_types.FXForwardContract(
+        base_currency="USD",
+        quote_currency="ILS",
+        notional=1_000_000.0,
+        forward_date=maturity,
+        forward_rate=3.65,
+        direction="receive_foreign_pay_domestic",
+    )
+    snapshot = fx_types.FxMarketSnapshot(
+        as_of_ts=as_of,
+        spot_rate=3.64,
+        df_domestic=0.995,
+        df_foreign=0.9982,
+    )
+
+    result = forward_mtm.price_fx_forward(as_of, contract, snapshot, None)
+    assert isinstance(result.pv, float)
+
+
 # Test 7: Missing market inputs (missing spot or DF)
 def test_missing_market_inputs_deterministic_failure():
     """Missing required market inputs (spot or DFs) must raise ValueError."""
