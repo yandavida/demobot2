@@ -1,0 +1,329 @@
+{
+  "schema": {
+    "name": "pe.g9.portfolio_surface_artifact",
+    "version": "1.0"
+  },
+  "engine": {
+    "name": "pe.g9.portfolio_surface",
+    "version": "1.0"
+  },
+  "inputs": {
+    "risk_artifact_sha256": "9168d05f6cddaed091bed9ab45ef20ba0a5c148ba3a17de211e857f67dd5e4a6",
+    "market_snapshot_id": "snap-g9-4-001",
+    "scenario_set_id": "14fa6dbf9dff8af9ff9c97717c8dcc7ce9872d0c8c48b6e3a19f41532ba804f5",
+    "instrument_ids": [
+      "fwd_a",
+      "fwd_b"
+    ]
+  },
+  "outputs": {
+    "base_total_pv_domestic": "53145.9999999997584",
+    "scenarios": [
+      {
+        "scenario_id": "b7e2f64a2e486aa1b966ca044c4a7a3e43aa3870b4e2513e998d10f5aeb1f571",
+        "total_pv_domestic": "-376132.32399999943",
+        "loss_vs_base_domestic": "-429278.3239999991884"
+      },
+      {
+        "scenario_id": "d164ab7620c44b675b5c4bd5ac0d24b793f147e910b03928d827447be568c32d",
+        "total_pv_domestic": "-238061.30000000022",
+        "loss_vs_base_domestic": "-291207.2999999999784"
+      },
+      {
+        "scenario_id": "af2d2047fe71723a1cc8474d0f7076337a521ab73c3d88dc8435bc70493aee5d",
+        "total_pv_domestic": "-99990.275999998386",
+        "loss_vs_base_domestic": "-153136.2759999981444"
+      },
+      {
+        "scenario_id": "48b67bde639f1d4f1f39122f2fe50899169e1ad3cf01520a89dee333592b90b5",
+        "total_pv_domestic": "-448269.82399999962",
+        "loss_vs_base_domestic": "-501415.8239999993784"
+      },
+      {
+        "scenario_id": "95425b8eb885079dddc6e5d2081d72819e5831232354fc81d343ee5c727e2760",
+        "total_pv_domestic": "-310198.80000000028",
+        "loss_vs_base_domestic": "-363344.8000000000384"
+      },
+      {
+        "scenario_id": "027fc79a9b0704d9ac6da3e5c377c075fbffdcd3c513d249002c93b1a3647fc8",
+        "total_pv_domestic": "-172127.775999999144",
+        "loss_vs_base_domestic": "-225273.7759999989024"
+      },
+      {
+        "scenario_id": "8631b4ea082da08abaf196754aad2face707e546d909a57329069ec9a29ff930",
+        "total_pv_domestic": "-520407.32399999913",
+        "loss_vs_base_domestic": "-573553.3239999988884"
+      },
+      {
+        "scenario_id": "73fc929f2695b5f975f4730b45598cbd587967eb301ce8ffc3c13fd5c967e555",
+        "total_pv_domestic": "-382336.30000000017",
+        "loss_vs_base_domestic": "-435482.2999999999284"
+      },
+      {
+        "scenario_id": "0851fa3c7ee802b638bcfaacfa501fd3f27098f3f8b13249af593aed262f4dfc",
+        "total_pv_domestic": "-244265.27599999949",
+        "loss_vs_base_domestic": "-297411.2759999992484"
+      },
+      {
+        "scenario_id": "90fd0ebc953b2e3db1fdd6695f331c5893b73ebe71eb68b64ad59eb41f682c6e",
+        "total_pv_domestic": "-20054.420000000235",
+        "loss_vs_base_domestic": "-73200.4199999999934"
+      },
+      {
+        "scenario_id": "1d50a875c0ff5116eda0d6e32332a0b026208711ebf338a99ed2653801e93486",
+        "total_pv_domestic": "125283.49999999977",
+        "loss_vs_base_domestic": "72137.5000000000116"
+      },
+      {
+        "scenario_id": "37d0089173faba21324d5164fa8c81fc4f7e49fd8371e08042cdf4c2fda081e5",
+        "total_pv_domestic": "270621.42000000150",
+        "loss_vs_base_domestic": "217475.4200000017416"
+      },
+      {
+        "scenario_id": "21aa36443372e210bd9391507dbe76db9450ec43b5d55f067cb5a1791a42765c",
+        "total_pv_domestic": "-92191.920000000076",
+        "loss_vs_base_domestic": "-145337.9199999998344"
+      },
+      {
+        "scenario_id": "f5d31e23c3afab9c571a9e0e6c965926de68ef49e5fb9fac98f5424f0a5457bf",
+        "total_pv_domestic": "53145.9999999997584",
+        "loss_vs_base_domestic": "0E-13"
+      },
+      {
+        "scenario_id": "35a236336dce0f6764e1eec555c697bd671eee288c0b5f67b3c22a15dafb8ca5",
+        "total_pv_domestic": "198483.92000000135",
+        "loss_vs_base_domestic": "145337.9200000015916"
+      },
+      {
+        "scenario_id": "41e15006da67b28a9f6ba3add36702afc665e2aeb5b04ea6377b9a3157a96a90",
+        "total_pv_domestic": "-164329.42000000066",
+        "loss_vs_base_domestic": "-217475.4200000004184"
+      },
+      {
+        "scenario_id": "fda2125b6dc47947e60e7b8c7cb1c8ea9942be1770f2d9ecdd8c5b8722ffe0de",
+        "total_pv_domestic": "-18991.50000000038",
+        "loss_vs_base_domestic": "-72137.5000000001384"
+      },
+      {
+        "scenario_id": "50890e46b566ae40a2a33260708af9d256d62287c399151be12ae039df3015fc",
+        "total_pv_domestic": "126346.42000000080",
+        "loss_vs_base_domestic": "73200.4200000010416"
+      },
+      {
+        "scenario_id": "f68874962016255b9a472d89a654516cdd15f807ac17291319d7251c91b0bf9b",
+        "total_pv_domestic": "336023.48399999982",
+        "loss_vs_base_domestic": "282877.4840000000616"
+      },
+      {
+        "scenario_id": "a1af02562bf483a551b231a6e071c90bd41010ecf1e02470f29a5d2896d5822a",
+        "total_pv_domestic": "488628.3000000006",
+        "loss_vs_base_domestic": "435482.3000000008416"
+      },
+      {
+        "scenario_id": "f2544cb6919e3f0f20c21ae8ec1385d98a024254a9dc058c3f988a4d3c730ac7",
+        "total_pv_domestic": "641233.11600000057",
+        "loss_vs_base_domestic": "588087.1160000008116"
+      },
+      {
+        "scenario_id": "f7720e3de84fa85f04753b3687b25c91cfb25ae809e7db7f72564ee029587131",
+        "total_pv_domestic": "263885.98400000037",
+        "loss_vs_base_domestic": "210739.9840000006116"
+      },
+      {
+        "scenario_id": "7712ea31820b1b395154ed0e35e3ece6f52357508d7d29ad702cf58d075a319c",
+        "total_pv_domestic": "416490.79999999982",
+        "loss_vs_base_domestic": "363344.8000000000616"
+      },
+      {
+        "scenario_id": "ce3cbef628b70a026d36cb1825aa3168bf949faf5347324374d152b03416063b",
+        "total_pv_domestic": "569095.61600000010",
+        "loss_vs_base_domestic": "515949.6160000003416"
+      },
+      {
+        "scenario_id": "13794aa9c79f3cc92106d52890f8bd870ef00df63f815367201ac5593c661dcf",
+        "total_pv_domestic": "191748.48399999958",
+        "loss_vs_base_domestic": "138602.4839999998216"
+      },
+      {
+        "scenario_id": "a2c1a38648f7b2b8849e40ab5b8897cca6b65a49294eb521aebd39a78085490b",
+        "total_pv_domestic": "344353.30000000034",
+        "loss_vs_base_domestic": "291207.3000000005816"
+      },
+      {
+        "scenario_id": "d5219f23eff4a2fc53ee08472f92d10238528f10f64febe54000a4b67b5a677a",
+        "total_pv_domestic": "496958.11600000016",
+        "loss_vs_base_domestic": "443812.1160000004016"
+      }
+    ],
+    "ranking_worst_to_best": [
+      {
+        "scenario_id": "8631b4ea082da08abaf196754aad2face707e546d909a57329069ec9a29ff930",
+        "total_pv_domestic": "-520407.32399999913",
+        "loss_vs_base_domestic": "-573553.3239999988884",
+        "rank": 1
+      },
+      {
+        "scenario_id": "48b67bde639f1d4f1f39122f2fe50899169e1ad3cf01520a89dee333592b90b5",
+        "total_pv_domestic": "-448269.82399999962",
+        "loss_vs_base_domestic": "-501415.8239999993784",
+        "rank": 2
+      },
+      {
+        "scenario_id": "73fc929f2695b5f975f4730b45598cbd587967eb301ce8ffc3c13fd5c967e555",
+        "total_pv_domestic": "-382336.30000000017",
+        "loss_vs_base_domestic": "-435482.2999999999284",
+        "rank": 3
+      },
+      {
+        "scenario_id": "b7e2f64a2e486aa1b966ca044c4a7a3e43aa3870b4e2513e998d10f5aeb1f571",
+        "total_pv_domestic": "-376132.32399999943",
+        "loss_vs_base_domestic": "-429278.3239999991884",
+        "rank": 4
+      },
+      {
+        "scenario_id": "95425b8eb885079dddc6e5d2081d72819e5831232354fc81d343ee5c727e2760",
+        "total_pv_domestic": "-310198.80000000028",
+        "loss_vs_base_domestic": "-363344.8000000000384",
+        "rank": 5
+      },
+      {
+        "scenario_id": "0851fa3c7ee802b638bcfaacfa501fd3f27098f3f8b13249af593aed262f4dfc",
+        "total_pv_domestic": "-244265.27599999949",
+        "loss_vs_base_domestic": "-297411.2759999992484",
+        "rank": 6
+      },
+      {
+        "scenario_id": "d164ab7620c44b675b5c4bd5ac0d24b793f147e910b03928d827447be568c32d",
+        "total_pv_domestic": "-238061.30000000022",
+        "loss_vs_base_domestic": "-291207.2999999999784",
+        "rank": 7
+      },
+      {
+        "scenario_id": "027fc79a9b0704d9ac6da3e5c377c075fbffdcd3c513d249002c93b1a3647fc8",
+        "total_pv_domestic": "-172127.775999999144",
+        "loss_vs_base_domestic": "-225273.7759999989024",
+        "rank": 8
+      },
+      {
+        "scenario_id": "41e15006da67b28a9f6ba3add36702afc665e2aeb5b04ea6377b9a3157a96a90",
+        "total_pv_domestic": "-164329.42000000066",
+        "loss_vs_base_domestic": "-217475.4200000004184",
+        "rank": 9
+      },
+      {
+        "scenario_id": "af2d2047fe71723a1cc8474d0f7076337a521ab73c3d88dc8435bc70493aee5d",
+        "total_pv_domestic": "-99990.275999998386",
+        "loss_vs_base_domestic": "-153136.2759999981444",
+        "rank": 10
+      },
+      {
+        "scenario_id": "21aa36443372e210bd9391507dbe76db9450ec43b5d55f067cb5a1791a42765c",
+        "total_pv_domestic": "-92191.920000000076",
+        "loss_vs_base_domestic": "-145337.9199999998344",
+        "rank": 11
+      },
+      {
+        "scenario_id": "90fd0ebc953b2e3db1fdd6695f331c5893b73ebe71eb68b64ad59eb41f682c6e",
+        "total_pv_domestic": "-20054.420000000235",
+        "loss_vs_base_domestic": "-73200.4199999999934",
+        "rank": 12
+      },
+      {
+        "scenario_id": "fda2125b6dc47947e60e7b8c7cb1c8ea9942be1770f2d9ecdd8c5b8722ffe0de",
+        "total_pv_domestic": "-18991.50000000038",
+        "loss_vs_base_domestic": "-72137.5000000001384",
+        "rank": 13
+      },
+      {
+        "scenario_id": "f5d31e23c3afab9c571a9e0e6c965926de68ef49e5fb9fac98f5424f0a5457bf",
+        "total_pv_domestic": "53145.9999999997584",
+        "loss_vs_base_domestic": "0E-13",
+        "rank": 14
+      },
+      {
+        "scenario_id": "1d50a875c0ff5116eda0d6e32332a0b026208711ebf338a99ed2653801e93486",
+        "total_pv_domestic": "125283.49999999977",
+        "loss_vs_base_domestic": "72137.5000000000116",
+        "rank": 15
+      },
+      {
+        "scenario_id": "50890e46b566ae40a2a33260708af9d256d62287c399151be12ae039df3015fc",
+        "total_pv_domestic": "126346.42000000080",
+        "loss_vs_base_domestic": "73200.4200000010416",
+        "rank": 16
+      },
+      {
+        "scenario_id": "13794aa9c79f3cc92106d52890f8bd870ef00df63f815367201ac5593c661dcf",
+        "total_pv_domestic": "191748.48399999958",
+        "loss_vs_base_domestic": "138602.4839999998216",
+        "rank": 17
+      },
+      {
+        "scenario_id": "35a236336dce0f6764e1eec555c697bd671eee288c0b5f67b3c22a15dafb8ca5",
+        "total_pv_domestic": "198483.92000000135",
+        "loss_vs_base_domestic": "145337.9200000015916",
+        "rank": 18
+      },
+      {
+        "scenario_id": "f7720e3de84fa85f04753b3687b25c91cfb25ae809e7db7f72564ee029587131",
+        "total_pv_domestic": "263885.98400000037",
+        "loss_vs_base_domestic": "210739.9840000006116",
+        "rank": 19
+      },
+      {
+        "scenario_id": "37d0089173faba21324d5164fa8c81fc4f7e49fd8371e08042cdf4c2fda081e5",
+        "total_pv_domestic": "270621.42000000150",
+        "loss_vs_base_domestic": "217475.4200000017416",
+        "rank": 20
+      },
+      {
+        "scenario_id": "f68874962016255b9a472d89a654516cdd15f807ac17291319d7251c91b0bf9b",
+        "total_pv_domestic": "336023.48399999982",
+        "loss_vs_base_domestic": "282877.4840000000616",
+        "rank": 21
+      },
+      {
+        "scenario_id": "a2c1a38648f7b2b8849e40ab5b8897cca6b65a49294eb521aebd39a78085490b",
+        "total_pv_domestic": "344353.30000000034",
+        "loss_vs_base_domestic": "291207.3000000005816",
+        "rank": 22
+      },
+      {
+        "scenario_id": "7712ea31820b1b395154ed0e35e3ece6f52357508d7d29ad702cf58d075a319c",
+        "total_pv_domestic": "416490.79999999982",
+        "loss_vs_base_domestic": "363344.8000000000616",
+        "rank": 23
+      },
+      {
+        "scenario_id": "a1af02562bf483a551b231a6e071c90bd41010ecf1e02470f29a5d2896d5822a",
+        "total_pv_domestic": "488628.3000000006",
+        "loss_vs_base_domestic": "435482.3000000008416",
+        "rank": 24
+      },
+      {
+        "scenario_id": "d5219f23eff4a2fc53ee08472f92d10238528f10f64febe54000a4b67b5a677a",
+        "total_pv_domestic": "496958.11600000016",
+        "loss_vs_base_domestic": "443812.1160000004016",
+        "rank": 25
+      },
+      {
+        "scenario_id": "ce3cbef628b70a026d36cb1825aa3168bf949faf5347324374d152b03416063b",
+        "total_pv_domestic": "569095.61600000010",
+        "loss_vs_base_domestic": "515949.6160000003416",
+        "rank": 26
+      },
+      {
+        "scenario_id": "f2544cb6919e3f0f20c21ae8ec1385d98a024254a9dc058c3f988a4d3c730ac7",
+        "total_pv_domestic": "641233.11600000057",
+        "loss_vs_base_domestic": "588087.1160000008116",
+        "rank": 27
+      }
+    ]
+  },
+  "hashing": {
+    "canonicalization": "json.dumps(sort_keys=True,separators=(',',':'),ensure_ascii=False)",
+    "decimal_encoding": "str",
+    "sha_scope": "artifact_without_sha256"
+  },
+  "sha256": "bde8e0cc8d1e22cb4b0f2ad3a6d73227221d49c268f343ddf0a969c856a6c9e3"
+}
