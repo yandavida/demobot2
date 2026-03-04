@@ -54,11 +54,28 @@ def validate_market_snapshot_v0(snapshot: MarketSnapshotPayloadV0) -> Optional[E
         for name, surf in snapshot.vols.surfaces.items():
             if surf.type != "flat":
                 return ErrorEnvelope(category="VALIDATION", code="volsurface_type_not_allowed", message=f"vol surface type {surf.type} not allowed in v0", details={"surface": name, "type": surf.type})
-            # for flat expect data to contain 'vol' numeric
-            if not isinstance(surf.data, dict) or "vol" not in surf.data:
-                return ErrorEnvelope(category="VALIDATION", code="volsurface_flat_invalid", message=f"flat vol surface {name} missing 'vol'", details={"surface": name})
-            if not isinstance(surf.data["vol"], (int, float)):
+            if not isinstance(surf.data, dict):
+                return ErrorEnvelope(category="VALIDATION", code="volsurface_flat_invalid", message=f"flat vol surface {name} has invalid data payload", details={"surface": name})
+
+            has_flat_vol = "vol" in surf.data
+            has_quotes_map = "quotes" in surf.data
+            if not has_flat_vol and not has_quotes_map:
+                return ErrorEnvelope(category="VALIDATION", code="volsurface_flat_invalid", message=f"flat vol surface {name} must include either 'vol' or 'quotes'", details={"surface": name})
+
+            if has_flat_vol and not isinstance(surf.data["vol"], (int, float)):
                 return ErrorEnvelope(category="VALIDATION", code="volsurface_flat_invalid_type", message=f"flat vol 'vol' must be numeric for {name}", details={"surface": name, "value": surf.data.get("vol")})
+
+            if has_quotes_map:
+                quotes = surf.data.get("quotes")
+                if not isinstance(quotes, dict):
+                    return ErrorEnvelope(category="VALIDATION", code="volsurface_quotes_invalid", message=f"vol quotes must be a map for {name}", details={"surface": name})
+                for q_key, q_val in quotes.items():
+                    if not isinstance(q_key, str) or not q_key:
+                        return ErrorEnvelope(category="VALIDATION", code="volsurface_quotes_invalid_key", message=f"vol quote key must be non-empty string for {name}", details={"surface": name, "key": q_key})
+                    if not isinstance(q_val, (int, float)):
+                        return ErrorEnvelope(category="VALIDATION", code="volsurface_quotes_invalid_value", message=f"vol quote value must be numeric for {name}", details={"surface": name, "key": q_key, "value": q_val})
+                    if q_val < 0:
+                        return ErrorEnvelope(category="VALIDATION", code="volsurface_quotes_negative", message=f"vol quote value must be >= 0 for {name}", details={"surface": name, "key": q_key, "value": q_val})
 
     # All checks passed
     return None
