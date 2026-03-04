@@ -1,0 +1,108 @@
+{
+  "schema": {
+    "name": "pe.g9.risk_artifact",
+    "version": "1.0"
+  },
+  "engine": {
+    "name": "pe.g9.repricing_harness",
+    "version": "1.0"
+  },
+  "inputs": {
+    "schema_version": 1,
+    "market_snapshot_id": "snap-g10-options-001",
+    "scenario_set_id": "cc667815c5a4b0cf9a6fae07c81c336ad066edbac0db01310423eb4588b96e53",
+    "instrument_ids": [
+      "opt_call",
+      "opt_put"
+    ],
+    "valuation_context": {
+      "as_of_ts": "2026-01-01T12:00:00+00:00",
+      "domestic_currency": "USD"
+    },
+    "scenario_spec": {
+      "schema_version": 1,
+      "spot_shocks": [
+        "-0.05",
+        "0.00",
+        "0.05"
+      ],
+      "df_domestic_shocks": [
+        "0.00"
+      ],
+      "df_foreign_shocks": [
+        "0.00"
+      ]
+    }
+  },
+  "outputs": {
+    "results": [
+      {
+        "instrument_id": "opt_call",
+        "base": {
+          "pv_domestic": "8349.405767096776",
+          "currency": "USD",
+          "metric_class": "PRICE"
+        },
+        "scenarios": [
+          {
+            "scenario_id": "d8a3c1a386f1795571db121da2c91d8e717c7848f0d5354df60955da0827aa10",
+            "pv_domestic": "5829.2548998905"
+          },
+          {
+            "scenario_id": "eb15ae4f5fee5a43c8e61f6f09675a58d90856ac449a46489b573360b0c82d0c",
+            "pv_domestic": "8349.405767096776"
+          },
+          {
+            "scenario_id": "459eefb569b2412964473a8875850a3c5e6bda2472d356a0a5d827919b80217c",
+            "pv_domestic": "11355.699952779012"
+          }
+        ]
+      },
+      {
+        "instrument_id": "opt_put",
+        "base": {
+          "pv_domestic": "8145.083390512696",
+          "currency": "USD",
+          "metric_class": "PRICE"
+        },
+        "scenarios": [
+          {
+            "scenario_id": "d8a3c1a386f1795571db121da2c91d8e717c7848f0d5354df60955da0827aa10",
+            "pv_domestic": "10541.656374001526"
+          },
+          {
+            "scenario_id": "eb15ae4f5fee5a43c8e61f6f09675a58d90856ac449a46489b573360b0c82d0c",
+            "pv_domestic": "8145.083390512696"
+          },
+          {
+            "scenario_id": "459eefb569b2412964473a8875850a3c5e6bda2472d356a0a5d827919b80217c",
+            "pv_domestic": "6190.471509815375"
+          }
+        ]
+      }
+    ],
+    "aggregates": {
+      "base_total_pv_domestic": "16494.489157609472",
+      "scenario_total_pv_domestic": [
+        {
+          "scenario_id": "d8a3c1a386f1795571db121da2c91d8e717c7848f0d5354df60955da0827aa10",
+          "pv_domestic": "16370.911273892026"
+        },
+        {
+          "scenario_id": "eb15ae4f5fee5a43c8e61f6f09675a58d90856ac449a46489b573360b0c82d0c",
+          "pv_domestic": "16494.489157609472"
+        },
+        {
+          "scenario_id": "459eefb569b2412964473a8875850a3c5e6bda2472d356a0a5d827919b80217c",
+          "pv_domestic": "17546.171462594387"
+        }
+      ]
+    }
+  },
+  "hashing": {
+    "canonicalization": "json.dumps(sort_keys=True,separators=(',',':'),ensure_ascii=False)",
+    "decimal_encoding": "str",
+    "sha_scope": "artifact_without_sha256"
+  },
+  "sha256": "52373ee9c82b42dbbc9cfffe5d7a733507e6e8d04050f4d6e2c2c8470cbad778"
+}

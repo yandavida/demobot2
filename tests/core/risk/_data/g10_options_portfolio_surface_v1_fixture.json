@@ -1,0 +1,65 @@
+{
+  "schema": {
+    "name": "pe.g9.portfolio_surface_artifact",
+    "version": "1.0"
+  },
+  "engine": {
+    "name": "pe.g9.portfolio_surface",
+    "version": "1.0"
+  },
+  "inputs": {
+    "risk_artifact_sha256": "52373ee9c82b42dbbc9cfffe5d7a733507e6e8d04050f4d6e2c2c8470cbad778",
+    "market_snapshot_id": "snap-g10-options-001",
+    "scenario_set_id": "cc667815c5a4b0cf9a6fae07c81c336ad066edbac0db01310423eb4588b96e53",
+    "instrument_ids": [
+      "opt_call",
+      "opt_put"
+    ]
+  },
+  "outputs": {
+    "base_total_pv_domestic": "16494.489157609472",
+    "scenarios": [
+      {
+        "scenario_id": "d8a3c1a386f1795571db121da2c91d8e717c7848f0d5354df60955da0827aa10",
+        "total_pv_domestic": "16370.911273892026",
+        "loss_vs_base_domestic": "-123.577883717446"
+      },
+      {
+        "scenario_id": "eb15ae4f5fee5a43c8e61f6f09675a58d90856ac449a46489b573360b0c82d0c",
+        "total_pv_domestic": "16494.489157609472",
+        "loss_vs_base_domestic": "0E-12"
+      },
+      {
+        "scenario_id": "459eefb569b2412964473a8875850a3c5e6bda2472d356a0a5d827919b80217c",
+        "total_pv_domestic": "17546.171462594387",
+        "loss_vs_base_domestic": "1051.682304984915"
+      }
+    ],
+    "ranking_worst_to_best": [
+      {
+        "scenario_id": "d8a3c1a386f1795571db121da2c91d8e717c7848f0d5354df60955da0827aa10",
+        "total_pv_domestic": "16370.911273892026",
+        "loss_vs_base_domestic": "-123.577883717446",
+        "rank": 1
+      },
+      {
+        "scenario_id": "eb15ae4f5fee5a43c8e61f6f09675a58d90856ac449a46489b573360b0c82d0c",
+        "total_pv_domestic": "16494.489157609472",
+        "loss_vs_base_domestic": "0E-12",
+        "rank": 2
+      },
+      {
+        "scenario_id": "459eefb569b2412964473a8875850a3c5e6bda2472d356a0a5d827919b80217c",
+        "total_pv_domestic": "17546.171462594387",
+        "loss_vs_base_domestic": "1051.682304984915",
+        "rank": 3
+      }
+    ]
+  },
+  "hashing": {
+    "canonicalization": "json.dumps(sort_keys=True,separators=(',',':'),ensure_ascii=False)",
+    "decimal_encoding": "str",
+    "sha_scope": "artifact_without_sha256"
+  },
+  "sha256": "01f1e444c873b0717f540df5cf6fe8058a4881a69847731ba7729861ef008bf9"
+}
