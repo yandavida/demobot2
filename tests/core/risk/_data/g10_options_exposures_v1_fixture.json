@@ -1,0 +1,47 @@
+{
+  "schema": {
+    "name": "pe.g9.exposures_artifact",
+    "version": "1.0"
+  },
+  "engine": {
+    "name": "pe.g9.exposures_fd",
+    "version": "1.0"
+  },
+  "inputs": {
+    "risk_artifact_sha256": "52373ee9c82b42dbbc9cfffe5d7a733507e6e8d04050f4d6e2c2c8470cbad778",
+    "base_spot": "100.0",
+    "h": "0.05",
+    "definition": {
+      "delta_per_unit_spot": "(PV(+h)-PV(-h))/(2*h*S)",
+      "delta_per_pct": "(PV(+h)-PV(-h))/(2*h)"
+    }
+  },
+  "outputs": {
+    "per_instrument": [
+      {
+        "instrument_id": "opt_call",
+        "delta_per_unit_spot": "552.6445052888512",
+        "delta_per_pct": "55264.45052888512",
+        "currency": "USD",
+        "metric_class": "DELTA"
+      },
+      {
+        "instrument_id": "opt_put",
+        "delta_per_unit_spot": "-435.1184864186151",
+        "delta_per_pct": "-43511.84864186151",
+        "currency": "USD",
+        "metric_class": "DELTA"
+      }
+    ],
+    "aggregates": {
+      "delta_total_per_unit_spot": "117.5260188702361",
+      "delta_total_per_pct": "11752.60188702361"
+    }
+  },
+  "hashing": {
+    "canonicalization": "json.dumps(sort_keys=True,separators=(',',':'),ensure_ascii=False)",
+    "decimal_encoding": "str",
+    "sha_scope": "artifact_without_sha256"
+  },
+  "sha256": "147fedc63267dd4b28d086c022873e640560a385768b4decc88ac0d2bef92bad"
+}
