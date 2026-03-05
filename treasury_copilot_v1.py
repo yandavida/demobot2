@@ -52,6 +52,27 @@ class TreasuryCopilotResponseV1:
     audit: CopilotAuditV1
 
 
+_FIELD_ORDER_V1: tuple[str, ...] = (
+    "market_snapshot_id",
+    "scenario_template_id",
+    "policy_template_id",
+    "portfolio_ref",
+)
+
+_REQUIRED_FIELDS_BY_INTENT_V1: dict[TreasuryIntentV1, tuple[str, ...]] = {
+    TreasuryIntentV1.RUN_FX_HEDGE_ADVISORY: (
+        "market_snapshot_id",
+        "scenario_template_id",
+        "policy_template_id",
+        "portfolio_ref",
+    ),
+    TreasuryIntentV1.EXPLAIN_FX_DECISION: ("portfolio_ref",),
+    TreasuryIntentV1.SHOW_SCENARIO_TABLE: ("scenario_template_id",),
+    TreasuryIntentV1.SHOW_HEDGE_LADDER: ("portfolio_ref",),
+    TreasuryIntentV1.COMPARE_POLICIES: ("policy_template_id", "portfolio_ref"),
+}
+
+
 def normalize_question_v1(question: str) -> str:
     if question is None:
         return ""
@@ -79,6 +100,48 @@ def parse_intent_v1(question: str) -> TreasuryIntentV1:
     return TreasuryIntentV1.RUN_FX_HEDGE_ADVISORY
 
 
+def _is_missing_context_value(value: str | None) -> bool:
+    if value is None:
+        return True
+    return not str(value).strip()
+
+
+def validate_context_for_intent_v1(intent: TreasuryIntentV1, context: CopilotContextV1) -> list[str]:
+    required = _REQUIRED_FIELDS_BY_INTENT_V1.get(intent, ())
+    missing: list[str] = []
+    for field_name in _FIELD_ORDER_V1:
+        if field_name not in required:
+            continue
+        if _is_missing_context_value(getattr(context, field_name)):
+            missing.append(field_name)
+    return missing
+
+
+def run_treasury_copilot_v1(req: TreasuryCopilotRequestV1) -> TreasuryCopilotResponseV1:
+    normalized = normalize_question_v1(req.question)
+    intent = parse_intent_v1(normalized)
+    missing = validate_context_for_intent_v1(intent, req.context)
+
+    if missing:
+        return TreasuryCopilotResponseV1(
+            intent=intent,
+            answer_text=None,
+            artifacts=None,
+            warnings=[],
+            missing_context=missing,
+            audit=CopilotAuditV1(intent=intent, normalized_question=normalized),
+        )
+
+    return TreasuryCopilotResponseV1(
+        intent=intent,
+        answer_text=None,
+        artifacts=None,
+        warnings=["intent_not_implemented_v1"],
+        missing_context=[],
+        audit=CopilotAuditV1(intent=intent, normalized_question=normalized),
+    )
+
+
 __all__ = [
     "TreasuryIntentV1",
     "CopilotContextV1",
@@ -88,4 +151,6 @@ __all__ = [
     "TreasuryCopilotResponseV1",
     "normalize_question_v1",
     "parse_intent_v1",
+    "validate_context_for_intent_v1",
+    "run_treasury_copilot_v1",
 ]
