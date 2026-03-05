@@ -129,6 +129,7 @@ def test_report_markdown_v1_is_deterministic_and_has_required_sections() -> None
     required_headings = [
         "# Treasury Hedge Advisory — v1",
         "## Snapshot",
+        "## Executive Takeaway",
         "## Exposure Summary",
         "## Risk Summary",
         "## Scenario P&L Table",
@@ -146,6 +147,10 @@ def test_report_markdown_v1_is_deterministic_and_has_required_sections() -> None
     assert "worst loss domestic:" in report_a
     assert "delta aggregate:" in report_a
     assert "per 1%" in report_a
+    assert "Coverage uplift:" in report_a
+    assert "Tail scenario:" in report_a
+    assert "Objective:" in report_a
+    assert "- Action:" in report_a
 
     table_lines = [line for line in report_a.splitlines() if line.startswith("|")]
     assert len(table_lines) >= 3
@@ -167,6 +172,7 @@ def test_report_ratio_and_ticket_are_policy_consistent() -> None:
 
     assert "- Recommended hedge notional: 6,300,000.00 USD" in report
     assert "- recommended ratio (post policy): 0.700000" in report
+    assert "- Summary: BUY USD FWD +3,150,000.00 (raise hedge to 0.700000)" in report
 
     ladder_ratio_lines = [
         line for line in report.splitlines() if line.startswith("| 0-30 |") or line.startswith("| 31-60 |") or line.startswith("| 91-180 |")
