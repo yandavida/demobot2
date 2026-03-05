@@ -63,7 +63,7 @@ def test_end_to_end_treasury_advisory_is_deterministic() -> None:
         target_worst_loss_domestic=200000.0,
     )
 
-    tol = DEFAULT_TOLERANCES[MetricClass.PNL]
+    tol = DEFAULT_TOLERANCES[MetricClass.DELTA]
     rel_tol = float(tol.rel or 0.0)
     abs_tol = float(tol.abs or 0.0)
 
