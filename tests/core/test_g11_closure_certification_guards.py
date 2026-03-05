@@ -10,6 +10,7 @@ import pytest
 from core.pricing.fx.types import FxMarketSnapshot
 from core.risk.scenario_spec import ScenarioSpec
 from core.services.advisory_read_model_v1 import run_treasury_advisory_v1
+from core.services.advisory_report_v1 import render_advisory_report_markdown_v1
 from core.services.rolling_hedge_ladder_v1 import RollingHedgeLadderConfigV1
 from core.services.rolling_hedge_ladder_v1 import compute_rolling_hedge_ladder_v1
 
@@ -202,3 +203,91 @@ def test_d_determinism_smoke_rolling_ladder_and_as_of_date_required() -> None:
             target_worst_loss_total_domestic=200000.0,
             as_of_date="",
         )
+
+
+def test_e_advisory_report_contract_determinism_and_required_sections() -> None:
+    payload = {
+        "contract_version": "v1",
+        "company_id": "treasury-demo",
+        "snapshot_id": "snap-usdils-20260304",
+        "scenario_template_id": "usdils_spot_pm5",
+        "exposures": [
+            {
+                "currency_pair": "USD/ILS",
+                "direction": "receivable",
+                "notional": "1000000",
+                "maturity_date": "2026-03-24",
+                "hedge_ratio": "0.60",
+            },
+            {
+                "currency_pair": "USD/ILS",
+                "direction": "receivable",
+                "notional": "1500000",
+                "maturity_date": "2026-04-23",
+                "hedge_ratio": "0.50",
+            },
+            {
+                "currency_pair": "USD/ILS",
+                "direction": "receivable",
+                "notional": "2000000",
+                "maturity_date": "2026-05-23",
+                "hedge_ratio": "0.40",
+            },
+        ],
+    }
+
+    decision = run_treasury_advisory_v1(
+        payload,
+        base_snapshot=_base_snapshot(),
+        scenario_spec=_scenario_spec(),
+        target_worst_loss_domestic=200000.0,
+    )
+
+    ladder = compute_rolling_hedge_ladder_v1(
+        payload,
+        base_snapshot=_base_snapshot(),
+        scenario_spec=_scenario_spec(),
+        config=RollingHedgeLadderConfigV1(
+            buckets_days=(30, 60, 90),
+            roll_frequency_days=30,
+            target_worst_loss_total_domestic=200000.0,
+            as_of_date="2026-03-04",
+        ),
+    )
+
+    report1 = render_advisory_report_markdown_v1(
+        company_id="treasury-demo",
+        as_of_date="2026-03-04",
+        pair="USD/ILS",
+        decision=decision,
+        risk_summary=decision.risk_summary,
+        ladder=ladder,
+    )
+    report2 = render_advisory_report_markdown_v1(
+        company_id="treasury-demo",
+        as_of_date="2026-03-04",
+        pair="USD/ILS",
+        decision=decision,
+        risk_summary=decision.risk_summary,
+        ladder=ladder,
+    )
+
+    assert report1 == report2
+
+    required_sections = [
+        "# Treasury Hedge Advisory — v1",
+        "## Snapshot",
+        "## Executive Takeaway",
+        "## Exposure Summary",
+        "## Risk Summary",
+        "## Scenario P&L Table",
+        "## Hedge Trade Ticket",
+        "## Rolling Hedge Ladder",
+        "## Audit",
+    ]
+    for heading in required_sections:
+        assert heading in report1
+
+    assert "Coverage uplift:" in report1
+    assert "Summary:" in report1
+    assert "NOTE: per 1% spot move" in report1
