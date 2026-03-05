@@ -17,6 +17,7 @@ from core.services.hedge_policy_constraints_v1 import HedgePolicyV1
 from core.services.hedge_policy_constraints_v1 import PolicyApplicationResultV1
 from core.services.hedge_policy_constraints_v1 import apply_hedge_policy_v1
 from core.services.hedge_recommendation_v1 import HedgeRecommendationV1
+from core.services.hedge_recommendation_v1 import recommend_hedge_ratio_v1
 from core.services.scenario_risk_summary_v1 import ScenarioRiskSummaryV1
 
 
@@ -268,14 +269,26 @@ def compute_rolling_hedge_ladder_v1(
         label, day_max = key
         exposures = buckets_map[key]
         target_for_bucket = float(bucket_targets[idx])
-        decision = run_treasury_advisory_v1(
-            _bucket_payload(payload, exposures),
-            base_snapshot=base_snapshot,
-            scenario_spec=scenario_spec,
-            target_worst_loss_domestic=target_for_bucket,
-        )
+        pre_decision = pre_bucket_decisions[idx]
+        current_ratio = bucket_current_ratios[idx]
+        current_worst_loss = abs(float(pre_decision.risk_summary.worst_loss_domestic))
 
-        hedge_recommendation = decision.hedge_recommendation
+        if current_worst_loss <= float(tiny):
+            hedge_recommendation = HedgeRecommendationV1(
+                contract_version="v1",
+                current_hedge_ratio=current_ratio,
+                target_worst_loss_domestic=target_for_bucket,
+                implied_worst_loss_unhedged_domestic=0.0,
+                recommended_hedge_ratio=0.0,
+                expected_worst_loss_domestic=0.0,
+            )
+        else:
+            hedge_recommendation = recommend_hedge_ratio_v1(
+                pre_decision.risk_summary,
+                current_hedge_ratio=current_ratio,
+                target_worst_loss_domestic=target_for_bucket,
+            )
+
         policy_result = None
 
         if config.policy is not None:
@@ -302,8 +315,8 @@ def compute_rolling_hedge_ladder_v1(
                 bucket_label=label,
                 bucket_day_max=day_max,
                 exposures_count=len(exposures),
-                current_hedge_ratio_effective=_weighted_current_hedge_ratio(exposures),
-                risk_summary=decision.risk_summary,
+                current_hedge_ratio_effective=current_ratio,
+                risk_summary=pre_decision.risk_summary,
                 hedge_recommendation=hedge_recommendation,
                 policy_result=policy_result,
                 recommended_forward_notional=recommended_notional,
