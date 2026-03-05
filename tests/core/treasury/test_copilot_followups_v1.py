@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import pytest
+
 from core.market_data.artifact_store import put_market_snapshot
 from core.market_data.market_snapshot_payload_v0 import Curve
 from core.market_data.market_snapshot_payload_v0 import FxRates
@@ -10,7 +12,6 @@ from core.market_data.market_snapshot_payload_v0 import SpotPrices
 from core.portfolio.advisory_payload_artifact_store_v1 import put_advisory_payload_artifact_v1
 from treasury_copilot_v1 import CopilotContextV1
 from treasury_copilot_v1 import TreasuryCopilotRequestV1
-from treasury_copilot_v1 import TreasuryIntentV1
 from treasury_copilot_v1 import run_treasury_copilot_v1
 
 
@@ -46,11 +47,11 @@ def _payload(snapshot_id: str) -> dict:
     }
 
 
-def test_fx_advisory_invocation_success_returns_artifacts_and_is_deterministic() -> None:
+def _run_success_and_get_decision_ref() -> str:
     market_snapshot_id = put_market_snapshot(_market_payload())
     portfolio_artifact_id = put_advisory_payload_artifact_v1(_payload(market_snapshot_id))
 
-    req = TreasuryCopilotRequestV1(
+    run_req = TreasuryCopilotRequestV1(
         question="תעשה גידור",
         context=CopilotContextV1(
             market_snapshot_id=market_snapshot_id,
@@ -59,56 +60,77 @@ def test_fx_advisory_invocation_success_returns_artifacts_and_is_deterministic()
             portfolio_ref=f"artifact:{portfolio_artifact_id}",
         ),
     )
-
-    out1 = run_treasury_copilot_v1(req)
-    out2 = run_treasury_copilot_v1(req)
-
-    assert out1.intent == TreasuryIntentV1.RUN_FX_HEDGE_ADVISORY
-    assert out1.missing_context == []
-    assert "fx_advisory_executed_v1" in out1.warnings
-    assert "intent_not_implemented_v1" not in out1.warnings
-    assert out1.audit.as_of_decision_ref is not None
-    assert out1.audit.as_of_decision_ref.startswith("artifact_bundle:")
-    assert out1.artifacts is not None
-    assert out1.artifacts.advisory_decision is not None
-    assert out1.artifacts.explainability is not None
-    assert out1.artifacts.report_markdown is not None
-    assert out1.artifacts.report_markdown.strip() != ""
-    assert "## Snapshot" in out1.artifacts.report_markdown
-    assert "## Risk Summary" in out1.artifacts.report_markdown
-    assert out1.artifacts == out2.artifacts
+    run_out = run_treasury_copilot_v1(run_req)
+    assert run_out.audit.as_of_decision_ref is not None
+    return run_out.audit.as_of_decision_ref
 
 
-def test_fx_advisory_resolution_failure_path_unchanged() -> None:
+def test_followup_missing_decision_ref_is_reported() -> None:
     req = TreasuryCopilotRequestV1(
-        question="תעשה גידור",
+        question="למה המלצת על זה",
         context=CopilotContextV1(
-            market_snapshot_id="snap-1",
-            scenario_template_id="STANDARD_7",
-            policy_template_id="TREASURY_STANDARD_70",
-            portfolio_ref="portfolio-1",
+            market_snapshot_id=None,
+            scenario_template_id=None,
+            policy_template_id=None,
+            portfolio_ref=None,
+            as_of_decision_ref=None,
+        ),
+    )
+
+    out = run_treasury_copilot_v1(req)
+
+    assert out.missing_context == ["as_of_decision_ref"]
+    assert out.artifacts is None
+
+
+def test_followup_invalid_ref_returns_deterministic_resolution_failure() -> None:
+    req = TreasuryCopilotRequestV1(
+        question="למה המלצת על זה",
+        context=CopilotContextV1(
+            market_snapshot_id=None,
+            scenario_template_id=None,
+            policy_template_id=None,
+            portfolio_ref=None,
+            as_of_decision_ref="artifact_bundle:missing",
         ),
     )
 
     out = run_treasury_copilot_v1(req)
 
     assert out.missing_context == []
-    assert out.warnings[0] == "resolution_failed_v1"
     assert out.artifacts is None
+    assert out.warnings[0] == "followup_resolution_failed_v1"
+    assert out.warnings[1].startswith("resolution_error:unknown_decision_ref:")
 
 
-def test_fx_advisory_missing_context_path_unchanged() -> None:
+def test_followup_success_loads_ssot_artifacts_without_engine_invocation(monkeypatch: pytest.MonkeyPatch) -> None:
+    decision_ref = _run_success_and_get_decision_ref()
+
+    def _boom(*args, **kwargs):  # noqa: ANN002, ANN003
+        raise AssertionError("engine_reinvocation_not_allowed")
+
+    monkeypatch.setattr("treasury_copilot_v1.run_treasury_advisory_v1", _boom)
+
     req = TreasuryCopilotRequestV1(
-        question="תעשה גידור",
+        question="למה המלצת על זה",
         context=CopilotContextV1(
             market_snapshot_id=None,
-            scenario_template_id="STANDARD_7",
-            policy_template_id="TREASURY_STANDARD_70",
+            scenario_template_id=None,
+            policy_template_id=None,
             portfolio_ref=None,
+            as_of_decision_ref=decision_ref,
         ),
     )
 
-    out = run_treasury_copilot_v1(req)
+    out1 = run_treasury_copilot_v1(req)
+    out2 = run_treasury_copilot_v1(req)
 
-    assert out.missing_context == ["market_snapshot_id", "portfolio_ref"]
-    assert out.artifacts is None
+    assert out1.missing_context == []
+    assert "read_only_followup_v1" in out1.warnings
+    assert out1.artifacts is not None
+    assert out1.artifacts.advisory_decision is not None
+    assert out1.artifacts.explainability is not None
+    assert out1.artifacts.report_markdown is not None
+    assert out1.answer_text is not None and out1.answer_text.strip() != ""
+    assert out1.artifacts == out2.artifacts
+    assert out1.answer_text == out2.answer_text

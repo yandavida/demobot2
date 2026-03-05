@@ -7,6 +7,10 @@ from core.services.advisory_input_contract_v1 import normalize_advisory_input_v1
 from core.services.advisory_read_model_v1 import run_treasury_advisory_v1
 from core.services.advisory_report_v1 import render_advisory_report_markdown_v1
 from core.services.explainability_pack_v1 import build_explainability_pack_v1
+from core.treasury.copilot_artifact_bundle_store_v1 import CopilotArtifactBundleNotFoundError
+from core.treasury.copilot_artifact_bundle_store_v1 import CopilotArtifactBundleValidationError
+from core.treasury.copilot_artifact_bundle_store_v1 import get_copilot_artifact_bundle_v1
+from core.treasury.copilot_artifact_bundle_store_v1 import put_copilot_artifact_bundle_v1
 from core.treasury.copilot_resolution_v1 import CopilotResolvedInputsV1
 from core.treasury.copilot_resolution_v1 import CopilotResolutionError
 from core.treasury.copilot_resolution_v1 import resolve_copilot_inputs_fx_v1
@@ -27,6 +31,7 @@ class CopilotContextV1:
     scenario_template_id: str | None
     policy_template_id: str | None
     portfolio_ref: str | None
+    as_of_decision_ref: str | None = None
 
 
 @dataclass(frozen=True)
@@ -49,6 +54,11 @@ class CopilotArtifactsV1:
 class CopilotAuditV1:
     intent: TreasuryIntentV1
     normalized_question: str
+    as_of_decision_ref: str | None = None
+
+
+class FollowupResolutionError(ValueError):
+    pass
 
 
 @dataclass(frozen=True)
@@ -66,6 +76,7 @@ _FIELD_ORDER_V1: tuple[str, ...] = (
     "scenario_template_id",
     "policy_template_id",
     "portfolio_ref",
+    "as_of_decision_ref",
 )
 
 _REQUIRED_FIELDS_BY_INTENT_V1: dict[TreasuryIntentV1, tuple[str, ...]] = {
@@ -75,9 +86,9 @@ _REQUIRED_FIELDS_BY_INTENT_V1: dict[TreasuryIntentV1, tuple[str, ...]] = {
         "policy_template_id",
         "portfolio_ref",
     ),
-    TreasuryIntentV1.EXPLAIN_FX_DECISION: ("portfolio_ref",),
-    TreasuryIntentV1.SHOW_SCENARIO_TABLE: ("scenario_template_id",),
-    TreasuryIntentV1.SHOW_HEDGE_LADDER: ("portfolio_ref",),
+    TreasuryIntentV1.EXPLAIN_FX_DECISION: ("as_of_decision_ref",),
+    TreasuryIntentV1.SHOW_SCENARIO_TABLE: ("as_of_decision_ref",),
+    TreasuryIntentV1.SHOW_HEDGE_LADDER: ("as_of_decision_ref",),
     TreasuryIntentV1.COMPARE_POLICIES: ("policy_template_id", "portfolio_ref"),
 }
 
@@ -162,6 +173,38 @@ def invoke_fx_advisory_pipeline_v1(resolved: CopilotResolvedInputsV1) -> Copilot
     )
 
 
+def _parse_decision_ref_v1(as_of_decision_ref: str) -> str:
+    if not isinstance(as_of_decision_ref, str) or not as_of_decision_ref.strip():
+        raise FollowupResolutionError("invalid_decision_ref")
+
+    prefix = "artifact_bundle:"
+    if not as_of_decision_ref.startswith(prefix):
+        raise FollowupResolutionError("unsupported_decision_ref_format")
+
+    artifact_id = as_of_decision_ref[len(prefix):].strip()
+    if not artifact_id:
+        raise FollowupResolutionError("invalid_decision_ref")
+    return artifact_id
+
+
+def resolve_decision_ref_to_copilot_artifacts_v1(as_of_decision_ref: str) -> CopilotArtifactsV1:
+    artifact_id = _parse_decision_ref_v1(as_of_decision_ref)
+    try:
+        payload = get_copilot_artifact_bundle_v1(artifact_id)
+    except CopilotArtifactBundleNotFoundError as exc:
+        raise FollowupResolutionError(f"unknown_decision_ref:{artifact_id}") from exc
+    except CopilotArtifactBundleValidationError as exc:
+        raise FollowupResolutionError(f"invalid_decision_ref_payload:{artifact_id}") from exc
+
+    return CopilotArtifactsV1(
+        advisory_decision=payload.get("advisory_decision"),
+        explainability=payload.get("explainability"),
+        report_markdown=payload.get("report_markdown"),
+        scenario_table_markdown=payload.get("scenario_table_markdown"),
+        ladder_table_markdown=payload.get("ladder_table_markdown"),
+    )
+
+
 def run_treasury_copilot_v1(req: TreasuryCopilotRequestV1) -> TreasuryCopilotResponseV1:
     normalized = normalize_question_v1(req.question)
     intent = parse_intent_v1(normalized)
@@ -207,13 +250,76 @@ def run_treasury_copilot_v1(req: TreasuryCopilotRequestV1) -> TreasuryCopilotRes
             )
 
         artifacts = invoke_fx_advisory_pipeline_v1(resolved)
+        bundle_id = put_copilot_artifact_bundle_v1(
+            advisory_decision=artifacts.advisory_decision,
+            explainability=artifacts.explainability,
+            report_markdown=artifacts.report_markdown,
+            scenario_table_markdown=artifacts.scenario_table_markdown,
+            ladder_table_markdown=artifacts.ladder_table_markdown,
+        )
+        decision_ref = f"artifact_bundle:{bundle_id}"
         response = TreasuryCopilotResponseV1(
             intent=intent,
             answer_text=None,
             artifacts=artifacts,
             warnings=["fx_advisory_executed_v1"],
             missing_context=[],
-            audit=CopilotAuditV1(intent=intent, normalized_question=normalized),
+            audit=CopilotAuditV1(
+                intent=intent,
+                normalized_question=normalized,
+                as_of_decision_ref=decision_ref,
+            ),
+        )
+        return TreasuryCopilotResponseV1(
+            intent=response.intent,
+            answer_text=render_generic_answer_v1(response),
+            artifacts=response.artifacts,
+            warnings=response.warnings,
+            missing_context=response.missing_context,
+            audit=response.audit,
+        )
+
+    if intent in (
+        TreasuryIntentV1.EXPLAIN_FX_DECISION,
+        TreasuryIntentV1.SHOW_SCENARIO_TABLE,
+        TreasuryIntentV1.SHOW_HEDGE_LADDER,
+    ):
+        decision_ref = str(req.context.as_of_decision_ref or "")
+        try:
+            artifacts = resolve_decision_ref_to_copilot_artifacts_v1(decision_ref)
+        except FollowupResolutionError as exc:
+            response = TreasuryCopilotResponseV1(
+                intent=intent,
+                answer_text=None,
+                artifacts=None,
+                warnings=["followup_resolution_failed_v1", f"resolution_error:{str(exc)}"],
+                missing_context=[],
+                audit=CopilotAuditV1(
+                    intent=intent,
+                    normalized_question=normalized,
+                    as_of_decision_ref=decision_ref,
+                ),
+            )
+            return TreasuryCopilotResponseV1(
+                intent=response.intent,
+                answer_text=render_generic_answer_v1(response),
+                artifacts=response.artifacts,
+                warnings=response.warnings,
+                missing_context=response.missing_context,
+                audit=response.audit,
+            )
+
+        response = TreasuryCopilotResponseV1(
+            intent=intent,
+            answer_text=None,
+            artifacts=artifacts,
+            warnings=["read_only_followup_v1"],
+            missing_context=[],
+            audit=CopilotAuditV1(
+                intent=intent,
+                normalized_question=normalized,
+                as_of_decision_ref=decision_ref,
+            ),
         )
         return TreasuryCopilotResponseV1(
             intent=response.intent,
@@ -253,5 +359,6 @@ __all__ = [
     "parse_intent_v1",
     "validate_context_for_intent_v1",
     "invoke_fx_advisory_pipeline_v1",
+    "resolve_decision_ref_to_copilot_artifacts_v1",
     "run_treasury_copilot_v1",
 ]
