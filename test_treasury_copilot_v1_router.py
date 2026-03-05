@@ -27,7 +27,7 @@ def test_missing_context_returns_missing_context_and_audit() -> None:
     assert out.audit.normalized_question == "תעשה גידור"
 
 
-def test_sufficient_context_returns_not_implemented_warning() -> None:
+def test_sufficient_context_returns_resolution_failure_warning() -> None:
     req = TreasuryCopilotRequestV1(
         question="תעשה גידור",
         context=CopilotContextV1(
@@ -42,7 +42,8 @@ def test_sufficient_context_returns_not_implemented_warning() -> None:
 
     assert out.intent == TreasuryIntentV1.RUN_FX_HEDGE_ADVISORY
     assert out.missing_context == []
-    assert out.warnings == ["intent_not_implemented_v1"]
+    assert out.warnings[0] == "resolution_failed_v1"
+    assert out.warnings[1].startswith("resolution_error:")
     assert out.artifacts is None
     assert out.answer_text is None
 

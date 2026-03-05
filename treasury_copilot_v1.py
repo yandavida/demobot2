@@ -3,6 +3,9 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import Enum
 
+from core.treasury.copilot_resolution_v1 import CopilotResolutionError
+from core.treasury.copilot_resolution_v1 import resolve_copilot_inputs_fx_v1
+
 
 class TreasuryIntentV1(str, Enum):
     RUN_FX_HEDGE_ADVISORY = "RUN_FX_HEDGE_ADVISORY"
@@ -129,6 +132,28 @@ def run_treasury_copilot_v1(req: TreasuryCopilotRequestV1) -> TreasuryCopilotRes
             artifacts=None,
             warnings=[],
             missing_context=missing,
+            audit=CopilotAuditV1(intent=intent, normalized_question=normalized),
+        )
+
+    if intent == TreasuryIntentV1.RUN_FX_HEDGE_ADVISORY:
+        try:
+            resolve_copilot_inputs_fx_v1(req.context)
+        except CopilotResolutionError as exc:
+            return TreasuryCopilotResponseV1(
+                intent=intent,
+                answer_text=None,
+                artifacts=None,
+                warnings=["resolution_failed_v1", f"resolution_error:{exc}"],
+                missing_context=[],
+                audit=CopilotAuditV1(intent=intent, normalized_question=normalized),
+            )
+
+        return TreasuryCopilotResponseV1(
+            intent=intent,
+            answer_text=None,
+            artifacts=None,
+            warnings=["resolution_ready_v1", "intent_not_implemented_v1"],
+            missing_context=[],
             audit=CopilotAuditV1(intent=intent, normalized_question=normalized),
         )
 
