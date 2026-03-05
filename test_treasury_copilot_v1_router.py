@@ -23,7 +23,7 @@ def test_missing_context_returns_missing_context_and_audit() -> None:
     assert out.missing_context == ["market_snapshot_id", "policy_template_id", "portfolio_ref"]
     assert out.warnings == []
     assert out.artifacts is None
-    assert out.answer_text is None
+    assert out.answer_text is not None
     assert out.audit.normalized_question == "תעשה גידור"
 
 
@@ -44,7 +44,7 @@ def test_sufficient_context_returns_not_implemented_warning() -> None:
     assert out.missing_context == []
     assert out.warnings == ["intent_not_implemented_v1"]
     assert out.artifacts is None
-    assert out.answer_text is None
+    assert out.answer_text is not None
 
 
 def test_non_fx_intent_with_context_returns_not_implemented_warning() -> None:
@@ -64,7 +64,7 @@ def test_non_fx_intent_with_context_returns_not_implemented_warning() -> None:
     assert out.missing_context == []
     assert "intent_not_implemented_v1" in out.warnings
     assert out.artifacts is None
-    assert out.answer_text is None
+    assert out.answer_text is not None
 
 
 def test_router_is_deterministic_for_same_request() -> None:

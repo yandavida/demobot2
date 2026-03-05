@@ -3,6 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import Enum
 
+from core.treasury.treasury_copilot_renderer_v1 import render_generic_answer_v1
+
 
 class TreasuryIntentV1(str, Enum):
     RUN_FX_HEDGE_ADVISORY = "RUN_FX_HEDGE_ADVISORY"
@@ -123,7 +125,7 @@ def run_treasury_copilot_v1(req: TreasuryCopilotRequestV1) -> TreasuryCopilotRes
     missing = validate_context_for_intent_v1(intent, req.context)
 
     if missing:
-        return TreasuryCopilotResponseV1(
+        response = TreasuryCopilotResponseV1(
             intent=intent,
             answer_text=None,
             artifacts=None,
@@ -131,14 +133,30 @@ def run_treasury_copilot_v1(req: TreasuryCopilotRequestV1) -> TreasuryCopilotRes
             missing_context=missing,
             audit=CopilotAuditV1(intent=intent, normalized_question=normalized),
         )
+        return TreasuryCopilotResponseV1(
+            intent=response.intent,
+            answer_text=render_generic_answer_v1(response),
+            artifacts=response.artifacts,
+            warnings=response.warnings,
+            missing_context=response.missing_context,
+            audit=response.audit,
+        )
 
-    return TreasuryCopilotResponseV1(
+    response = TreasuryCopilotResponseV1(
         intent=intent,
         answer_text=None,
         artifacts=None,
         warnings=["intent_not_implemented_v1"],
         missing_context=[],
         audit=CopilotAuditV1(intent=intent, normalized_question=normalized),
+    )
+    return TreasuryCopilotResponseV1(
+        intent=response.intent,
+        answer_text=render_generic_answer_v1(response),
+        artifacts=response.artifacts,
+        warnings=response.warnings,
+        missing_context=response.missing_context,
+        audit=response.audit,
     )
 
 
