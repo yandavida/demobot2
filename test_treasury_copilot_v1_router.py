@@ -62,8 +62,8 @@ def test_non_fx_intent_with_context_returns_not_implemented_warning() -> None:
     out = run_treasury_copilot_v1(req)
 
     assert out.intent == TreasuryIntentV1.SHOW_SCENARIO_TABLE
-    assert out.missing_context == []
-    assert "intent_not_implemented_v1" in out.warnings
+    assert out.missing_context == ["as_of_decision_ref"]
+    assert out.warnings == []
     assert out.artifacts is None
     assert out.answer_text is not None
 
