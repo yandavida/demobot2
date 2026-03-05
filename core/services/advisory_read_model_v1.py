@@ -7,6 +7,7 @@ from core.pricing.fx.types import FxMarketSnapshot
 from core.pricing.fx.valuation_context import ValuationContext
 from core.risk.portfolio_surface import compute_portfolio_surface_v1
 from core.risk.reprice_harness import reprice_fx_forward_risk
+from core.risk.exposures import compute_exposures_v1
 from core.risk.risk_artifact import build_risk_artifact_v1
 from core.risk.risk_request import RiskRequest
 from core.risk.scenario_grid import ScenarioGrid
@@ -90,7 +91,20 @@ def run_treasury_advisory_v1(
         contracts_by_instrument_id=contracts,
     )
     risk_artifact = build_risk_artifact_v1(risk_request, scenario_grid, risk_result)
+    exposures_artifact = compute_exposures_v1(
+        risk_artifact=risk_artifact,
+        base_spot=Decimal(str(base_snapshot.spot_rate)),
+    )
     portfolio_surface_artifact = compute_portfolio_surface_v1(risk_artifact)
+
+    delta_aggregate_raw = (
+        exposures_artifact.get("outputs", {})
+        .get("aggregates", {})
+        .get("delta_total_per_pct")
+    )
+    if delta_aggregate_raw is None:
+        raise ValueError("missing exposures aggregate: outputs.aggregates.delta_total_per_pct")
+    delta_exposure_aggregate = float(Decimal(str(delta_aggregate_raw)))
 
     risk_summary = summarize_scenario_risk_v1(
         risk_artifact=risk_artifact,
@@ -108,8 +122,8 @@ def run_treasury_advisory_v1(
         scenario_template_id=normalized_input.scenario_template_id,
         risk_summary=risk_summary,
         hedge_recommendation=hedge_recommendation,
-        delta_exposure_aggregate_domestic=None,
-        notes=("DELTA_NOT_AVAILABLE",),
+        delta_exposure_aggregate_domestic=delta_exposure_aggregate,
+        notes=(),
     )
 
 
