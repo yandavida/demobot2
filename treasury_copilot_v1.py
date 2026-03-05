@@ -3,6 +3,11 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import Enum
 
+from core.services.advisory_input_contract_v1 import normalize_advisory_input_v1
+from core.services.advisory_read_model_v1 import run_treasury_advisory_v1
+from core.services.advisory_report_v1 import render_advisory_report_markdown_v1
+from core.services.explainability_pack_v1 import build_explainability_pack_v1
+from core.treasury.copilot_resolution_v1 import CopilotResolvedInputsV1
 from core.treasury.copilot_resolution_v1 import CopilotResolutionError
 from core.treasury.copilot_resolution_v1 import resolve_copilot_inputs_fx_v1
 from core.treasury.treasury_copilot_renderer_v1 import render_generic_answer_v1
@@ -121,6 +126,42 @@ def validate_context_for_intent_v1(intent: TreasuryIntentV1, context: CopilotCon
     return missing
 
 
+def _extract_primary_pair_v1(advisory_payload: dict) -> str:
+    normalized = normalize_advisory_input_v1(advisory_payload)
+    if not normalized.exposures:
+        raise ValueError("missing_exposures_for_report")
+    return str(normalized.exposures[0].currency_pair)
+
+
+def invoke_fx_advisory_pipeline_v1(resolved: CopilotResolvedInputsV1) -> CopilotArtifactsV1:
+    decision = run_treasury_advisory_v1(
+        payload=resolved.advisory_payload,
+        base_snapshot=resolved.base_snapshot,
+        scenario_spec=resolved.scenario_spec,
+        target_worst_loss_domestic=float(resolved.target_worst_loss_domestic),
+    )
+    explainability = build_explainability_pack_v1(
+        decision=decision,
+        risk_summary=decision.risk_summary,
+        ladder=None,
+    )
+    report_markdown = render_advisory_report_markdown_v1(
+        company_id=decision.company_id,
+        as_of_date=resolved.base_snapshot.as_of_ts.date().isoformat(),
+        pair=_extract_primary_pair_v1(resolved.advisory_payload),
+        decision=decision,
+        risk_summary=decision.risk_summary,
+        ladder=None,
+    )
+    return CopilotArtifactsV1(
+        advisory_decision=decision,
+        explainability=explainability,
+        report_markdown=report_markdown,
+        scenario_table_markdown=None,
+        ladder_table_markdown=None,
+    )
+
+
 def run_treasury_copilot_v1(req: TreasuryCopilotRequestV1) -> TreasuryCopilotResponseV1:
     normalized = normalize_question_v1(req.question)
     intent = parse_intent_v1(normalized)
@@ -146,7 +187,7 @@ def run_treasury_copilot_v1(req: TreasuryCopilotRequestV1) -> TreasuryCopilotRes
 
     if intent == TreasuryIntentV1.RUN_FX_HEDGE_ADVISORY:
         try:
-            resolve_copilot_inputs_fx_v1(req.context)
+            resolved = resolve_copilot_inputs_fx_v1(req.context)
         except CopilotResolutionError as exc:
             response = TreasuryCopilotResponseV1(
                 intent=intent,
@@ -165,11 +206,12 @@ def run_treasury_copilot_v1(req: TreasuryCopilotRequestV1) -> TreasuryCopilotRes
                 audit=response.audit,
             )
 
+        artifacts = invoke_fx_advisory_pipeline_v1(resolved)
         response = TreasuryCopilotResponseV1(
             intent=intent,
             answer_text=None,
-            artifacts=None,
-            warnings=["resolution_ready_v1", "intent_not_implemented_v1"],
+            artifacts=artifacts,
+            warnings=["fx_advisory_executed_v1"],
             missing_context=[],
             audit=CopilotAuditV1(intent=intent, normalized_question=normalized),
         )
@@ -210,5 +252,6 @@ __all__ = [
     "normalize_question_v1",
     "parse_intent_v1",
     "validate_context_for_intent_v1",
+    "invoke_fx_advisory_pipeline_v1",
     "run_treasury_copilot_v1",
 ]
