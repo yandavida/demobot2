@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from decimal import Decimal
 from decimal import InvalidOperation
-from typing import Iterable
 
 from core.services.advisory_output_contract_v1 import AdvisoryDecisionV1
 from core.services.rolling_hedge_ladder_v1 import RollingHedgeLadderResultV1
@@ -19,8 +18,8 @@ def _to_decimal(value: object) -> Decimal:
     return parsed
 
 
-def _fmt_money(value: float | Decimal) -> str:
-    # Locale-independent fixed formatting for report stability.
+def _fmt_num(value: float | Decimal) -> str:
+    # Deterministic fixed representation (not locale aware).
     return f"{float(value):,.2f}"
 
 
@@ -28,41 +27,66 @@ def _fmt_ratio(value: float) -> str:
     return f"{value:.6f}"
 
 
-def _extract_shock_label(raw_label: str) -> str:
+def _extract_spot_shock_pct(raw_label: str) -> float | None:
+    marker = "spot_shock="
+    if marker not in raw_label:
+        return None
+    value = raw_label.split(marker, 1)[1].split(",", 1)[0].strip()
+    if value.endswith("%"):
+        value = value[:-1]
+    try:
+        return float(value)
+    except ValueError:
+        return None
+
+
+def _shock_display(raw_label: str) -> str:
     marker = "spot_shock="
     if marker not in raw_label:
         return ""
-    rest = raw_label.split(marker, 1)[1]
-    return rest.split(",", 1)[0].strip()
+    return raw_label.split(marker, 1)[1].split(",", 1)[0].strip()
 
 
-def _infer_exposure_action(*, delta_aggregate: float | None, pair: str) -> tuple[str, str]:
+def _action_from_risk_summary(pair: str, risk_summary: ScenarioRiskSummaryV1) -> str:
     foreign_ccy = pair.split("/", 1)[0] if "/" in pair else pair
-    if delta_aggregate is None:
-        return "N/A", foreign_ccy
-    if delta_aggregate > 0:
-        return f"SELL {foreign_ccy} FWD", foreign_ccy
-    if delta_aggregate < 0:
-        return f"BUY {foreign_ccy} FWD", foreign_ccy
-    return "NO TRADE (NATURAL HEDGE)", foreign_ccy
+    worst_label = ""
+    for row in risk_summary.scenario_rows:
+        if row.scenario_id == risk_summary.worst_scenario_id:
+            worst_label = row.label
+            break
+
+    shock = _extract_spot_shock_pct(worst_label)
+    if shock is None:
+        return "N/A"
+    if shock > 0:
+        return f"BUY {foreign_ccy} FWD"
+    if shock < 0:
+        return f"SELL {foreign_ccy} FWD"
+    return "NO TRADE (NATURAL HEDGE)"
 
 
-def _bucket_notional_decomposition(recommended_notional: float | None, recommended_ratio: float, current_ratio: float) -> tuple[float | None, float | None, float | None]:
-    if recommended_notional is None:
-        return None, None, None
-    if recommended_ratio <= 0.0:
-        # If recommended ratio is zero, both current and additional notionals collapse to zero for report purposes.
-        return 0.0, 0.0, 0.0
+def _infer_global_notionals_from_ladder(
+    ladder: RollingHedgeLadderResultV1,
+) -> tuple[float, float, float, float]:
+    gross_total = Decimal("0")
+    current_total = Decimal("0")
+    recommended_total = Decimal("0")
 
-    gross = recommended_notional / recommended_ratio
-    current = max(0.0, gross * current_ratio)
-    additional = max(0.0, recommended_notional - current)
-    return gross, current, additional
+    for bucket in ladder.buckets:
+        rec_notional = Decimal(str(bucket.recommended_forward_notional or 0.0))
+        rec_ratio = Decimal(str(bucket.hedge_recommendation.recommended_hedge_ratio))
+        cur_ratio = Decimal(str(bucket.current_hedge_ratio_effective))
 
+        if rec_notional <= 0 or rec_ratio <= 0:
+            continue
 
-def _aggregate_bindings(rows: Iterable[str]) -> str:
-    deduped = sorted({item for item in rows if item})
-    return ", ".join(deduped) if deduped else "N/A"
+        gross = rec_notional / rec_ratio
+        gross_total += gross
+        current_total += gross * cur_ratio
+        recommended_total += rec_notional
+
+    additional_total = max(Decimal("0"), recommended_total - current_total)
+    return float(gross_total), float(current_total), float(recommended_total), float(additional_total)
 
 
 def render_advisory_report_markdown_v1(
@@ -85,58 +109,58 @@ def render_advisory_report_markdown_v1(
     if not isinstance(risk_summary, ScenarioRiskSummaryV1):
         raise ValueError("risk_summary must be ScenarioRiskSummaryV1")
 
-    action, foreign_ccy = _infer_exposure_action(
-        delta_aggregate=decision.delta_exposure_aggregate_domestic,
-        pair=pair,
-    )
+    foreign_ccy = pair.split("/", 1)[0] if "/" in pair else pair
 
-    current_ratio = decision.hedge_recommendation.current_hedge_ratio
-    recommended_ratio = decision.hedge_recommendation.recommended_hedge_ratio
+    pre_policy_ratio = float(decision.hedge_recommendation.recommended_hedge_ratio)
+    post_policy_ratio = pre_policy_ratio
 
-    # Prefer ladder-derived notionals when available because AdvisoryDecisionV1 does not carry gross exposure notional.
+    net_abs_foreign: float | None = None
     current_hedge_notional: float | None = None
     recommended_hedge_notional: float | None = None
     additional_notional: float | None = None
-    inferred_net_abs_foreign: float | None = None
+    target_total_domestic: float | None = None
 
-    ladder_binding_items: list[str] = []
     if ladder is not None:
-        recommended_hedge_notional = float(ladder.totals.total_recommended_forward_notional or 0.0)
+        net_abs_foreign, current_hedge_notional, recommended_hedge_notional, additional_notional = (
+            _infer_global_notionals_from_ladder(ladder)
+        )
+        if net_abs_foreign > 0:
+            post_policy_ratio = recommended_hedge_notional / net_abs_foreign
+        target_total_domestic = float(
+            sum(_to_decimal(bucket.hedge_recommendation.target_worst_loss_domestic) for bucket in ladder.buckets)
+        )
 
-        gross_total = 0.0
-        current_total = 0.0
-        additional_total = 0.0
-        for bucket in ladder.buckets:
-            gross, current, additional = _bucket_notional_decomposition(
-                recommended_notional=bucket.recommended_forward_notional,
-                recommended_ratio=bucket.hedge_recommendation.recommended_hedge_ratio,
-                current_ratio=bucket.current_hedge_ratio_effective,
-            )
-            if gross is not None:
-                gross_total += gross
-            if current is not None:
-                current_total += current
-            if additional is not None:
-                additional_total += additional
-            if bucket.policy_result is not None:
-                ladder_binding_items.extend(bucket.policy_result.binding_constraints)
-
-        if gross_total > 0.0:
-            inferred_net_abs_foreign = gross_total
-        current_hedge_notional = current_total
-        additional_notional = additional_total
-
-    bindings = _aggregate_bindings(ladder_binding_items)
-    if bindings == "N/A" and decision.notes:
-        bindings = _aggregate_bindings(decision.notes)
-
-    net_type = "N/A"
-    if action.startswith("BUY"):
-        net_type = "NET PAYABLE"
-    elif action.startswith("SELL"):
+    action = _action_from_risk_summary(pair, risk_summary)
+    if net_abs_foreign is None:
+        net_foreign_display = f"N/A {foreign_ccy}"
+        abs_foreign_display = f"N/A {foreign_ccy}"
+        net_type = "N/A"
+    else:
+        signed = net_abs_foreign
         net_type = "NET RECEIVABLE"
-    elif action.startswith("NO TRADE"):
-        net_type = "NET FLAT"
+        if action.startswith("BUY"):
+            signed = -net_abs_foreign
+            net_type = "NET PAYABLE"
+        elif action.startswith("NO TRADE"):
+            signed = 0.0
+            net_type = "NET FLAT"
+        net_foreign_display = f"{_fmt_num(signed)} {foreign_ccy}"
+        abs_foreign_display = f"{_fmt_num(net_abs_foreign)} {foreign_ccy}"
+
+    bindings: list[str] = []
+    if ladder is not None:
+        for bucket in ladder.buckets:
+            if bucket.policy_result is not None:
+                bindings.extend(bucket.policy_result.binding_constraints)
+    if not bindings:
+        bindings = list(decision.notes)
+    bindings_display = ", ".join(sorted(set(bindings))) if bindings else "N/A"
+
+    worst_label = "N/A"
+    for row in risk_summary.scenario_rows:
+        if row.scenario_id == risk_summary.worst_scenario_id:
+            worst_label = _shock_display(row.label) or "N/A"
+            break
 
     lines: list[str] = []
     lines.append("# Treasury Hedge Advisory — v1")
@@ -150,34 +174,23 @@ def render_advisory_report_markdown_v1(
 
     lines.append("")
     lines.append("## Exposure Summary")
-    if inferred_net_abs_foreign is None:
-        lines.append(f"- net exposure foreign: N/A {foreign_ccy}")
-        lines.append(f"- net exposure type: {net_type}")
-        lines.append(f"- abs foreign: N/A {foreign_ccy}")
-    else:
-        signed = inferred_net_abs_foreign if action.startswith("SELL") else -inferred_net_abs_foreign
-        lines.append(f"- net exposure foreign: {_fmt_money(signed)} {foreign_ccy}")
-        lines.append(f"- net exposure type: {net_type}")
-        lines.append(f"- abs foreign: {_fmt_money(inferred_net_abs_foreign)} {foreign_ccy}")
-
-    lines.append(f"- current ratio: {_fmt_ratio(current_ratio)}")
-    lines.append(f"- recommended ratio (post policy): {_fmt_ratio(recommended_ratio)}")
-    lines.append(f"- bindings: {bindings}")
+    lines.append(f"- net exposure foreign: {net_foreign_display}")
+    lines.append(f"- net exposure type: {net_type}")
+    lines.append(f"- abs foreign: {abs_foreign_display}")
+    lines.append(f"- current ratio: {_fmt_ratio(decision.hedge_recommendation.current_hedge_ratio)}")
+    if ladder is not None and abs(pre_policy_ratio - post_policy_ratio) > 1e-12:
+        lines.append(f"- recommended ratio (pre policy): {_fmt_ratio(pre_policy_ratio)}")
+    lines.append(f"- recommended ratio (post policy): {_fmt_ratio(post_policy_ratio)}")
+    lines.append(f"- bindings: {bindings_display}")
 
     lines.append("")
     lines.append("## Risk Summary")
-    worst_label = ""
-    for row in risk_summary.scenario_rows:
-        if row.scenario_id == risk_summary.worst_scenario_id:
-            worst_label = _extract_shock_label(row.label)
-            break
-    lines.append(
-        f"- worst scenario: shock={worst_label or 'N/A'}, "
-        f"scenario_id={risk_summary.worst_scenario_id}"
-    )
-    lines.append(f"- worst loss domestic: {_fmt_money(abs(risk_summary.worst_loss_domestic))}")
-    delta_display = "N/A" if decision.delta_exposure_aggregate_domestic is None else _fmt_money(decision.delta_exposure_aggregate_domestic)
-    lines.append(f"- delta aggregate: {delta_display}")
+    lines.append(f"- worst scenario: shock={worst_label}, scenario_id={risk_summary.worst_scenario_id}")
+    lines.append(f"- worst loss domestic: {_fmt_num(abs(risk_summary.worst_loss_domestic))}")
+    if target_total_domestic is not None:
+        lines.append(f"- target worst loss total (domestic): {_fmt_num(target_total_domestic)}")
+    delta_text = "N/A" if decision.delta_exposure_aggregate_domestic is None else _fmt_num(decision.delta_exposure_aggregate_domestic)
+    lines.append(f"- delta aggregate: {delta_text}")
     lines.append("- NOTE: per 1% spot move")
 
     lines.append("")
@@ -186,21 +199,20 @@ def render_advisory_report_markdown_v1(
     lines.append("|---|---|---:|---:|")
     for row in risk_summary.scenario_rows:
         lines.append(
-            f"| {_extract_shock_label(row.label)} | {row.scenario_id} "
-            f"| {_fmt_money(row.total_pv_domestic)} | {_fmt_money(row.pnl_vs_base_domestic)} |"
+            f"| {_shock_display(row.label)} | {row.scenario_id} | {_fmt_num(row.total_pv_domestic)} | {_fmt_num(row.pnl_vs_base_domestic)} |"
         )
 
     lines.append("")
     lines.append("## Hedge Trade Ticket")
     lines.append(f"- ACTION: {action}")
-    if additional_notional is None:
+    if net_abs_foreign is None:
         lines.append(f"- Additional notional (foreign): N/A {foreign_ccy}")
         lines.append(f"- Current hedge notional: N/A {foreign_ccy}")
         lines.append(f"- Recommended hedge notional: N/A {foreign_ccy}")
     else:
-        lines.append(f"- Additional notional (foreign): {_fmt_money(additional_notional)} {foreign_ccy}")
-        lines.append(f"- Current hedge notional: {_fmt_money(current_hedge_notional or 0.0)} {foreign_ccy}")
-        lines.append(f"- Recommended hedge notional: {_fmt_money(recommended_hedge_notional or 0.0)} {foreign_ccy}")
+        lines.append(f"- Additional notional (foreign): {_fmt_num(additional_notional or 0.0)} {foreign_ccy}")
+        lines.append(f"- Current hedge notional: {_fmt_num(current_hedge_notional or 0.0)} {foreign_ccy}")
+        lines.append(f"- Recommended hedge notional: {_fmt_num(recommended_hedge_notional or 0.0)} {foreign_ccy}")
 
     lines.append("")
     lines.append("## Rolling Hedge Ladder")
@@ -210,22 +222,23 @@ def render_advisory_report_markdown_v1(
         lines.append("| Bucket | Target alloc (domestic) | Action | Additional notional (foreign) | Recommended ratio | Notes/bindings |")
         lines.append("|---|---:|---|---:|---:|---|")
         for bucket in ladder.buckets:
-            bucket_action, _ = _infer_exposure_action(
-                delta_aggregate=bucket.risk_summary.worst_loss_domestic,
-                pair=pair,
-            )
-            _, bucket_current, bucket_additional = _bucket_notional_decomposition(
-                recommended_notional=bucket.recommended_forward_notional,
-                recommended_ratio=bucket.hedge_recommendation.recommended_hedge_ratio,
-                current_ratio=bucket.current_hedge_ratio_effective,
-            )
-            note = ""
+            bucket_action = _action_from_risk_summary(pair, bucket.risk_summary)
+            bucket_notes = ""
             if bucket.policy_result is not None and bucket.policy_result.binding_constraints:
-                note = ", ".join(bucket.policy_result.binding_constraints)
+                bucket_notes = ", ".join(bucket.policy_result.binding_constraints)
+            rec_notional = float(bucket.recommended_forward_notional or 0.0)
+            rec_ratio = float(bucket.hedge_recommendation.recommended_hedge_ratio)
+            cur_ratio = float(bucket.current_hedge_ratio_effective)
+            if rec_ratio > 0.0:
+                bucket_current = rec_notional * (cur_ratio / rec_ratio)
+            else:
+                bucket_current = 0.0
+            bucket_additional = max(0.0, rec_notional - bucket_current)
+
             lines.append(
-                f"| {bucket.bucket_label} | {_fmt_money(bucket.hedge_recommendation.target_worst_loss_domestic)} "
-                f"| {bucket_action} | {_fmt_money(bucket_additional or 0.0)} {foreign_ccy} "
-                f"| {_fmt_ratio(bucket.hedge_recommendation.recommended_hedge_ratio)} | {note} |"
+                f"| {bucket.bucket_label} | {_fmt_num(bucket.hedge_recommendation.target_worst_loss_domestic)} "
+                f"| {bucket_action} | {_fmt_num(bucket_additional)} {foreign_ccy} "
+                f"| {_fmt_ratio(bucket.hedge_recommendation.recommended_hedge_ratio)} | {bucket_notes} |"
             )
 
     lines.append("")
