@@ -3,6 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import Enum
 
+from core.treasury.copilot_resolution_v1 import CopilotResolutionError
+from core.treasury.copilot_resolution_v1 import resolve_copilot_inputs_fx_v1
 from core.treasury.treasury_copilot_renderer_v1 import render_generic_answer_v1
 
 
@@ -131,6 +133,44 @@ def run_treasury_copilot_v1(req: TreasuryCopilotRequestV1) -> TreasuryCopilotRes
             artifacts=None,
             warnings=[],
             missing_context=missing,
+            audit=CopilotAuditV1(intent=intent, normalized_question=normalized),
+        )
+        return TreasuryCopilotResponseV1(
+            intent=response.intent,
+            answer_text=render_generic_answer_v1(response),
+            artifacts=response.artifacts,
+            warnings=response.warnings,
+            missing_context=response.missing_context,
+            audit=response.audit,
+        )
+
+    if intent == TreasuryIntentV1.RUN_FX_HEDGE_ADVISORY:
+        try:
+            resolve_copilot_inputs_fx_v1(req.context)
+        except CopilotResolutionError as exc:
+            response = TreasuryCopilotResponseV1(
+                intent=intent,
+                answer_text=None,
+                artifacts=None,
+                warnings=["resolution_failed_v1", f"resolution_error:{str(exc)}"],
+                missing_context=[],
+                audit=CopilotAuditV1(intent=intent, normalized_question=normalized),
+            )
+            return TreasuryCopilotResponseV1(
+                intent=response.intent,
+                answer_text=render_generic_answer_v1(response),
+                artifacts=response.artifacts,
+                warnings=response.warnings,
+                missing_context=response.missing_context,
+                audit=response.audit,
+            )
+
+        response = TreasuryCopilotResponseV1(
+            intent=intent,
+            answer_text=None,
+            artifacts=None,
+            warnings=["resolution_ready_v1", "intent_not_implemented_v1"],
+            missing_context=[],
             audit=CopilotAuditV1(intent=intent, normalized_question=normalized),
         )
         return TreasuryCopilotResponseV1(
