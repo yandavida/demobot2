@@ -173,6 +173,28 @@ def render_advisory_report_markdown_v1(
     lines.append(f"- market_snapshot_id: {decision.snapshot_id}")
 
     lines.append("")
+    lines.append("## Executive Takeaway")
+    lines.append(
+        f"- Coverage uplift: {_fmt_ratio(decision.hedge_recommendation.current_hedge_ratio)} "
+        f"-> {_fmt_ratio(post_policy_ratio)} ({bindings_display})"
+    )
+    lines.append(
+        f"- Tail scenario: {worst_label} | "
+        f"Worst loss: {_fmt_num(abs(risk_summary.worst_loss_domestic))} (domestic)"
+    )
+    objective_value = _fmt_num(target_total_domestic) if target_total_domestic is not None else "N/A"
+    lines.append(f"- Objective: cap tail loss to {objective_value} (domestic)")
+    if recommended_hedge_notional is None:
+        lines.append(
+            f"- Action: {action} +N/A to reach N/A total"
+        )
+    else:
+        lines.append(
+            f"- Action: {action} +{_fmt_num(additional_notional or 0.0)} "
+            f"to reach {_fmt_num(recommended_hedge_notional)} total"
+        )
+
+    lines.append("")
     lines.append("## Exposure Summary")
     lines.append(f"- net exposure foreign: {net_foreign_display}")
     lines.append(f"- net exposure type: {net_type}")
@@ -204,6 +226,15 @@ def render_advisory_report_markdown_v1(
 
     lines.append("")
     lines.append("## Hedge Trade Ticket")
+    if additional_notional is None:
+        lines.append(
+            f"- Summary: {action} +N/A (raise hedge to {_fmt_ratio(post_policy_ratio)})"
+        )
+    else:
+        lines.append(
+            f"- Summary: {action} +{_fmt_num(additional_notional)} "
+            f"(raise hedge to {_fmt_ratio(post_policy_ratio)})"
+        )
     lines.append(f"- ACTION: {action}")
     if net_abs_foreign is None:
         lines.append(f"- Additional notional (foreign): N/A {foreign_ccy}")
