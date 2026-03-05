@@ -121,4 +121,5 @@ def test_router_fx_sufficient_context_resolution_ready_warning() -> None:
     out = run_treasury_copilot_v1(req)
 
     assert out.missing_context == []
-    assert out.warnings == ["resolution_ready_v1", "intent_not_implemented_v1"]
+    assert out.warnings == ["fx_advisory_executed_v1"]
+    assert out.artifacts is not None
