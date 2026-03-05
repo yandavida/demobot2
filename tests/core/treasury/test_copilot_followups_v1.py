@@ -134,3 +134,43 @@ def test_followup_success_loads_ssot_artifacts_without_engine_invocation(monkeyp
     assert out1.answer_text is not None and out1.answer_text.strip() != ""
     assert out1.artifacts == out2.artifacts
     assert out1.answer_text == out2.answer_text
+
+
+def test_followup_scenario_and_ladder_are_non_empty_without_engine_invocation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    decision_ref = _run_success_and_get_decision_ref()
+
+    def _boom(*args, **kwargs):  # noqa: ANN002, ANN003
+        raise AssertionError("engine_reinvocation_not_allowed")
+
+    monkeypatch.setattr("treasury_copilot_v1.run_treasury_advisory_v1", _boom)
+
+    scenario_req = TreasuryCopilotRequestV1(
+        question="תראה לי טבלת תרחישים",
+        context=CopilotContextV1(
+            market_snapshot_id=None,
+            scenario_template_id=None,
+            policy_template_id=None,
+            portfolio_ref=None,
+            as_of_decision_ref=decision_ref,
+        ),
+    )
+    ladder_req = TreasuryCopilotRequestV1(
+        question="תראה לי סולם גידור",
+        context=CopilotContextV1(
+            market_snapshot_id=None,
+            scenario_template_id=None,
+            policy_template_id=None,
+            portfolio_ref=None,
+            as_of_decision_ref=decision_ref,
+        ),
+    )
+
+    scenario_out = run_treasury_copilot_v1(scenario_req)
+    ladder_out = run_treasury_copilot_v1(ladder_req)
+
+    assert "read_only_followup_v1" in scenario_out.warnings
+    assert "read_only_followup_v1" in ladder_out.warnings
+    assert scenario_out.answer_text is not None and scenario_out.answer_text.strip() != ""
+    assert ladder_out.answer_text is not None and ladder_out.answer_text.strip() != ""
