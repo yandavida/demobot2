@@ -4,6 +4,8 @@ import datetime
 import math
 from decimal import Decimal
 
+from core.numeric_policy import DEFAULT_TOLERANCES
+from core.numeric_policy import MetricClass
 from core.pricing.fx.types import FxMarketSnapshot
 from core.risk.scenario_spec import ScenarioSpec
 from core.services.advisory_read_model_v1 import run_treasury_advisory_v1
@@ -61,9 +63,16 @@ def test_end_to_end_treasury_advisory_is_deterministic() -> None:
         target_worst_loss_domestic=200000.0,
     )
 
+    tol = DEFAULT_TOLERANCES[MetricClass.PNL]
+    rel_tol = float(tol.rel or 0.0)
+    abs_tol = float(tol.abs or 0.0)
+
     assert out_a.to_dict() == out_b.to_dict()
     assert len(out_a.risk_summary.scenario_rows) == 3
     assert out_a.risk_summary.worst_loss_domestic < 0
     assert 300000.0 < abs(out_a.risk_summary.worst_loss_domestic) < 400000.0
     assert math.isclose(out_a.hedge_recommendation.recommended_hedge_ratio, 0.7587954212, rel_tol=1e-6, abs_tol=1e-6)
-    assert out_a.notes == ("DELTA_NOT_AVAILABLE",)
+    assert out_a.delta_exposure_aggregate_domestic is not None
+    assert out_a.delta_exposure_aggregate_domestic > 0
+    assert math.isclose(out_a.delta_exposure_aggregate_domestic, 6633360.0, rel_tol=rel_tol, abs_tol=abs_tol)
+    assert out_a.notes == ()
