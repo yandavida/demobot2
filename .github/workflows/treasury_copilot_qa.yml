@@ -1,0 +1,129 @@
+name: Treasury Copilot QA
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+  schedule:
+    - cron: "0 3 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: treasury-copilot-qa-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  PYTHON_VERSION: "3.12"
+  MARKET_SNAPSHOT_ID: "bf857d546db92a36e0d508b186bb3386cbb650a1594073dd5089fd37530233ab"
+  SCENARIO_TEMPLATE_ID: "STANDARD_7"
+  POLICY_TEMPLATE_ID: "TREASURY_STANDARD_70"
+  PORTFOLIO_REF: "artifact:328c33053a6e62a13d02471fb4a40ef6f59e65c3e7e2343a5479a9dbba3744b0"
+
+jobs:
+  copilot-qa:
+    name: Run Treasury Copilot QA Agent
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: "pip"
+          cache-dependency-path: |
+            requirements.txt
+            requirements-dev.txt
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          if [ -f requirements.txt ]; then
+            pip install -r requirements.txt
+          fi
+          if [ -f requirements-dev.txt ]; then
+            pip install -r requirements-dev.txt
+          fi
+
+      - name: Seed stable SSOT artifacts used by Copilot tests
+        run: |
+          python - <<'PY'
+          from core.market_data.artifact_store import put_market_snapshot
+          from core.market_data.market_snapshot_payload_v0 import Curve
+          from core.market_data.market_snapshot_payload_v0 import FxRates
+          from core.market_data.market_snapshot_payload_v0 import InterestRateCurves
+          from core.market_data.market_snapshot_payload_v0 import MarketConventions
+          from core.market_data.market_snapshot_payload_v0 import MarketSnapshotPayloadV0
+          from core.market_data.market_snapshot_payload_v0 import SpotPrices
+          from core.portfolio.advisory_payload_artifact_store_v1 import put_advisory_payload_artifact_v1
+
+          expected_snapshot_id = "bf857d546db92a36e0d508b186bb3386cbb650a1594073dd5089fd37530233ab"
+          expected_portfolio_ref = "artifact:328c33053a6e62a13d02471fb4a40ef6f59e65c3e7e2343a5479a9dbba3744b0"
+
+          market_payload = MarketSnapshotPayloadV0(
+              fx_rates=FxRates(base_ccy="USD", quotes={"ILS": 3.7}),
+              spots=SpotPrices(prices={"USD/ILS": 3.7}, currency={"USD/ILS": "ILS"}),
+              curves=InterestRateCurves(
+                  curves={
+                      "ILS": Curve(day_count="ACT/365", compounding="annual", zero_rates={"365D": 0.04}),
+                      "USD": Curve(day_count="ACT/365", compounding="annual", zero_rates={"365D": 0.03}),
+                  }
+              ),
+              conventions=MarketConventions(calendar="IL", day_count_default="ACT/365", spot_lag=2),
+          )
+          snapshot_id = put_market_snapshot(market_payload)
+          if snapshot_id != expected_snapshot_id:
+              raise SystemExit(f"unexpected snapshot id: {snapshot_id}")
+
+          payload = {
+              "contract_version": "v1",
+              "company_id": "treasury-demo",
+              "snapshot_id": snapshot_id,
+              "scenario_template_id": "usdils_spot_pm5",
+              "exposures": [
+                  {
+                      "currency_pair": "USD/ILS",
+                      "direction": "receivable",
+                      "notional": "3000000",
+                      "maturity_date": "2026-06-02",
+                      "hedge_ratio": "0.60",
+                  }
+              ],
+          }
+          portfolio_artifact_id = put_advisory_payload_artifact_v1(payload)
+          portfolio_ref = f"artifact:{portfolio_artifact_id}"
+          if portfolio_ref != expected_portfolio_ref:
+              raise SystemExit(f"unexpected portfolio ref: {portfolio_ref}")
+          PY
+
+      - name: Run Treasury Copilot QA (human summary)
+        run: |
+          python -m scripts.copilot_qa_agent_v1 \
+            --market-snapshot-id "$MARKET_SNAPSHOT_ID" \
+            --scenario-template-id "$SCENARIO_TEMPLATE_ID" \
+            --policy-template-id "$POLICY_TEMPLATE_ID" \
+            --portfolio-ref "$PORTFOLIO_REF"
+
+      - name: Run Treasury Copilot QA (JSON summary)
+        run: |
+          python -m scripts.copilot_qa_agent_v1 \
+            --market-snapshot-id "$MARKET_SNAPSHOT_ID" \
+            --scenario-template-id "$SCENARIO_TEMPLATE_ID" \
+            --policy-template-id "$POLICY_TEMPLATE_ID" \
+            --portfolio-ref "$PORTFOLIO_REF" \
+            --json > copilot_qa_summary.json
+
+      - name: Upload QA summary artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: copilot-qa-summary
+          path: copilot_qa_summary.json
