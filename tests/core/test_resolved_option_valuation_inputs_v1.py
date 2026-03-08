@@ -87,6 +87,11 @@ def _numeric_policy() -> NumericalPolicySnapshotV1:
 def _domestic_curve() -> ResolvedCurveInputV1:
     return ResolvedCurveInputV1(
         curve_id="curve.ils.ois.v1",
+        quote_convention="zero_rate",
+        interpolation_method="linear_zero_rate",
+        extrapolation_policy="flat_forward",
+        basis_timestamp=datetime.datetime(2026, 12, 31, 10, 0, tzinfo=datetime.timezone.utc),
+        source_lineage_ref="market_snapshot:mkt.snap.001:curve:curve.ils.ois.v1",
         points=(
             ResolvedRatePointV1(tenor_label="1M", zero_rate="0.04"),
             ResolvedRatePointV1(tenor_label="6M", zero_rate="0.041"),
@@ -97,6 +102,11 @@ def _domestic_curve() -> ResolvedCurveInputV1:
 def _foreign_curve() -> ResolvedCurveInputV1:
     return ResolvedCurveInputV1(
         curve_id="curve.usd.ois.v1",
+        quote_convention="zero_rate",
+        interpolation_method="linear_zero_rate",
+        extrapolation_policy="flat_forward",
+        basis_timestamp=datetime.datetime(2026, 12, 31, 10, 0, tzinfo=datetime.timezone.utc),
+        source_lineage_ref="market_snapshot:mkt.snap.001:curve:curve.usd.ois.v1",
         points=(
             ResolvedRatePointV1(tenor_label="1M", zero_rate="0.05"),
             ResolvedRatePointV1(tenor_label="6M", zero_rate="0.051"),
@@ -107,6 +117,11 @@ def _foreign_curve() -> ResolvedCurveInputV1:
 def _vol_surface() -> ResolvedVolatilityInputV1:
     return ResolvedVolatilityInputV1(
         surface_id="surface.fx.usdils.v1",
+        quote_convention="implied_vol",
+        interpolation_method="surface_quote_map_lookup",
+        extrapolation_policy="none",
+        basis_timestamp=datetime.datetime(2026, 12, 31, 10, 0, tzinfo=datetime.timezone.utc),
+        source_lineage_ref="market_snapshot:mkt.snap.001:vol_surface:surface.fx.usdils.v1",
         points=(
             ResolvedVolatilityPointV1(tenor_label="1M", strike="3.60", implied_vol="0.11"),
             ResolvedVolatilityPointV1(tenor_label="3M", strike="3.70", implied_vol="0.12"),
@@ -147,8 +162,10 @@ def test_constructs_fx_resolved_inputs() -> None:
 
     assert resolved.fx_option_contract.contract_id == "fx-opt-001"
     assert resolved.domestic_curve.curve_id == "curve.ils.ois.v1"
+    assert resolved.domestic_curve.interpolation_method == "linear_zero_rate"
     assert resolved.foreign_curve.curve_id == "curve.usd.ois.v1"
     assert resolved.volatility_surface.surface_id == "surface.fx.usdils.v1"
+    assert resolved.volatility_surface.quote_convention == "implied_vol"
 
 
 def test_resolved_inputs_are_immutable() -> None:
@@ -225,7 +242,28 @@ def test_rejects_invalid_structural_values() -> None:
         )
 
     with pytest.raises(ValueError, match="points"):
-        ResolvedCurveInputV1(curve_id="curve.ils.ois.v1", points=())
+        ResolvedCurveInputV1(
+            curve_id="curve.ils.ois.v1",
+            quote_convention="zero_rate",
+            interpolation_method="linear_zero_rate",
+            extrapolation_policy="flat_forward",
+            basis_timestamp=datetime.datetime(2026, 12, 31, 10, 0, tzinfo=datetime.timezone.utc),
+            source_lineage_ref="market_snapshot:mkt.snap.001:curve:curve.ils.ois.v1",
+            points=(),
+        )
 
     with pytest.raises(ValueError, match="implied_vol"):
         ResolvedVolatilityPointV1(tenor_label="1M", strike="3.65", implied_vol="0")
+
+
+def test_curve_and_vol_schema_fields_are_explicit() -> None:
+    curve = _domestic_curve()
+    vol = _vol_surface()
+
+    assert curve.quote_convention == "zero_rate"
+    assert curve.extrapolation_policy == "flat_forward"
+    assert curve.source_lineage_ref.startswith("market_snapshot:")
+
+    assert vol.interpolation_method == "surface_quote_map_lookup"
+    assert vol.extrapolation_policy == "none"
+    assert vol.source_lineage_ref.startswith("market_snapshot:")

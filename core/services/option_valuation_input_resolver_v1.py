@@ -1,12 +1,10 @@
 from __future__ import annotations
 
-import hashlib
-import json
-from dataclasses import asdict
 from typing import Optional, Protocol
 
 from core.contracts.fx_option_runtime_contract_v1 import FxOptionRuntimeContractV1
 from core.contracts.option_valuation_dependency_bundle_v1 import OptionValuationDependencyBundleV1
+from core.contracts.resolved_input_canonicalization_v1 import canonical_resolved_input_hash_v1
 from core.contracts.resolved_option_valuation_inputs_v1 import NumericalPolicySnapshotV1
 from core.contracts.resolved_option_valuation_inputs_v1 import ResolvedConventionBasisV1
 from core.contracts.resolved_option_valuation_inputs_v1 import ResolvedCurveInputV1
@@ -43,17 +41,6 @@ def _require_non_empty_tuple(values: tuple[str, ...], field_name: str) -> tuple[
     if len(values) == 0:
         raise OptionValuationInputResolutionError(f"{field_name} must be non-empty for resolved inputs")
     return values
-
-
-def _canonical_hash(payload: dict[str, object]) -> str:
-    encoded = json.dumps(
-        payload,
-        sort_keys=True,
-        separators=(",", ":"),
-        ensure_ascii=True,
-        default=str,
-    )
-    return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
 
 
 def _load_dependencies(
@@ -100,7 +87,31 @@ def _resolve_numerical_policy_snapshot(
     )
     if snapshot is None:
         raise OptionValuationInputResolutionError("numerical policy snapshot not found for numeric_policy_id")
-    return snapshot
+
+    if not isinstance(snapshot, NumericalPolicySnapshotV1):
+        raise OptionValuationInputResolutionError(
+            "numerical policy snapshot must be NumericalPolicySnapshotV1"
+        )
+
+    if snapshot.numeric_policy_id != valuation_policy_set.numeric_policy_id:
+        raise OptionValuationInputResolutionError(
+            "numerical policy snapshot id does not match valuation policy numeric_policy_id"
+        )
+
+    # Reconstruct to force strict completeness checks and reject malformed snapshots.
+    try:
+        validated = NumericalPolicySnapshotV1(
+            numeric_policy_id=snapshot.numeric_policy_id,
+            tolerance=snapshot.tolerance,
+            max_iterations=snapshot.max_iterations,
+            rounding_decimals=snapshot.rounding_decimals,
+        )
+    except Exception as exc:  # noqa: BLE001 - explicit boundary hard-fail
+        raise OptionValuationInputResolutionError(
+            "numerical policy snapshot is structurally invalid"
+        ) from exc
+
+    return validated
 
 
 def resolve_option_inputs_v1(
@@ -164,15 +175,25 @@ def resolve_option_inputs_v1(
             premium_conventions=settlement_refs,
         ),
         numerical_policy_snapshot=numerical_policy_snapshot,
-        resolved_basis_hash=_canonical_hash(
+        resolved_basis_hash=canonical_resolved_input_hash_v1(
             {
                 "contract_id": bundle.option_contract.contract_id,
                 "valuation_context_id": bundle.valuation_context_id,
                 "market_snapshot_id": bundle.market_snapshot_id,
                 "reference_data_set_id": bundle.reference_data_set_id,
                 "valuation_policy_set_id": bundle.valuation_policy_set_id,
-                "spot": str(spot_value),
-                "numeric_policy_id": numerical_policy_snapshot.numeric_policy_id,
+                "valuation_timestamp": valuation_context.valuation_timestamp,
+                "resolved_underlying_input": ResolvedSpotInputV1(
+                    underlying_instrument_ref=underlying,
+                    spot=spot_value,
+                ),
+                "resolved_convention_basis": ResolvedConventionBasisV1(
+                    day_count_basis=day_count_refs[0],
+                    calendar_set=holiday_calendars,
+                    settlement_conventions=settlement_refs,
+                    premium_conventions=settlement_refs,
+                ),
+                "numerical_policy_snapshot": numerical_policy_snapshot,
             }
         ),
     )
@@ -184,6 +205,8 @@ def _resolve_curve_from_snapshot(
     market_snapshot: MarketSnapshotPayloadV0,
     *,
     curve_id: str,
+    valuation_timestamp,
+    source_snapshot_id: str,
 ) -> ResolvedCurveInputV1:
     curve = market_snapshot.curves.curves.get(curve_id)
     if curve is None:
@@ -196,7 +219,15 @@ def _resolve_curve_from_snapshot(
         ResolvedRatePointV1(tenor_label=tenor, zero_rate=curve.zero_rates[tenor])
         for tenor in sorted(curve.zero_rates.keys())
     )
-    return ResolvedCurveInputV1(curve_id=curve_id, points=points)
+    return ResolvedCurveInputV1(
+        curve_id=curve_id,
+        quote_convention="zero_rate",
+        interpolation_method="linear_zero_rate",
+        extrapolation_policy="flat_forward",
+        basis_timestamp=valuation_timestamp,
+        source_lineage_ref=f"market_snapshot:{source_snapshot_id}:curve:{curve_id}",
+        points=points,
+    )
 
 
 def _resolve_vol_surface_from_snapshot(
@@ -204,6 +235,8 @@ def _resolve_vol_surface_from_snapshot(
     *,
     surface_id: str,
     fallback_strike: object,
+    valuation_timestamp,
+    source_snapshot_id: str,
 ) -> ResolvedVolatilityInputV1:
     if market_snapshot.vols is None:
         raise OptionValuationInputResolutionError("volatility surfaces missing in market snapshot")
@@ -235,11 +268,24 @@ def _resolve_vol_surface_from_snapshot(
                 )
             )
 
-        return ResolvedVolatilityInputV1(surface_id=surface_id, points=tuple(points))
+        return ResolvedVolatilityInputV1(
+            surface_id=surface_id,
+            quote_convention="implied_vol",
+            interpolation_method="surface_quote_map_lookup",
+            extrapolation_policy="none",
+            basis_timestamp=valuation_timestamp,
+            source_lineage_ref=f"market_snapshot:{source_snapshot_id}:vol_surface:{surface_id}",
+            points=tuple(points),
+        )
 
     if "vol" in surface.data:
         return ResolvedVolatilityInputV1(
             surface_id=surface_id,
+            quote_convention="implied_vol",
+            interpolation_method="flat_surface",
+            extrapolation_policy="none",
+            basis_timestamp=valuation_timestamp,
+            source_lineage_ref=f"market_snapshot:{source_snapshot_id}:vol_surface:{surface_id}",
             points=(
                 ResolvedVolatilityPointV1(
                     tenor_label="atm",
@@ -306,16 +352,22 @@ def resolve_fx_option_inputs_v1(
     domestic_curve = _resolve_curve_from_snapshot(
         market_snapshot,
         curve_id=fx_contract.domestic_curve_id,
+        valuation_timestamp=valuation_context.valuation_timestamp,
+        source_snapshot_id=bundle.market_snapshot_id,
     )
     foreign_curve = _resolve_curve_from_snapshot(
         market_snapshot,
         curve_id=fx_contract.foreign_curve_id,
+        valuation_timestamp=valuation_context.valuation_timestamp,
+        source_snapshot_id=bundle.market_snapshot_id,
     )
 
     volatility_surface = _resolve_vol_surface_from_snapshot(
         market_snapshot,
         surface_id=fx_contract.volatility_surface_quote_convention,
         fallback_strike=fx_contract.strike,
+        valuation_timestamp=valuation_context.valuation_timestamp,
+        source_snapshot_id=bundle.market_snapshot_id,
     )
 
     numerical_policy_snapshot = _resolve_numerical_policy_snapshot(
@@ -335,18 +387,19 @@ def resolve_fx_option_inputs_v1(
         settlement_conventions=settlement_refs,
         premium_conventions=(f"premium_currency:{fx_contract.premium_currency}",),
         numerical_policy_snapshot=numerical_policy_snapshot,
-        resolved_basis_hash=_canonical_hash(
+        resolved_basis_hash=canonical_resolved_input_hash_v1(
             {
                 "contract_id": fx_contract.contract_id,
                 "valuation_context_id": bundle.valuation_context_id,
                 "market_snapshot_id": bundle.market_snapshot_id,
                 "reference_data_set_id": bundle.reference_data_set_id,
                 "valuation_policy_set_id": bundle.valuation_policy_set_id,
-                "spot": str(spot_value),
-                "domestic_curve": asdict(domestic_curve),
-                "foreign_curve": asdict(foreign_curve),
-                "volatility_surface": asdict(volatility_surface),
-                "numeric_policy_id": numerical_policy_snapshot.numeric_policy_id,
+                "valuation_timestamp": valuation_context.valuation_timestamp,
+                "spot": ResolvedSpotInputV1(underlying_instrument_ref=spot_key, spot=spot_value),
+                "domestic_curve": domestic_curve,
+                "foreign_curve": foreign_curve,
+                "volatility_surface": volatility_surface,
+                "numerical_policy_snapshot": numerical_policy_snapshot,
             }
         ),
     )

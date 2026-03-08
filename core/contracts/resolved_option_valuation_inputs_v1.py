@@ -94,15 +94,49 @@ class ResolvedCurveInputV1:
     """Resolved curve input for engine-facing valuation calls."""
 
     curve_id: str
+    quote_convention: str
+    interpolation_method: str
+    extrapolation_policy: str
+    basis_timestamp: datetime.datetime
+    source_lineage_ref: str
     points: tuple[ResolvedRatePointV1, ...]
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "curve_id", _require_non_empty_string(self.curve_id, "curve_id"))
+        object.__setattr__(
+            self,
+            "quote_convention",
+            _require_non_empty_string(self.quote_convention, "quote_convention"),
+        )
+        object.__setattr__(
+            self,
+            "interpolation_method",
+            _require_non_empty_string(self.interpolation_method, "interpolation_method"),
+        )
+        object.__setattr__(
+            self,
+            "extrapolation_policy",
+            _require_non_empty_string(self.extrapolation_policy, "extrapolation_policy"),
+        )
+        object.__setattr__(
+            self,
+            "basis_timestamp",
+            _require_datetime(self.basis_timestamp, "basis_timestamp"),
+        )
+        object.__setattr__(
+            self,
+            "source_lineage_ref",
+            _require_non_empty_string(self.source_lineage_ref, "source_lineage_ref"),
+        )
         if not isinstance(self.points, tuple) or len(self.points) == 0:
             raise ValueError("points must be a non-empty tuple")
+        seen_tenors: set[str] = set()
         for point in self.points:
             if not isinstance(point, ResolvedRatePointV1):
                 raise ValueError("points entries must be ResolvedRatePointV1")
+            if point.tenor_label in seen_tenors:
+                raise ValueError("points tenor_label values must be unique")
+            seen_tenors.add(point.tenor_label)
 
 
 @dataclass(frozen=True)
@@ -124,15 +158,50 @@ class ResolvedVolatilityInputV1:
     """Resolved volatility surface input for engine-facing valuation calls."""
 
     surface_id: str
+    quote_convention: str
+    interpolation_method: str
+    extrapolation_policy: str
+    basis_timestamp: datetime.datetime
+    source_lineage_ref: str
     points: tuple[ResolvedVolatilityPointV1, ...]
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "surface_id", _require_non_empty_string(self.surface_id, "surface_id"))
+        object.__setattr__(
+            self,
+            "quote_convention",
+            _require_non_empty_string(self.quote_convention, "quote_convention"),
+        )
+        object.__setattr__(
+            self,
+            "interpolation_method",
+            _require_non_empty_string(self.interpolation_method, "interpolation_method"),
+        )
+        object.__setattr__(
+            self,
+            "extrapolation_policy",
+            _require_non_empty_string(self.extrapolation_policy, "extrapolation_policy"),
+        )
+        object.__setattr__(
+            self,
+            "basis_timestamp",
+            _require_datetime(self.basis_timestamp, "basis_timestamp"),
+        )
+        object.__setattr__(
+            self,
+            "source_lineage_ref",
+            _require_non_empty_string(self.source_lineage_ref, "source_lineage_ref"),
+        )
         if not isinstance(self.points, tuple) or len(self.points) == 0:
             raise ValueError("points must be a non-empty tuple")
+        seen_nodes: set[tuple[str, str]] = set()
         for point in self.points:
             if not isinstance(point, ResolvedVolatilityPointV1):
                 raise ValueError("points entries must be ResolvedVolatilityPointV1")
+            node_key = (point.tenor_label, str(point.strike))
+            if node_key in seen_nodes:
+                raise ValueError("points tenor/strike nodes must be unique")
+            seen_nodes.add(node_key)
 
 
 @dataclass(frozen=True)
