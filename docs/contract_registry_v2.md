@@ -38,6 +38,11 @@ Classification notes:
 | `Snapshot` | `core/v2/models.py` | `core/v2/snapshot_store_sqlite.py`, `core/v2/orchestrator.py` | `core/v2/replay.py`, `core/v2/session_store_sqlite.py` | Stable by usage | `tests/v2/test_v2_snapshots.py`, `tests/v2/test_v2_snapshot_materialized_view.py`, `tests/v2/test_v2_restart_safe_snapshot.py` |
 | `SessionState` | `core/v2/models.py` | `core/v2/orchestrator.py` | `core/v2/replay.py`, read model tests | Stable by usage | `tests/v2/test_v2_invariants.py`, `tests/v2/test_v2_d4_readmodel_contract.py` |
 | `MarketSnapshotPayloadV0` | `core/market_data/market_snapshot_payload_v0.py` | API/fixtures + market artifact store put path | FX snapshot resolver, risk/pricing and validation flows | Stable (contract-tested) | `tests/market_data/test_market_snapshot_payload_v0_contract.py`, `tests/finance/test_market_snapshot_guardrails.py`, `tests/architecture/test_adr_006_market_snapshot_determinism_immutability.py` |
+| `ReferenceDataSet` (governance object, pre-implementation) | `docs/governance_foundations_options_addendum_v1.md` | governance foundation process (`GF-1`) | valuation basis and resolver governance (`ValuationContext`, `ValuationRun`) | Provisional (approved architecture object; not runtime-implemented) | governed by architecture approval docs (`docs/governance_foundations_options_addendum_v1.md`, `docs/architecture_fix_pack_options_v1.md`) |
+| `ValuationPolicySet` (governance object, pre-implementation) | `docs/governance_foundations_options_addendum_v1.md` | governance/model-control process | valuation basis, capability resolver governance, model controls | Provisional (approved architecture object; not runtime-implemented) | governed by architecture approval docs (`docs/governance_foundations_options_addendum_v1.md`, `docs/architecture_fix_pack_options_v1.md`) |
+| `ValuationContext` (thin linkage object, pre-implementation) | `docs/governance_foundations_options_addendum_v1.md` | run orchestration (future, governed) | pricing resolver, pricing/measure engines, lineage | Provisional (approved architecture object; not runtime-implemented) | governed by architecture approval docs (`docs/governance_foundations_options_addendum_v1.md`) |
+| `ValuationRun` (lineage parent, pre-implementation) | `docs/governance_foundations_options_addendum_v1.md` | run orchestration + artifact builder (future, governed) | artifacts and event/artifact store lineage consumers | Provisional (approved architecture object; not runtime-implemented) | governed by architecture approval docs (`docs/governance_foundations_options_addendum_v1.md`) |
+| `PositionState` (intermediate state, pre-implementation) | `docs/governance_foundations_options_addendum_v1.md` | position/portfolio state aggregation flow (future, governed) | `PortfolioState` preparation and risk input lineage | Provisional (approved architecture object; not runtime-implemented) | alignment rule: does not replace canonical `PortfolioState` role |
 
 ## 4. Financial / Pricing Contracts
 
@@ -47,6 +52,9 @@ Classification notes:
 | `FxMarketSnapshot` | `core/pricing/fx/types.py` | `core/market_data/fx_snapshot_resolver_v1.py` | FX pricing + risk repricing harness | Stable (invariant-tested) | `tests/core/market_data/test_fx_snapshot_resolver_v1.py`, `tests/core/pricing/fx/test_valuation_context_invariants.py` |
 | `OptionContractV1` | `core/contracts/option_contract_v1.py` | options/risk input construction | `core/risk/reprice_harness.py` options path | Stable (contract-tested) | `tests/core/test_option_contract_v1.py`, `tests/core/risk/test_g10_4_options_harness_flow.py` |
 | `BSEuropeanPriceV1` | `core/pricing/bs_ssot_v1.py` | `price_european_option_bs_v1` | `core/risk/reprice_harness.py` (EU options repricing) | Stable by usage | `tests/core/pricing/test_bs_ssot_invariants_v1.py`, `tests/pricing/test_bs_european_known_values.py` |
+| `PricingEngineCapability` (resolver capability metadata, pre-implementation) | `docs/architecture_fix_pack_options_v1.md`, `docs/governance_foundations_options_addendum_v1.md` | model governance + resolver policy layer (future) | pricing resolver decision boundary | Provisional (approved architecture object; not runtime-implemented) | governance source of truth: approved addendum and fix-pack docs |
+| `PricingMethodTag` (artifact provenance tag, pre-implementation) | `docs/governance_foundations_options_addendum_v1.md` | pricing engines / artifact builder (future) | advisory/risk artifact consumers | Provisional (approved architecture object; not runtime-implemented) | intended values include `analytical`, `tree`, `monte_carlo`, `finite_difference` |
+| `ModelRegistry` (governance registry, pre-implementation) | `docs/governance_foundations_options_addendum_v1.md` | model governance process | pricing resolver policy and model approval checks | Provisional (approved architecture object; not runtime-implemented) | governance object only; not a pricing engine |
 
 ## 5. Risk Contracts
 
@@ -58,6 +66,9 @@ Classification notes:
 | Risk artifact schema (`pe.g9.risk_artifact/1.0`) | `core/risk/risk_artifact.py` | `build_risk_artifact_v1` | exposures, portfolio surface, advisory summary | Frozen by fixture + hash guards | `tests/core/risk/test_g9_4_risk_artifact_freeze.py` |
 | Exposures artifact schema (`pe.g9.exposures_artifact/1.0`) | `core/risk/exposures.py` | `compute_exposures_v1` | advisory/risk read models | Frozen by gate tests | `tests/core/risk/test_g9_5_exposures_v1.py` |
 | Portfolio surface artifact schema (`pe.g9.portfolio_surface_artifact/1.0`) | `core/risk/portfolio_surface.py` | `compute_portfolio_surface_v1` | scenario summary and downstream risk consumers | Frozen by gate tests | `tests/core/risk/test_g9_6_portfolio_surface_v1.py` |
+| `RiskMethodTag` (artifact provenance tag, pre-implementation) | `docs/governance_foundations_options_addendum_v1.md` | risk engine / artifact builder (future) | risk/advisory artifact consumers | Provisional (approved architecture object; not runtime-implemented) | institutional default for Options Risk V1: `full_repricing` |
+| `LifecycleEvent` (state-transition event, pre-implementation) | `docs/governance_foundations_options_addendum_v1.md` | lifecycle engine (future) | risk/lifecycle/advisory state consumers | Provisional (approved architecture object; not runtime-implemented) | lifecycle boundary remains outside pricing engines |
+| `LifecycleOutcome` (economic/state result, pre-implementation) | `docs/governance_foundations_options_addendum_v1.md` | lifecycle engine (future) | valuation/risk/advisory artifact builders | Provisional (approved architecture object; not runtime-implemented) | examples include exercised/expired/assigned/settled |
 
 ## 6. Advisory Contracts
 
@@ -152,6 +163,9 @@ Schema/version guards present:
 - `core/risk/scenario_spec.py` (`SUPPORTED_SCHEMA_VERSION`)
 - `core/risk/risk_request.py` (`SUPPORTED_SCHEMA_VERSION`)
 - Artifact schema constants in risk modules (`SCHEMA_NAME`, `SCHEMA_VERSION`)
+- Governance-alignment approved addenda (pre-implementation architecture controls):
+  - `docs/architecture_fix_pack_options_v1.md`
+  - `docs/governance_foundations_options_addendum_v1.md`
 
 ## 11. Evolution Policy
 
