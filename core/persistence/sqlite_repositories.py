@@ -29,6 +29,14 @@ def _require_id_consistency(expected_id: str, actual_id: str, field_name: str) -
         raise ValueError(f"{field_name} mismatch between repository key and object field")
 
 
+def _require_non_empty_id(value: str, field_name: str) -> str:
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError(f"{field_name} must be a non-empty string")
+    if value != value.strip():
+        raise ValueError(f"{field_name} must not contain leading or trailing whitespace")
+    return value
+
+
 def _to_datetime(value: str, field_name: str) -> datetime.datetime:
     parsed = datetime.datetime.fromisoformat(value)
     if parsed.tzinfo is None:
@@ -41,6 +49,8 @@ class _SqliteEventBackedRepository:
         self._event_store = SqliteEventStore(db_path=db_path)
 
     def _save_payload(self, *, session_id: str, object_id: str, payload: dict[str, object]) -> None:
+        _require_non_empty_id(session_id, "session_id")
+        _require_non_empty_id(object_id, "object_id")
         event = V2Event(
             event_id=object_id,
             session_id=session_id,
@@ -52,6 +62,8 @@ class _SqliteEventBackedRepository:
         self._event_store.append(event)
 
     def _get_payload(self, *, session_id: str, object_id: str) -> Optional[dict[str, object]]:
+        _require_non_empty_id(session_id, "session_id")
+        _require_non_empty_id(object_id, "object_id")
         events = self._event_store.list(session_id)
         for event in events:
             if event.event_id == object_id:
@@ -63,6 +75,7 @@ class SqliteReferenceDataSetRepository(_SqliteEventBackedRepository, ReferenceDa
     """SQLite-backed adapter for ReferenceDataSetRepository."""
 
     def get_by_id(self, reference_data_set_id: str) -> Optional[ReferenceDataSet]:
+        _require_non_empty_id(reference_data_set_id, "reference_data_set_id")
         payload = self._get_payload(
             session_id=_REFERENCE_DATA_SET_SESSION_ID,
             object_id=reference_data_set_id,
@@ -82,6 +95,7 @@ class SqliteReferenceDataSetRepository(_SqliteEventBackedRepository, ReferenceDa
         )
 
     def save(self, reference_data_set_id: str, reference_data_set: ReferenceDataSet) -> None:
+        _require_non_empty_id(reference_data_set_id, "reference_data_set_id")
         _require_id_consistency(
             expected_id=reference_data_set_id,
             actual_id=reference_data_set.reference_data_version_id,
@@ -109,6 +123,7 @@ class SqliteValuationPolicySetRepository(_SqliteEventBackedRepository, Valuation
     """SQLite-backed adapter for ValuationPolicySetRepository."""
 
     def get_by_id(self, valuation_policy_set_id: str) -> Optional[ValuationPolicySet]:
+        _require_non_empty_id(valuation_policy_set_id, "valuation_policy_set_id")
         payload = self._get_payload(
             session_id=_VALUATION_POLICY_SET_SESSION_ID,
             object_id=valuation_policy_set_id,
@@ -129,6 +144,7 @@ class SqliteValuationPolicySetRepository(_SqliteEventBackedRepository, Valuation
         )
 
     def save(self, valuation_policy_set_id: str, valuation_policy_set: ValuationPolicySet) -> None:
+        _require_non_empty_id(valuation_policy_set_id, "valuation_policy_set_id")
         _require_id_consistency(
             expected_id=valuation_policy_set_id,
             actual_id=valuation_policy_set.valuation_policy_id,
@@ -157,6 +173,7 @@ class SqliteValuationRunRepository(_SqliteEventBackedRepository, ValuationRunRep
     """SQLite-backed adapter for ValuationRunRepository."""
 
     def get_by_id(self, valuation_run_id: str) -> Optional[ValuationRun]:
+        _require_non_empty_id(valuation_run_id, "valuation_run_id")
         payload = self._get_payload(
             session_id=_VALUATION_RUN_SESSION_ID,
             object_id=valuation_run_id,
@@ -202,6 +219,7 @@ class SqliteModelRegistryRepository(_SqliteEventBackedRepository, ModelRegistryR
     """SQLite-backed adapter for ModelRegistryRepository."""
 
     def get_by_model_id(self, model_id: str) -> Optional[ModelRegistryEntry]:
+        _require_non_empty_id(model_id, "model_id")
         payload = self._get_payload(
             session_id=_MODEL_REGISTRY_SESSION_ID,
             object_id=model_id,
