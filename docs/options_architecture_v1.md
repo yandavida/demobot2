@@ -31,6 +31,13 @@ Pre-implementation foundations required before options coding begins:
 - artifact lineage and method provenance
 - repository abstraction boundary in front of SQLite
 
+Valuation basis immutability and versioning rules:
+- `MarketSnapshot` is immutable and independently versioned.
+- `ReferenceDataSet` is immutable and independently versioned.
+- `ValuationPolicySet` is immutable and independently versioned.
+- `ValuationContext` remains a thin linkage object that primarily references IDs and lineage objects.
+- `ValuationContext` must not become a catch-all container for mutable runtime payloads.
+
 ## 2. Supported Option Types
 
 Supported exercise styles:
@@ -45,7 +52,7 @@ The system selects an engine consistent with exercise style and supported model 
 
 Implementation order rule:
 - European vanilla precedes American vanilla.
-- American vanilla is conditional on frozen tree-step policy, frozen numerical tolerances, approved model governance, and benchmark/regression pack readiness.
+- American vanilla is conditional on frozen step-selection policy, frozen numerical tolerances, frozen rounding policy, frozen convergence acceptance criteria, approved model governance, and benchmark/regression pack readiness.
 
 ## 3. Pricing Architecture
 
@@ -93,7 +100,7 @@ Canonical conventions for options pricing and risk in this layer:
 These conventions must remain explicit in engine interfaces and reproducible across reruns.
 
 Numerical governance condition:
-- American options must not proceed before numerical-policy controls are frozen (tree-step policy, tolerances, convergence and regression controls) under approved model governance.
+- American options must not proceed before numerical-policy controls are frozen (step-selection policy, tolerances, rounding policy, convergence acceptance criteria, and regression controls) under approved model governance.
 
 ## 6. Option Contracts
 
@@ -116,12 +123,16 @@ FX options domain completeness requirement:
 - base currency and quote currency
 - premium currency
 - premium payment date
-- settlement style
+- settlement style: deliverable vs non-deliverable
 - fixing source and fixing date
 - expiry cutoff timezone
 - settlement calendars
 - domestic curve id and foreign curve id
 - volatility quote convention
+- exercise schedule if applicable
+
+Institutional support rule:
+- The FX option economic terms above are required for institutional FX options support and are not optional later refinements.
 
 ## 7. Strategy Representation
 
@@ -162,7 +173,10 @@ Expanded Greeks target set for options analytics:
 All Greeks must be reported with explicit units/conventions and deterministic computation policy.
 
 Basis consistency rule:
-- Greeks must be aligned to the same valuation basis as PV (`Contract Terms`, `MarketSnapshot`, `ReferenceDataSet`, `ValuationPolicySet`, `ValuationContext`).
+- PV and Greeks are named valuation measures on a shared valuation basis.
+- Greeks are not a separate loose subsystem.
+- PV and Greeks must share the same `Contract Terms`, `MarketSnapshot`, `ReferenceDataSet`, `ValuationPolicySet`, and `ValuationContext` basis.
+- Measure outputs must remain aligned to the same valuation manifest and lineage basis (`ValuationContext`, `ValuationRun`).
 
 ## 9. Risk Integration
 
@@ -291,9 +305,20 @@ Phase 2: European Vanilla
 
 Phase 3: American Vanilla
 - CRR engine path
-- tree-step policy freeze
+- step-selection policy freeze
 - numerical tolerance freeze
+- rounding policy freeze
+- convergence acceptance criteria freeze
 - benchmark/regression validation readiness
+
+Cross-cutting track: Validation and Governance Scaffolding (spans Phases 0-3)
+- artifact schema/versioning discipline
+- benchmark harness
+- deterministic replay tests
+- engine approval metadata in `ModelRegistry`
+
+Cross-cutting intent:
+- This track is institutional scaffolding for controlled rollout, not a separate business module.
 
 Phase 4: Portfolio / Strategy / Risk Integration
 - basket to hypothetical portfolio-state flow
@@ -305,4 +330,9 @@ Phase 5: Lifecycle Integration
 - exercise
 - assignment
 - settlement
+- cashflow artifacts
+- settlement artifacts
 - post-lifecycle portfolio-state recomputation
+
+Lifecycle evidence rule:
+- Lifecycle integration produces both state-transition evidence and economic settlement evidence.
