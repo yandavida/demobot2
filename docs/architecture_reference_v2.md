@@ -41,6 +41,11 @@ Separation of concerns:
 - API transport in `api/`
 - CLI and orchestration scripts in `scripts/`
 - Documentation and ADR governance in `docs/`
+- Governance basis separation is explicit (per approved addendum):
+  - `MarketSnapshot` = immutable market observables
+  - `ReferenceDataSet` = static conventions and calendars
+  - `ValuationPolicySet` = model governance and numerical policy
+  - `ValuationContext` = thin linkage object referencing the valuation basis
 
 CI is law:
 - Repository CI and treasury QA workflow enforce checks (`.github/workflows/ci.yml`, `.github/workflows/treasury_copilot_qa.yml`)
@@ -76,6 +81,15 @@ Layer responsibilities:
 - `core/risk/`: scenario expansion, repricing harness, content-addressed risk artifacts (`risk_artifact.py`, `exposures.py`, `portfolio_surface.py`)
 - `core/services/`: advisory read models, templates, recommendation/policy/ladder/explainability/report surfaces
 - `core/treasury/` + `treasury_copilot_v1.py`: Copilot V1 request/response contract, resolution and follow-up retrieval
+
+Governance and lineage objects (approved architecture objects, pre-implementation runtime surface):
+- `ReferenceDataSet`
+- `ValuationPolicySet`
+- `ValuationContext` (thin linkage object)
+- `ValuationRun` (lineage parent)
+- `ModelRegistry` (model approval metadata)
+
+These governance objects are registry-defined in `docs/contract_registry_v2.md` and approved by `docs/governance_foundations_options_addendum_v1.md`.
 
 ## 4. Runtime and Persistence Model
 
@@ -118,6 +132,39 @@ Input IDs/refs
   -> canonical payload
   -> SHA256 artifact_id
   -> append-only SQLite events row under namespace session_id
+
+Refined institutional valuation flow (governance-aligned):
+
+```text
+Contract Terms
+  + MarketSnapshot
+  + ReferenceDataSet
+  + ValuationPolicySet
+  + ValuationContext
+  -> Pricing Resolver
+  -> Pricing / Measure Engines
+  -> Scenario Engine
+  -> Risk Engine
+  -> Lifecycle Engine
+  -> Artifact Builder
+  -> ValuationRun lineage
+  -> Event / Artifact Store
+```
+
+Responsibility boundaries in this flow:
+- `MarketSnapshot`: immutable market observables only
+- `ReferenceDataSet`: static conventions and calendars only
+- `ValuationPolicySet`: model-governance and numerical-policy controls
+- `ValuationContext`: thin linkage object that references the valuation basis
+- `ValuationRun`: lineage parent for valuation/risk artifacts
+
+Model governance:
+- Resolver decisions are governed by approved model metadata from `ModelRegistry` (governance object), not by ad-hoc routing alone.
+
+Persistence boundary:
+- SQLite remains acceptable for deterministic artifact persistence in current runtime.
+- Engines must not depend directly on SQLite; persistence must remain behind repository/store abstraction boundaries.
+- This preserves future store migration optionality without engine behavior changes.
 ```
 
 ## 5. Core Financial Engine
@@ -302,6 +349,7 @@ Still must be specified before options implementation:
 - Copilot artifact schema evolution/versioning strategy for options-specific outputs
 - Multi-currency/multi-book advisory semantics in Copilot/advisory paths
 - Persistence migration strategy beyond schema version 1
+- Governance lineage objects from the approved addendum must be formalized and approved for runtime introduction (`ReferenceDataSet`, `ValuationPolicySet`, `ValuationContext`, `ValuationRun`, `ModelRegistry`)
 
 ## 11. Working Rules for Future Development
 
