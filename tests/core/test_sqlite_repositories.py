@@ -3,6 +3,8 @@ from __future__ import annotations
 import datetime
 from pathlib import Path
 
+import pytest
+
 from core.contracts.model_registry import ModelCapability
 from core.contracts.model_registry import ModelRegistryEntry
 from core.contracts.reference_data_set import ReferenceDataSet
@@ -165,3 +167,63 @@ def test_sqlite_repositories_return_none_for_missing_ids(tmp_path: Path) -> None
     assert SqliteValuationPolicySetRepository(db_path=db_path).get_by_id("missing-vps") is None
     assert SqliteValuationRunRepository(db_path=db_path).get_by_id("missing-vr") is None
     assert SqliteModelRegistryRepository(db_path=db_path).get_by_model_id("missing-model") is None
+
+
+def test_reference_data_set_save_rejects_repository_key_object_id_mismatch(tmp_path: Path) -> None:
+    db_path = _db_path(tmp_path)
+    repo = SqliteReferenceDataSetRepository(db_path=db_path)
+    reference_data_set = _reference_data_set()
+
+    with pytest.raises(ValueError, match="reference_data_version_id mismatch"):
+        repo.save("rds-mismatched", reference_data_set)
+
+
+def test_valuation_policy_set_save_rejects_repository_key_object_id_mismatch(tmp_path: Path) -> None:
+    db_path = _db_path(tmp_path)
+    repo = SqliteValuationPolicySetRepository(db_path=db_path)
+    policy_set = _valuation_policy_set()
+
+    with pytest.raises(ValueError, match="valuation_policy_id mismatch"):
+        repo.save("vps-mismatched", policy_set)
+
+
+def test_lookup_rejects_empty_or_whitespace_ids(tmp_path: Path) -> None:
+    db_path = _db_path(tmp_path)
+
+    reference_repo = SqliteReferenceDataSetRepository(db_path=db_path)
+    policy_repo = SqliteValuationPolicySetRepository(db_path=db_path)
+    run_repo = SqliteValuationRunRepository(db_path=db_path)
+    model_repo = SqliteModelRegistryRepository(db_path=db_path)
+
+    with pytest.raises(ValueError, match="reference_data_set_id"):
+        reference_repo.get_by_id("")
+    with pytest.raises(ValueError, match="valuation_policy_set_id"):
+        policy_repo.get_by_id("   ")
+    with pytest.raises(ValueError, match="valuation_run_id"):
+        run_repo.get_by_id("\t")
+    with pytest.raises(ValueError, match="model_id"):
+        model_repo.get_by_model_id(" ")
+
+
+def test_invalid_lookup_guardrails_are_deterministic(tmp_path: Path) -> None:
+    db_path = _db_path(tmp_path)
+    repo = SqliteValuationRunRepository(db_path=db_path)
+
+    first_error: str
+    second_error: str
+
+    try:
+        repo.get_by_id("\n")
+    except ValueError as exc:
+        first_error = str(exc)
+    else:
+        raise AssertionError("expected ValueError for invalid valuation_run_id")
+
+    try:
+        repo.get_by_id("\n")
+    except ValueError as exc:
+        second_error = str(exc)
+    else:
+        raise AssertionError("expected ValueError for invalid valuation_run_id")
+
+    assert first_error == second_error
