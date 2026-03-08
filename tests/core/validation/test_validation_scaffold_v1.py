@@ -135,3 +135,74 @@ def test_engine_approval_metadata_check_rejects_non_approved_status() -> None:
 
     assert result.is_approved is False
     assert "validation_status_not_approved" in result.issues
+
+
+def _unchecked_model_entry(*, benchmark_pack_id: str, numeric_policy_id: str, supported_capabilities: tuple[ModelCapability, ...]) -> ModelRegistryEntry:
+    """Create a ModelRegistryEntry shape without running dataclass invariants.
+
+    This isolates validation_scaffold_v1 negative-path behavior for governance fields.
+    """
+
+    entry = object.__new__(ModelRegistryEntry)
+    object.__setattr__(entry, "model_id", "model.fx.bs.v1")
+    object.__setattr__(entry, "semantic_version", "1.0.0")
+    object.__setattr__(entry, "implementation_version", "impl-2026-03-08")
+    object.__setattr__(entry, "validation_status", "approved")
+    object.__setattr__(entry, "owner", "treasury_model_risk")
+    object.__setattr__(entry, "approval_date", datetime.date(2026, 3, 8))
+    object.__setattr__(entry, "benchmark_pack_id", benchmark_pack_id)
+    object.__setattr__(entry, "known_limitations", ("european-only",))
+    object.__setattr__(entry, "numeric_policy_id", numeric_policy_id)
+    object.__setattr__(entry, "supported_capabilities", supported_capabilities)
+    return entry
+
+
+def test_engine_approval_metadata_check_rejects_missing_benchmark_pack_id() -> None:
+    entry = _unchecked_model_entry(
+        benchmark_pack_id="",
+        numeric_policy_id="numeric.policy.v1",
+        supported_capabilities=(
+            ModelCapability(
+                instrument_family="fx_option_vanilla",
+                exercise_style="european",
+                measure="pv",
+            ),
+        ),
+    )
+
+    result = check_engine_approval_metadata_v1(entry)
+
+    assert result.is_approved is False
+    assert "missing_benchmark_pack_id" in result.issues
+
+
+def test_engine_approval_metadata_check_rejects_missing_numeric_policy_id() -> None:
+    entry = _unchecked_model_entry(
+        benchmark_pack_id="bench.fx.options.v1",
+        numeric_policy_id="",
+        supported_capabilities=(
+            ModelCapability(
+                instrument_family="fx_option_vanilla",
+                exercise_style="european",
+                measure="pv",
+            ),
+        ),
+    )
+
+    result = check_engine_approval_metadata_v1(entry)
+
+    assert result.is_approved is False
+    assert "missing_numeric_policy_id" in result.issues
+
+
+def test_engine_approval_metadata_check_rejects_missing_supported_capabilities() -> None:
+    entry = _unchecked_model_entry(
+        benchmark_pack_id="bench.fx.options.v1",
+        numeric_policy_id="numeric.policy.v1",
+        supported_capabilities=(),
+    )
+
+    result = check_engine_approval_metadata_v1(entry)
+
+    assert result.is_approved is False
+    assert "missing_supported_capabilities" in result.issues
