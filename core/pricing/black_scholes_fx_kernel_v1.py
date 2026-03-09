@@ -6,6 +6,8 @@ import math
 from core.contracts.valuation_measure_name_v1 import ValuationMeasureNameV1
 from core.contracts.valuation_measure_result_v1 import ValuationMeasureResultV1
 from core.contracts.valuation_measure_set_v1 import PHASE_C_CANONICAL_VALUATION_MEASURE_ORDER_V1
+from core.numeric_policy import TIME_EPSILON_YEARS_V1
+from core.numeric_policy import VOL_EPSILON_ABS_V1
 
 
 NORMAL_CDF_POLICY_V1 = "math.erf_standard_normal_cdf"
@@ -15,8 +17,6 @@ TIME_FRACTION_POLICY_V1 = "resolved_time_fraction_input"
 VEGA_1VOL_ABS_BUMP_V1 = Decimal("0.01")
 RHO_1PCT_BUMP_V1 = Decimal("0.01")
 THETA_1D_CALENDAR_YEAR_FRACTION_V1 = Decimal("1") / Decimal("365")
-TIME_EPSILON_YEARS_V1 = Decimal("1e-12")
-VOL_EPSILON_ABS_V1 = Decimal("1e-12")
 
 SUPPORTED_OPTION_TYPES_V1 = {"call", "put"}
 

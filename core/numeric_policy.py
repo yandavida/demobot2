@@ -10,6 +10,7 @@ No behavior changes; usage is opt-in by tests and future gates.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from decimal import Decimal
 from enum import Enum
 from typing import Dict, Optional
 
@@ -26,6 +27,10 @@ THETA_UNIT = "per_calendar_day"    # per day, ÷365
 DELTA_UNIT = "per_1_underlying"
 GAMMA_UNIT = "per_1_underlying_sq"
 RHO_UNIT = "per_1_rate_decimal"
+
+# Phase C kernel near-zero policy constants (SSOT)
+TIME_EPSILON_YEARS_V1 = Decimal("1e-12")
+VOL_EPSILON_ABS_V1 = Decimal("1e-12")
 
 
 @dataclass(frozen=True)
@@ -76,6 +81,8 @@ __all__ = [
     "DELTA_UNIT",
     "GAMMA_UNIT",
     "RHO_UNIT",
+    "TIME_EPSILON_YEARS_V1",
+    "VOL_EPSILON_ABS_V1",
     "Tolerance",
     "MetricClass",
     "DEFAULT_TOLERANCES",
