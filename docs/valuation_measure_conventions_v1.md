@@ -4,6 +4,7 @@ This document is normative for Phase C PR-1 single-trade FX option valuation mea
 
 ## Scope
 These measures apply to single-trade governed option valuation outputs only. They are not portfolio aggregation metrics, scenario-layer transformations, lifecycle outputs, or advisory-layer metrics.
+This Phase C measure set is governed exclusively for non-linear FX options; linear FX instruments (including spot FX, FX forwards, and simple deliverable FX positions) are out of scope and must use MTM / exposure / carry vocabulary, and the option valuation measure names in this document must not be used as aliases or substitutes for linear FX terminology.
 
 ## Canonical Measure Names
 The canonical alias-free names are:
