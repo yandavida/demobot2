@@ -15,6 +15,8 @@ TIME_FRACTION_POLICY_V1 = "resolved_time_fraction_input"
 VEGA_1VOL_ABS_BUMP_V1 = Decimal("0.01")
 RHO_1PCT_BUMP_V1 = Decimal("0.01")
 THETA_1D_CALENDAR_YEAR_FRACTION_V1 = Decimal("1") / Decimal("365")
+TIME_EPSILON_YEARS_V1 = Decimal("1e-12")
+VOL_EPSILON_ABS_V1 = Decimal("1e-12")
 
 SUPPORTED_OPTION_TYPES_V1 = {"call", "put"}
 
@@ -58,10 +60,10 @@ def _normal_pdf_v1(x: float) -> float:
     return math.exp(-(x * x) / 2.0) / math.sqrt(2.0 * math.pi)
 
 
-def _discount_factor_v1(rate: Decimal, time_to_expiry_years: Decimal) -> Decimal:
-    rate_float = _float_from_decimal(rate, "rate")
-    time_float = _float_from_decimal(time_to_expiry_years, "time_to_expiry_years")
-    return _decimal_from_float(math.exp(-rate_float * time_float), "discount_factor")
+def _intrinsic_value_spot_v1(*, option_type: str, spot: Decimal, strike: Decimal) -> Decimal:
+    if option_type == "call":
+        return max(spot - strike, Decimal("0"))
+    return max(strike - spot, Decimal("0"))
 
 
 def _present_value_v1(
@@ -99,7 +101,12 @@ def _present_value_v1(
     vol = _float_from_decimal(volatility_value, "volatility")
     time_float = _float_from_decimal(time_value, "time_to_expiry_years")
 
-    if time_value == 0 or volatility_value == 0:
+    if time_value <= TIME_EPSILON_YEARS_V1:
+        # Frozen Phase C policy: intrinsic_value is immediate exercise value at valuation state (non-discounted).
+        return _intrinsic_value_spot_v1(option_type=option, spot=spot_value, strike=strike_value)
+
+    if volatility_value <= VOL_EPSILON_ABS_V1:
+        # For positive time with near-zero volatility, use deterministic-forward intrinsic under GK discounting.
         forward = spot_float * math.exp((rate_d - rate_f) * time_float)
         discounted = math.exp(-rate_d * time_float)
         intrinsic_forward = max(forward - strike_float, 0.0) if option == "call" else max(strike_float - forward, 0.0)
@@ -139,7 +146,7 @@ def _delta_gamma_v1(
     vol = _float_from_decimal(volatility, "volatility")
     time_float = _float_from_decimal(time_to_expiry_years, "time_to_expiry_years")
 
-    if time_to_expiry_years == 0 or volatility == 0:
+    if time_to_expiry_years <= TIME_EPSILON_YEARS_V1 or volatility <= VOL_EPSILON_ABS_V1:
         forward = spot_float * math.exp((rate_d - rate_f) * time_float)
         discount_foreign = math.exp(-rate_f * time_float)
         if option == "call":
@@ -212,10 +219,7 @@ def black_scholes_fx_measures_v1(
         time_to_expiry_years=time_to_expiry_years,
     )
 
-    if option == "call":
-        intrinsic_value = max(spot - strike, Decimal("0"))
-    else:
-        intrinsic_value = max(strike - spot, Decimal("0"))
+    intrinsic_value = _intrinsic_value_spot_v1(option_type=option, spot=spot, strike=strike)
 
     time_value = present_value - intrinsic_value
 

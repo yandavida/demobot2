@@ -117,6 +117,21 @@ def test_intrinsic_and_time_value_relationships_hold() -> None:
     assert put[ValuationMeasureNameV1.TIME_VALUE] == put[ValuationMeasureNameV1.PRESENT_VALUE] - put[ValuationMeasureNameV1.INTRINSIC_VALUE]
 
 
+def test_intrinsic_policy_is_non_discounted_under_positive_time_and_rates() -> None:
+    call = _measure_map(
+        "call",
+        spot=Decimal("120"),
+        strike=Decimal("100"),
+        domestic_rate=Decimal("0.07"),
+        foreign_rate=Decimal("0.02"),
+        volatility=Decimal("0.20"),
+        time_to_expiry_years=Decimal("1"),
+    )
+
+    assert call[ValuationMeasureNameV1.INTRINSIC_VALUE] == Decimal("20")
+    assert call[ValuationMeasureNameV1.TIME_VALUE] == call[ValuationMeasureNameV1.PRESENT_VALUE] - Decimal("20")
+
+
 def test_vega_theta_and_rho_conventions_are_exact() -> None:
     params = {
         "spot": Decimal("100"),
@@ -176,6 +191,43 @@ def test_near_zero_time_and_zero_volatility_policies_are_explicit() -> None:
         )
     )
     assert _abs_diff(vol0_call[ValuationMeasureNameV1.PRESENT_VALUE], expected) <= PRICE_TOL
+
+
+def test_near_zero_time_uses_intrinsic_policy() -> None:
+    near_zero_t_call = _measure_map(
+        "call",
+        spot=Decimal("120"),
+        strike=Decimal("100"),
+        domestic_rate=Decimal("0.02"),
+        foreign_rate=Decimal("0.01"),
+        volatility=Decimal("0.30"),
+        time_to_expiry_years=Decimal("1e-13"),
+    )
+
+    assert near_zero_t_call[ValuationMeasureNameV1.PRESENT_VALUE] == Decimal("20")
+    assert near_zero_t_call[ValuationMeasureNameV1.INTRINSIC_VALUE] == Decimal("20")
+
+
+def test_near_zero_vol_uses_discounted_forward_intrinsic_policy() -> None:
+    near_zero_vol_call = _measure_map(
+        "call",
+        spot=Decimal("120"),
+        strike=Decimal("100"),
+        domestic_rate=Decimal("0.02"),
+        foreign_rate=Decimal("0.01"),
+        volatility=Decimal("1e-13"),
+        time_to_expiry_years=Decimal("0.5"),
+    )
+
+    from math import exp
+
+    expected = Decimal(
+        str(
+            exp(-0.02 * 0.5)
+            * max(120.0 * exp((0.02 - 0.01) * 0.5) - 100.0, 0.0)
+        )
+    )
+    assert _abs_diff(near_zero_vol_call[ValuationMeasureNameV1.PRESENT_VALUE], expected) <= PRICE_TOL
 
 
 def test_invalid_inputs_are_rejected_explicitly() -> None:
