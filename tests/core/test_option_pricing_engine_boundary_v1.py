@@ -106,6 +106,12 @@ def _resolved_fx_inputs() -> ResolvedFxOptionValuationInputsV1:
             extrapolation_policy="flat_forward",
             basis_timestamp=valuation_ts,
             source_lineage_ref="market_snapshot:mkt.snap.001:curve:curve.ils.ois.v1",
+    return ResolvedFxOptionValuationInputsV1(
+        fx_option_contract=_fx_contract(),
+        valuation_timestamp=datetime.datetime(2026, 12, 31, 10, 0, tzinfo=datetime.timezone.utc),
+        spot=ResolvedSpotInputV1(underlying_instrument_ref="USD/ILS", spot="3.70"),
+        domestic_curve=ResolvedCurveInputV1(
+            curve_id="curve.ils.ois.v1",
             points=(
                 ResolvedRatePointV1(tenor_label="1M", zero_rate="0.04"),
                 ResolvedRatePointV1(tenor_label="6M", zero_rate="0.041"),
