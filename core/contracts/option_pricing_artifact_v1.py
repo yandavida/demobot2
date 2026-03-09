@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from core.contracts.canonical_hashing_v1 import canonical_option_pricing_artifact_hash_v1
 from core.contracts.option_valuation_result_v1 import OptionValuationResultV1
 
 
@@ -50,6 +51,16 @@ class OptionPricingArtifactV1:
             "canonical_payload_hash",
             _require_sha256_hex(self.canonical_payload_hash, "canonical_payload_hash"),
         )
+
+        expected_hash = canonical_option_pricing_artifact_hash_v1(
+            artifact_contract_name=self.artifact_contract_name,
+            artifact_contract_version=self.artifact_contract_version,
+            valuation_result=self.valuation_result,
+        )
+        if self.canonical_payload_hash != expected_hash:
+            raise ValueError(
+                "canonical_payload_hash must match canonical hash of artifact_contract_name, artifact_contract_version, and valuation_result"
+            )
 
 
 __all__ = ["OptionPricingArtifactV1"]

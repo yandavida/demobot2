@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from decimal import Decimal
 
+from core.contracts.canonical_hashing_v1 import canonical_option_pricing_artifact_hash_v1
 from core.contracts.option_pricing_artifact_v1 import OptionPricingArtifactV1
 from core.contracts.option_valuation_result_v1 import OptionValuationResultV1
 from core.contracts.valuation_measure_name_v1 import ValuationMeasureNameV1
@@ -94,3 +95,21 @@ def test_builder_hash_changes_for_changed_payload() -> None:
     )
 
     assert artifact_1.canonical_payload_hash != artifact_2.canonical_payload_hash
+
+
+def test_builder_hash_matches_independent_canonical_hash_computation() -> None:
+    valuation_result = _valuation_result()
+
+    artifact = build_option_pricing_artifact_v1(
+        artifact_contract_name="OptionPricingArtifactV1",
+        artifact_contract_version="1.0.0",
+        valuation_result=valuation_result,
+    )
+
+    expected_hash = canonical_option_pricing_artifact_hash_v1(
+        artifact_contract_name="OptionPricingArtifactV1",
+        artifact_contract_version="1.0.0",
+        valuation_result=valuation_result,
+    )
+
+    assert artifact.canonical_payload_hash == expected_hash

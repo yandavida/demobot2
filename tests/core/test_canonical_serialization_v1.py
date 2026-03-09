@@ -45,6 +45,8 @@ def test_decimal_text_is_canonical_and_stable() -> None:
     assert canonical_decimal_text_v1(Decimal("100.00")) == "100"
     assert canonical_decimal_text_v1(Decimal("0.000")) == "0"
     assert canonical_decimal_text_v1(Decimal("1.2300")) == "1.23"
+    assert canonical_decimal_text_v1(Decimal("1E+3")) == "1000"
+    assert canonical_decimal_text_v1(Decimal("-0.0000")) == "0"
 
 
 def test_serialization_is_deterministic_for_identical_inputs() -> None:

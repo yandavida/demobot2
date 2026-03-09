@@ -71,3 +71,4 @@ Canonical serialization uses compact JSON with:
 - no environment-dependent components
 
 Semantically identical governed payloads must produce identical hashes. Different payload content must produce different hashes.
+The canonical payload hash domain excludes `canonical_payload_hash` itself and is computed only from `artifact_contract_name`, `artifact_contract_version`, and `valuation_result` to prevent circular/self-referential hashing.

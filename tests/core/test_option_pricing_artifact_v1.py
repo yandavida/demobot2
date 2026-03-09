@@ -5,6 +5,7 @@ from decimal import Decimal
 
 import pytest
 
+from core.contracts.canonical_hashing_v1 import canonical_option_pricing_artifact_hash_v1
 from core.contracts.option_pricing_artifact_v1 import OptionPricingArtifactV1
 from core.contracts.option_valuation_result_v1 import OptionValuationResultV1
 from core.contracts.valuation_measure_name_v1 import ValuationMeasureNameV1
@@ -42,11 +43,16 @@ def _valuation_result() -> OptionValuationResultV1:
 
 
 def test_artifact_contract_is_immutable() -> None:
+    valuation_result = _valuation_result()
     artifact = OptionPricingArtifactV1(
         artifact_contract_name="OptionPricingArtifactV1",
         artifact_contract_version="1.0.0",
-        valuation_result=_valuation_result(),
-        canonical_payload_hash="a" * 64,
+        valuation_result=valuation_result,
+        canonical_payload_hash=canonical_option_pricing_artifact_hash_v1(
+            artifact_contract_name="OptionPricingArtifactV1",
+            artifact_contract_version="1.0.0",
+            valuation_result=valuation_result,
+        ),
     )
 
     with pytest.raises(FrozenInstanceError):
@@ -54,20 +60,35 @@ def test_artifact_contract_is_immutable() -> None:
 
 
 def test_artifact_requires_non_empty_identity_and_typed_valuation_result() -> None:
+    valuation_result = _valuation_result()
+    canonical_hash = canonical_option_pricing_artifact_hash_v1(
+        artifact_contract_name="OptionPricingArtifactV1",
+        artifact_contract_version="1.0.0",
+        valuation_result=valuation_result,
+    )
+
     with pytest.raises(ValueError, match="artifact_contract_name"):
         OptionPricingArtifactV1(
             artifact_contract_name="",
             artifact_contract_version="1.0.0",
-            valuation_result=_valuation_result(),
-            canonical_payload_hash="a" * 64,
+            valuation_result=valuation_result,
+            canonical_payload_hash=canonical_hash,
+        )
+
+    with pytest.raises(ValueError, match="artifact_contract_name"):
+        OptionPricingArtifactV1(
+            artifact_contract_name=" OptionPricingArtifactV1 ",
+            artifact_contract_version="1.0.0",
+            valuation_result=valuation_result,
+            canonical_payload_hash=canonical_hash,
         )
 
     with pytest.raises(ValueError, match="artifact_contract_version"):
         OptionPricingArtifactV1(
             artifact_contract_name="OptionPricingArtifactV1",
             artifact_contract_version="",
-            valuation_result=_valuation_result(),
-            canonical_payload_hash="a" * 64,
+            valuation_result=valuation_result,
+            canonical_payload_hash=canonical_hash,
         )
 
     with pytest.raises(ValueError, match="valuation_result"):
@@ -75,16 +96,17 @@ def test_artifact_requires_non_empty_identity_and_typed_valuation_result() -> No
             artifact_contract_name="OptionPricingArtifactV1",
             artifact_contract_version="1.0.0",
             valuation_result="not-a-result",
-            canonical_payload_hash="a" * 64,
+            canonical_payload_hash=canonical_hash,
         )
 
 
 def test_artifact_rejects_malformed_hash() -> None:
+    valuation_result = _valuation_result()
     with pytest.raises(ValueError, match="canonical_payload_hash"):
         OptionPricingArtifactV1(
             artifact_contract_name="OptionPricingArtifactV1",
             artifact_contract_version="1.0.0",
-            valuation_result=_valuation_result(),
+            valuation_result=valuation_result,
             canonical_payload_hash="abc",
         )
 
@@ -92,6 +114,18 @@ def test_artifact_rejects_malformed_hash() -> None:
         OptionPricingArtifactV1(
             artifact_contract_name="OptionPricingArtifactV1",
             artifact_contract_version="1.0.0",
-            valuation_result=_valuation_result(),
+            valuation_result=valuation_result,
             canonical_payload_hash="A" * 64,
+        )
+
+
+def test_artifact_rejects_semantically_inconsistent_hash() -> None:
+    valuation_result = _valuation_result()
+
+    with pytest.raises(ValueError, match="canonical_payload_hash must match canonical hash"):
+        OptionPricingArtifactV1(
+            artifact_contract_name="OptionPricingArtifactV1",
+            artifact_contract_version="1.0.0",
+            valuation_result=valuation_result,
+            canonical_payload_hash="0" * 64,
         )
