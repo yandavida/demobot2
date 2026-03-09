@@ -94,12 +94,18 @@ def _resolved_generic_inputs() -> ResolvedOptionValuationInputsV1:
 
 
 def _resolved_fx_inputs() -> ResolvedFxOptionValuationInputsV1:
+    valuation_ts = datetime.datetime(2026, 12, 31, 10, 0, tzinfo=datetime.timezone.utc)
     return ResolvedFxOptionValuationInputsV1(
         fx_option_contract=_fx_contract(),
-        valuation_timestamp=datetime.datetime(2026, 12, 31, 10, 0, tzinfo=datetime.timezone.utc),
+        valuation_timestamp=valuation_ts,
         spot=ResolvedSpotInputV1(underlying_instrument_ref="USD/ILS", spot="3.70"),
         domestic_curve=ResolvedCurveInputV1(
             curve_id="curve.ils.ois.v1",
+            quote_convention="zero_rate",
+            interpolation_method="linear_zero_rate",
+            extrapolation_policy="flat_forward",
+            basis_timestamp=valuation_ts,
+            source_lineage_ref="market_snapshot:mkt.snap.001:curve:curve.ils.ois.v1",
             points=(
                 ResolvedRatePointV1(tenor_label="1M", zero_rate="0.04"),
                 ResolvedRatePointV1(tenor_label="6M", zero_rate="0.041"),
@@ -107,6 +113,11 @@ def _resolved_fx_inputs() -> ResolvedFxOptionValuationInputsV1:
         ),
         foreign_curve=ResolvedCurveInputV1(
             curve_id="curve.usd.ois.v1",
+            quote_convention="zero_rate",
+            interpolation_method="linear_zero_rate",
+            extrapolation_policy="flat_forward",
+            basis_timestamp=valuation_ts,
+            source_lineage_ref="market_snapshot:mkt.snap.001:curve:curve.usd.ois.v1",
             points=(
                 ResolvedRatePointV1(tenor_label="1M", zero_rate="0.05"),
                 ResolvedRatePointV1(tenor_label="6M", zero_rate="0.051"),
@@ -114,6 +125,11 @@ def _resolved_fx_inputs() -> ResolvedFxOptionValuationInputsV1:
         ),
         volatility_surface=ResolvedVolatilityInputV1(
             surface_id="surface.fx.usdils.v1",
+            quote_convention="implied_vol",
+            interpolation_method="surface_quote_map_lookup",
+            extrapolation_policy="none",
+            basis_timestamp=valuation_ts,
+            source_lineage_ref="market_snapshot:mkt.snap.001:vol_surface:surface.fx.usdils.v1",
             points=(
                 ResolvedVolatilityPointV1(tenor_label="1M", strike="3.60", implied_vol="0.11"),
             ),
