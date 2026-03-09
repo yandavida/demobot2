@@ -65,6 +65,19 @@ class _NumericalPolicyRepo:
         return self._snapshot if numeric_policy_id == "numeric.policy.v1" else None
 
 
+class _MalformedNumericalPolicyRepo:
+    def get_by_numeric_policy_id(self, numeric_policy_id: str) -> NumericalPolicySnapshotV1 | None:
+        if numeric_policy_id != "numeric.policy.v1":
+            return None
+
+        malformed = object.__new__(NumericalPolicySnapshotV1)
+        object.__setattr__(malformed, "numeric_policy_id", "numeric.policy.v1")
+        object.__setattr__(malformed, "tolerance", "0")
+        object.__setattr__(malformed, "max_iterations", 0)
+        object.__setattr__(malformed, "rounding_decimals", -1)
+        return malformed
+
+
 def _generic_contract() -> OptionRuntimeContractV1:
     return OptionRuntimeContractV1(
         contract_id="opt-rt-001",
@@ -312,3 +325,32 @@ def test_resolved_inputs_contain_no_repository_handles() -> None:
     assert "valuation_policy_set_repository" not in field_names
     assert "valuation_context_repository" not in field_names
     assert "loader" not in " ".join(sorted(field_names)).lower()
+
+
+def test_missing_numerical_policy_snapshot_fails() -> None:
+    market_repo, ref_repo, policy_repo, context_repo, _numeric_repo = _resolver_dependencies()
+    missing_numeric_repo = _NumericalPolicyRepo(None)
+
+    with pytest.raises(OptionValuationInputResolutionError, match="numerical policy snapshot"):
+        resolve_fx_option_inputs_v1(
+            _bundle(_fx_contract()),
+            market_snapshot_repository=market_repo,
+            reference_data_set_repository=ref_repo,
+            valuation_policy_set_repository=policy_repo,
+            valuation_context_repository=context_repo,
+            numerical_policy_snapshot_repository=missing_numeric_repo,
+        )
+
+
+def test_invalid_numerical_policy_snapshot_fails_without_fallback() -> None:
+    market_repo, ref_repo, policy_repo, context_repo, _numeric_repo = _resolver_dependencies()
+
+    with pytest.raises(OptionValuationInputResolutionError, match="numerical policy snapshot"):
+        resolve_fx_option_inputs_v1(
+            _bundle(_fx_contract()),
+            market_snapshot_repository=market_repo,
+            reference_data_set_repository=ref_repo,
+            valuation_policy_set_repository=policy_repo,
+            valuation_context_repository=context_repo,
+            numerical_policy_snapshot_repository=_MalformedNumericalPolicyRepo(),
+        )
