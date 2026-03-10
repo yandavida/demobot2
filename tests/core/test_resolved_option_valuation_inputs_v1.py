@@ -12,6 +12,7 @@ from core.contracts.resolved_option_valuation_inputs_v1 import NumericalPolicySn
 from core.contracts.resolved_option_valuation_inputs_v1 import ResolvedConventionBasisV1
 from core.contracts.resolved_option_valuation_inputs_v1 import ResolvedCurveInputV1
 from core.contracts.resolved_option_valuation_inputs_v1 import ResolvedFxOptionValuationInputsV1
+from core.contracts.resolved_option_valuation_inputs_v1 import ResolvedFxKernelScalarsV1
 from core.contracts.resolved_option_valuation_inputs_v1 import ResolvedOptionValuationInputsV1
 from core.contracts.resolved_option_valuation_inputs_v1 import ResolvedRatePointV1
 from core.contracts.resolved_option_valuation_inputs_v1 import ResolvedSpotInputV1
@@ -129,6 +130,15 @@ def _vol_surface() -> ResolvedVolatilityInputV1:
     )
 
 
+def _kernel_scalars() -> ResolvedFxKernelScalarsV1:
+    return ResolvedFxKernelScalarsV1(
+        domestic_rate="0.04",
+        foreign_rate="0.05",
+        volatility="0.11",
+        time_to_expiry_years=Decimal("1") / Decimal("12"),
+    )
+
+
 def test_constructs_generic_resolved_inputs() -> None:
     resolved = ResolvedOptionValuationInputsV1(
         option_contract=_generic_contract(),
@@ -157,6 +167,7 @@ def test_constructs_fx_resolved_inputs() -> None:
         settlement_conventions=("spot+2",),
         premium_conventions=("premium-settle-t+2",),
         numerical_policy_snapshot=_numeric_policy(),
+        resolved_kernel_scalars=_kernel_scalars(),
         resolved_basis_hash="sha256:def456",
     )
 
@@ -207,6 +218,7 @@ def test_rejects_ids_only_fallback_shape_and_loader_handles() -> None:
             settlement_conventions=("spot+2",),
             premium_conventions=("premium-settle-t+2",),
             numerical_policy_snapshot=_numeric_policy(),
+            resolved_kernel_scalars=_kernel_scalars(),
             resolved_basis_hash="sha256:def456",
         )
 
@@ -225,6 +237,7 @@ def test_rejects_pricing_result_payload_fields() -> None:
             settlement_conventions=("spot+2",),
             premium_conventions=("premium-settle-t+2",),
             numerical_policy_snapshot=_numeric_policy(),
+            resolved_kernel_scalars=_kernel_scalars(),
             resolved_basis_hash="sha256:def456",
             price_result="100.0",
         )

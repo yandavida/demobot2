@@ -10,6 +10,7 @@ from core.contracts.resolved_input_canonicalization_v1 import canonical_timestam
 from core.contracts.resolved_option_valuation_inputs_v1 import NumericalPolicySnapshotV1
 from core.contracts.resolved_option_valuation_inputs_v1 import ResolvedCurveInputV1
 from core.contracts.resolved_option_valuation_inputs_v1 import ResolvedFxOptionValuationInputsV1
+from core.contracts.resolved_option_valuation_inputs_v1 import ResolvedFxKernelScalarsV1
 from core.contracts.resolved_option_valuation_inputs_v1 import ResolvedRatePointV1
 from core.contracts.resolved_option_valuation_inputs_v1 import ResolvedSpotInputV1
 from core.contracts.resolved_option_valuation_inputs_v1 import ResolvedVolatilityInputV1
@@ -93,6 +94,12 @@ def _resolved_fx_inputs() -> ResolvedFxOptionValuationInputsV1:
             tolerance="0.000001",
             max_iterations=200,
             rounding_decimals=8,
+        ),
+        resolved_kernel_scalars=ResolvedFxKernelScalarsV1(
+            domestic_rate="0.04",
+            foreign_rate="0.05",
+            volatility="0.12",
+            time_to_expiry_years="0.08333333333333333333333333333",
         ),
         resolved_basis_hash="sha256:placeholder",
     )

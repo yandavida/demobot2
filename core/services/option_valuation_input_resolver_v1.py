@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from typing import Optional, Protocol
+from decimal import Decimal
+import re
 
 from core.contracts.fx_option_runtime_contract_v1 import FxOptionRuntimeContractV1
 from core.contracts.option_valuation_dependency_bundle_v1 import OptionValuationDependencyBundleV1
@@ -9,6 +11,7 @@ from core.contracts.resolved_option_valuation_inputs_v1 import NumericalPolicySn
 from core.contracts.resolved_option_valuation_inputs_v1 import ResolvedConventionBasisV1
 from core.contracts.resolved_option_valuation_inputs_v1 import ResolvedCurveInputV1
 from core.contracts.resolved_option_valuation_inputs_v1 import ResolvedFxOptionValuationInputsV1
+from core.contracts.resolved_option_valuation_inputs_v1 import ResolvedFxKernelScalarsV1
 from core.contracts.resolved_option_valuation_inputs_v1 import ResolvedOptionValuationInputsV1
 from core.contracts.resolved_option_valuation_inputs_v1 import ResolvedRatePointV1
 from core.contracts.resolved_option_valuation_inputs_v1 import ResolvedSpotInputV1
@@ -37,10 +40,61 @@ class NumericalPolicySnapshotRepository(Protocol):
         ...
 
 
+_TENOR_LABEL_PATTERN_V1 = re.compile(r"^(?P<count>[1-9][0-9]*)(?P<unit>[DWMY])$")
+
+
 def _require_non_empty_tuple(values: tuple[str, ...], field_name: str) -> tuple[str, ...]:
     if len(values) == 0:
         raise OptionValuationInputResolutionError(f"{field_name} must be non-empty for resolved inputs")
     return values
+
+
+def _tenor_to_year_fraction_v1(tenor_label: str) -> Decimal:
+    match = _TENOR_LABEL_PATTERN_V1.fullmatch(str(tenor_label).strip().upper())
+    if match is None:
+        raise OptionValuationInputResolutionError("tenor_label must use supported format <positive-int><D|W|M|Y>")
+
+    count = Decimal(match.group("count"))
+    unit = match.group("unit")
+    if unit == "D":
+        return count / Decimal("365")
+    if unit == "W":
+        return (count * Decimal("7")) / Decimal("365")
+    if unit == "M":
+        return count / Decimal("12")
+    return count
+
+
+def _extract_fx_kernel_scalars_v1(
+    *,
+    domestic_curve: ResolvedCurveInputV1,
+    foreign_curve: ResolvedCurveInputV1,
+    volatility_surface: ResolvedVolatilityInputV1,
+) -> ResolvedFxKernelScalarsV1:
+    # Scalar seam policy: primary tenor is the first canonicalized vol point; rates must match that tenor.
+    if len(volatility_surface.points) == 0:
+        raise OptionValuationInputResolutionError("volatility_surface.points must be non-empty")
+
+    primary_vol_point = volatility_surface.points[0]
+    primary_tenor = primary_vol_point.tenor_label
+
+    domestic_by_tenor = {point.tenor_label: point for point in domestic_curve.points}
+    foreign_by_tenor = {point.tenor_label: point for point in foreign_curve.points}
+
+    domestic_point = domestic_by_tenor.get(primary_tenor)
+    if domestic_point is None:
+        raise OptionValuationInputResolutionError("domestic_curve missing primary volatility tenor")
+
+    foreign_point = foreign_by_tenor.get(primary_tenor)
+    if foreign_point is None:
+        raise OptionValuationInputResolutionError("foreign_curve missing primary volatility tenor")
+
+    return ResolvedFxKernelScalarsV1(
+        domestic_rate=domestic_point.zero_rate,
+        foreign_rate=foreign_point.zero_rate,
+        volatility=primary_vol_point.implied_vol,
+        time_to_expiry_years=_tenor_to_year_fraction_v1(primary_tenor),
+    )
 
 
 def _load_dependencies(
@@ -374,6 +428,11 @@ def resolve_fx_option_inputs_v1(
         valuation_policy_set,
         numerical_policy_snapshot_repository=numerical_policy_snapshot_repository,
     )
+    resolved_kernel_scalars = _extract_fx_kernel_scalars_v1(
+        domestic_curve=domestic_curve,
+        foreign_curve=foreign_curve,
+        volatility_surface=volatility_surface,
+    )
 
     resolved_inputs = ResolvedFxOptionValuationInputsV1(
         fx_option_contract=fx_contract,
@@ -387,6 +446,7 @@ def resolve_fx_option_inputs_v1(
         settlement_conventions=settlement_refs,
         premium_conventions=(f"premium_currency:{fx_contract.premium_currency}",),
         numerical_policy_snapshot=numerical_policy_snapshot,
+        resolved_kernel_scalars=resolved_kernel_scalars,
         resolved_basis_hash=canonical_resolved_input_hash_v1(
             {
                 "contract_id": fx_contract.contract_id,
@@ -400,6 +460,7 @@ def resolve_fx_option_inputs_v1(
                 "foreign_curve": foreign_curve,
                 "volatility_surface": volatility_surface,
                 "numerical_policy_snapshot": numerical_policy_snapshot,
+                "resolved_kernel_scalars": resolved_kernel_scalars,
             }
         ),
     )

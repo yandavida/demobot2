@@ -304,6 +304,9 @@ def test_resolver_outputs_are_identical_for_identical_inputs() -> None:
     )
 
     assert result_1 == result_2
+    assert result_1.resolved_kernel_scalars.domestic_rate == result_1.domestic_curve.points[0].zero_rate
+    assert result_1.resolved_kernel_scalars.foreign_rate == result_1.foreign_curve.points[0].zero_rate
+    assert result_1.resolved_kernel_scalars.volatility == result_1.volatility_surface.points[0].implied_vol
 
 
 def test_resolved_inputs_contain_no_repository_handles() -> None:
@@ -325,6 +328,7 @@ def test_resolved_inputs_contain_no_repository_handles() -> None:
     assert "valuation_policy_set_repository" not in field_names
     assert "valuation_context_repository" not in field_names
     assert "loader" not in " ".join(sorted(field_names)).lower()
+    assert "resolved_kernel_scalars" in field_names
 
 
 def test_missing_numerical_policy_snapshot_fails() -> None:
