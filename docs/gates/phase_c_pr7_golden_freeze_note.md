@@ -13,6 +13,7 @@
 - Engine layer remains resolved-input-only and non-interpretive.
 - Artifact builder remains valuation-result-only and deterministic.
 - Golden replay output is locked by committed expected payload plus expected file hashes.
+- CI explicitly enforces Phase C replay freeze via the dedicated phase_c golden regression pytest step.
 
 ## Explicitly Out of Scope
 

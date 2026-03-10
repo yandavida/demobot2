@@ -122,6 +122,10 @@ jobs:
           fi
           exit "$exit_code"
 
+      - name: Run phase_c golden replay freeze pytest
+        run: |
+          pytest -q tests/golden/phase_c/test_phase_c_golden_regression.py tests/golden/phase_c/test_phase_c_golden_rerun_determinism.py -x
+
       - name: Run pipeline_golden pytest
         run: |
           exit_code=0
