@@ -1,18 +1,19 @@
 from __future__ import annotations
 
+from dataclasses import fields
 from decimal import Decimal
 import inspect
 
 import pytest
 
 from core.contracts.canonical_hashing_v1 import canonical_option_pricing_artifact_hash_v1
+from core.contracts.option_pricing_artifact_v1 import ARTIFACT_CONTRACT_NAME_V1
+from core.contracts.option_pricing_artifact_v1 import ARTIFACT_CONTRACT_VERSION_V1
 from core.contracts.option_pricing_artifact_v1 import OptionPricingArtifactV1
 from core.contracts.option_valuation_result_v1 import OptionValuationResultV1
 from core.contracts.valuation_measure_name_v1 import ValuationMeasureNameV1
 from core.contracts.valuation_measure_result_v1 import ValuationMeasureResultV1
 from core.contracts.valuation_measure_set_v1 import PHASE_C_CANONICAL_VALUATION_MEASURE_ORDER_V1
-from core.services.pricing_artifact_builder_v1 import ARTIFACT_CONTRACT_NAME_V1
-from core.services.pricing_artifact_builder_v1 import ARTIFACT_CONTRACT_VERSION_V1
 from core.services.pricing_artifact_builder_v1 import build_option_pricing_artifact_v1
 from core.services.pricing_artifact_builder_v1 import __name__ as builder_module_name
 
@@ -112,9 +113,23 @@ def test_builder_rejects_non_contract_input_type() -> None:
         build_option_pricing_artifact_v1(valuation_result={})  # type: ignore[arg-type]
 
 
-def test_builder_has_frozen_identity_constants() -> None:
+def test_contract_has_frozen_identity_constants() -> None:
     assert ARTIFACT_CONTRACT_NAME_V1 == "OptionPricingArtifactV1"
     assert ARTIFACT_CONTRACT_VERSION_V1 == "1.0.0"
+
+
+def test_artifact_has_no_unexpected_metadata_fields() -> None:
+    artifact = build_option_pricing_artifact_v1(valuation_result=_valuation_result())
+    field_names = {field.name for field in fields(OptionPricingArtifactV1)}
+
+    assert field_names == {
+        "artifact_contract_name",
+        "artifact_contract_version",
+        "valuation_result",
+        "canonical_payload_hash",
+    }
+
+    assert set(vars(artifact).keys()) == field_names
 
 
 def test_builder_module_has_no_engine_or_resolver_or_repository_imports() -> None:

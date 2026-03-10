@@ -6,6 +6,10 @@ from core.contracts.canonical_hashing_v1 import canonical_option_pricing_artifac
 from core.contracts.option_valuation_result_v1 import OptionValuationResultV1
 
 
+ARTIFACT_CONTRACT_NAME_V1 = "OptionPricingArtifactV1"
+ARTIFACT_CONTRACT_VERSION_V1 = "1.0.0"
+
+
 def _require_non_empty_string(value: str, field_name: str) -> str:
     if not isinstance(value, str) or not value.strip():
         raise ValueError(f"{field_name} must be a non-empty string")
@@ -63,4 +67,8 @@ class OptionPricingArtifactV1:
             )
 
 
-__all__ = ["OptionPricingArtifactV1"]
+__all__ = [
+    "ARTIFACT_CONTRACT_NAME_V1",
+    "ARTIFACT_CONTRACT_VERSION_V1",
+    "OptionPricingArtifactV1",
+]

@@ -1,12 +1,10 @@
 from __future__ import annotations
 
 from core.contracts.canonical_hashing_v1 import canonical_option_pricing_artifact_hash_v1
+from core.contracts.option_pricing_artifact_v1 import ARTIFACT_CONTRACT_NAME_V1
+from core.contracts.option_pricing_artifact_v1 import ARTIFACT_CONTRACT_VERSION_V1
 from core.contracts.option_pricing_artifact_v1 import OptionPricingArtifactV1
 from core.contracts.option_valuation_result_v1 import OptionValuationResultV1
-
-
-ARTIFACT_CONTRACT_NAME_V1 = "OptionPricingArtifactV1"
-ARTIFACT_CONTRACT_VERSION_V1 = "1.0.0"
 
 
 def build_option_pricing_artifact_v1(
@@ -33,7 +31,5 @@ def build_option_pricing_artifact_v1(
 
 
 __all__ = [
-    "ARTIFACT_CONTRACT_NAME_V1",
-    "ARTIFACT_CONTRACT_VERSION_V1",
     "build_option_pricing_artifact_v1",
 ]
