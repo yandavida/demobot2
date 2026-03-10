@@ -41,6 +41,7 @@ class NumericalPolicySnapshotRepository(Protocol):
 
 
 _TENOR_LABEL_PATTERN_V1 = re.compile(r"^(?P<count>[1-9][0-9]*)(?P<unit>[DWMY])$")
+FX_KERNEL_SCALAR_SELECTION_POLICY_V1 = "primary_vol_tenor_after_canonical_sort"
 
 
 def _require_non_empty_tuple(values: tuple[str, ...], field_name: str) -> tuple[str, ...]:
@@ -71,7 +72,7 @@ def _extract_fx_kernel_scalars_v1(
     foreign_curve: ResolvedCurveInputV1,
     volatility_surface: ResolvedVolatilityInputV1,
 ) -> ResolvedFxKernelScalarsV1:
-    # Scalar seam policy: primary tenor is the first canonicalized vol point; rates must match that tenor.
+    # Scalar seam policy (frozen): primary tenor is the first canonicalized vol point; rates must match that tenor.
     if len(volatility_surface.points) == 0:
         raise OptionValuationInputResolutionError("volatility_surface.points must be non-empty")
 
@@ -469,6 +470,7 @@ def resolve_fx_option_inputs_v1(
 
 
 __all__ = [
+    "FX_KERNEL_SCALAR_SELECTION_POLICY_V1",
     "NumericalPolicySnapshotRepository",
     "OptionValuationInputResolutionError",
     "ValuationContextRepository",

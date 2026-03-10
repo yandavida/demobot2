@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import datetime
 from dataclasses import fields
+from decimal import Decimal
 
 import pytest
 
@@ -21,6 +22,7 @@ from core.market_data.market_snapshot_payload_v0 import SpotPrices
 from core.market_data.market_snapshot_payload_v0 import VolSurface
 from core.market_data.market_snapshot_payload_v0 import VolSurfaces
 from core.services.option_valuation_input_resolver_v1 import OptionValuationInputResolutionError
+from core.services.option_valuation_input_resolver_v1 import FX_KERNEL_SCALAR_SELECTION_POLICY_V1
 from core.services.option_valuation_input_resolver_v1 import resolve_fx_option_inputs_v1
 from core.services.option_valuation_input_resolver_v1 import resolve_option_inputs_v1
 
@@ -358,3 +360,32 @@ def test_invalid_numerical_policy_snapshot_fails_without_fallback() -> None:
             valuation_context_repository=context_repo,
             numerical_policy_snapshot_repository=_MalformedNumericalPolicyRepo(),
         )
+
+
+def test_fx_kernel_scalar_selection_policy_uses_primary_vol_tenor_after_canonical_sort() -> None:
+    assert FX_KERNEL_SCALAR_SELECTION_POLICY_V1 == "primary_vol_tenor_after_canonical_sort"
+
+    market_repo, ref_repo, policy_repo, context_repo, numeric_repo = _resolver_dependencies()
+    snapshot = market_repo.get_by_id("mkt.snap.001")
+    assert snapshot is not None
+
+    # Intentionally provide unsorted quote keys to prove resolver uses canonical sort before choosing primary tenor.
+    snapshot.vols.surfaces["delta-neutral-vol"].data["quotes"] = {
+        "USD/ILS|3M|3.65|call": 0.33,
+        "USD/ILS|1M|3.65|call": 0.12,
+    }
+
+    resolved = resolve_fx_option_inputs_v1(
+        _bundle(_fx_contract()),
+        market_snapshot_repository=market_repo,
+        reference_data_set_repository=ref_repo,
+        valuation_policy_set_repository=policy_repo,
+        valuation_context_repository=context_repo,
+        numerical_policy_snapshot_repository=numeric_repo,
+    )
+
+    # Canonical sort picks 1M first, so primary tenor is 1M and all kernel scalars align to 1M.
+    assert resolved.resolved_kernel_scalars.time_to_expiry_years == Decimal("1") / Decimal("12")
+    assert resolved.resolved_kernel_scalars.volatility == Decimal("0.12")
+    assert resolved.resolved_kernel_scalars.domestic_rate == resolved.domestic_curve.points[0].zero_rate
+    assert resolved.resolved_kernel_scalars.foreign_rate == resolved.foreign_curve.points[0].zero_rate
