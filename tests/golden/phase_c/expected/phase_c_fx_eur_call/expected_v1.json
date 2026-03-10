@@ -1,0 +1,54 @@
+{
+  "dataset_id": "phase_c_fx_eur_call",
+  "version": 1,
+  "artifact_contract_name": "OptionPricingArtifactV1",
+  "artifact_contract_version": "1.0.0",
+  "canonical_payload_hash": "a6bd5547899aae1f68972cf5f503633fb2a469085c4d888f90d96ed1e5907dad",
+  "valuation_result": {
+    "engine_name": "black_scholes_european_fx_engine",
+    "engine_version": "1.0.0",
+    "model_name": "garman_kohlhagen",
+    "model_version": "1.0.0",
+    "resolved_input_contract_name": "ResolvedFxOptionValuationInputsV1",
+    "resolved_input_contract_version": "1.0.0",
+    "resolved_input_reference": "sha256:phase-c-fixture-001",
+    "valuation_measures": [
+      {
+        "measure_name": "present_value",
+        "value": "0.1295619924608975"
+      },
+      {
+        "measure_name": "intrinsic_value",
+        "value": "0.05"
+      },
+      {
+        "measure_name": "time_value",
+        "value": "0.0795619924608975"
+      },
+      {
+        "measure_name": "delta_spot_non_premium_adjusted",
+        "value": "0.5419457231702055"
+      },
+      {
+        "measure_name": "gamma_spot",
+        "value": "1.3017030043733568"
+      },
+      {
+        "measure_name": "vega_1vol_abs",
+        "value": "0.0100719580991684"
+      },
+      {
+        "measure_name": "theta_1d_calendar",
+        "value": "0.0002362914941183"
+      },
+      {
+        "measure_name": "rho_domestic_1pct",
+        "value": "0.0095764357107777"
+      },
+      {
+        "measure_name": "rho_foreign_1pct",
+        "value": "-0.00977837660122782"
+      }
+    ]
+  }
+}

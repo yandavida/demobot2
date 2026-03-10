@@ -1,0 +1,13 @@
+[
+  {
+    "dataset_id": "phase_c_fx_eur_call",
+    "version": 1,
+    "description": "Phase C deterministic replay fixture for resolved-input to artifact chain.",
+    "input_file": "tests/golden/phase_c/datasets/phase_c_fx_eur_call/inputs_v1.json",
+    "input_sha256": "43347dd5196d791aa77230cb91c0fa4a845859484a8cc5b2e37d899cd6850063",
+    "expected_file": "tests/golden/phase_c/expected/phase_c_fx_eur_call/expected_v1.json",
+    "expected_sha256": "80e6987f3fff44dca51676b82e7539559b29cfe792b0ff30c236080f60625a91",
+    "generator": "manual",
+    "notes": "PR-7 golden freeze fixture"
+  }
+]

@@ -1,0 +1,87 @@
+{
+  "dataset_id": "phase_c_fx_eur_call",
+  "version": 1,
+  "resolved_inputs": {
+    "fx_option_contract": {
+      "contract_id": "fx-opt-phase-c-001",
+      "currency_pair_orientation": "base_per_quote",
+      "base_currency": "USD",
+      "quote_currency": "ILS",
+      "option_type": "call",
+      "exercise_style": "european",
+      "strike": "3.65",
+      "expiry_date": "2026-12-31",
+      "expiry_cutoff_time": "10:00:00",
+      "expiry_cutoff_timezone": "Asia/Jerusalem",
+      "notional": "1000000",
+      "notional_currency_semantics": "base_currency",
+      "premium_currency": "USD",
+      "premium_payment_date": "2026-06-01",
+      "settlement_style": "deliverable",
+      "settlement_date": "2027-01-04",
+      "settlement_calendar_refs": ["IL-TASE", "US-NYFED"],
+      "fixing_source": "WM/Reuters 4pm",
+      "fixing_date": "2026-12-31",
+      "domestic_curve_id": "curve.ils.ois.v1",
+      "foreign_curve_id": "curve.usd.ois.v1",
+      "volatility_surface_quote_convention": "delta-neutral-vol"
+    },
+    "valuation_timestamp": "2026-12-31T10:00:00+00:00",
+    "spot": {
+      "underlying_instrument_ref": "USD/ILS",
+      "spot": "3.70"
+    },
+    "domestic_curve": {
+      "curve_id": "curve.ils.ois.v1",
+      "quote_convention": "zero_rate",
+      "interpolation_method": "linear_zero_rate",
+      "extrapolation_policy": "flat_forward",
+      "basis_timestamp": "2026-12-31T10:00:00+00:00",
+      "source_lineage_ref": "market_snapshot:mkt.snap.phasec.001:curve:curve.ils.ois.v1",
+      "points": [
+        {"tenor_label": "1M", "zero_rate": "0.041"},
+        {"tenor_label": "6M", "zero_rate": "0.042"}
+      ]
+    },
+    "foreign_curve": {
+      "curve_id": "curve.usd.ois.v1",
+      "quote_convention": "zero_rate",
+      "interpolation_method": "linear_zero_rate",
+      "extrapolation_policy": "flat_forward",
+      "basis_timestamp": "2026-12-31T10:00:00+00:00",
+      "source_lineage_ref": "market_snapshot:mkt.snap.phasec.001:curve:curve.usd.ois.v1",
+      "points": [
+        {"tenor_label": "1M", "zero_rate": "0.052"},
+        {"tenor_label": "6M", "zero_rate": "0.053"}
+      ]
+    },
+    "volatility_surface": {
+      "surface_id": "surface.fx.usdils.v1",
+      "quote_convention": "implied_vol",
+      "interpolation_method": "surface_quote_map_lookup",
+      "extrapolation_policy": "none",
+      "basis_timestamp": "2026-12-31T10:00:00+00:00",
+      "source_lineage_ref": "market_snapshot:mkt.snap.phasec.001:vol_surface:surface.fx.usdils.v1",
+      "points": [
+        {"tenor_label": "6M", "strike": "3.65", "implied_vol": "0.113"}
+      ]
+    },
+    "day_count_basis": "ACT/365F",
+    "calendar_set": ["IL-TASE", "US-NYFED"],
+    "settlement_conventions": ["spot+2"],
+    "premium_conventions": ["premium_currency:USD"],
+    "numerical_policy_snapshot": {
+      "numeric_policy_id": "numeric.policy.v1",
+      "tolerance": "0.000001",
+      "max_iterations": 200,
+      "rounding_decimals": 8
+    },
+    "resolved_kernel_scalars": {
+      "domestic_rate": "0.041",
+      "foreign_rate": "0.052",
+      "volatility": "0.113",
+      "time_to_expiry_years": "0.5"
+    },
+    "resolved_basis_hash": "sha256:phase-c-fixture-001"
+  }
+}
