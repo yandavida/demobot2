@@ -11,6 +11,7 @@ from core.contracts.option_valuation_result_v1 import OptionValuationResultV1
 from core.contracts.resolved_option_valuation_inputs_v1 import NumericalPolicySnapshotV1
 from core.contracts.resolved_option_valuation_inputs_v1 import ResolvedCurveInputV1
 from core.contracts.resolved_option_valuation_inputs_v1 import ResolvedFxOptionValuationInputsV1
+from core.contracts.resolved_option_valuation_inputs_v1 import ResolvedFxKernelScalarsV1
 from core.contracts.resolved_option_valuation_inputs_v1 import ResolvedRatePointV1
 from core.contracts.resolved_option_valuation_inputs_v1 import ResolvedSpotInputV1
 from core.contracts.resolved_option_valuation_inputs_v1 import ResolvedVolatilityInputV1
@@ -105,6 +106,12 @@ def _resolved_fx_inputs() -> ResolvedFxOptionValuationInputsV1:
             max_iterations=200,
             rounding_decimals=8,
         ),
+        resolved_kernel_scalars=ResolvedFxKernelScalarsV1(
+            domestic_rate="0.04",
+            foreign_rate="0.05",
+            volatility="0.11",
+            time_to_expiry_years="0.08333333333333333333333333333",
+        ),
         resolved_basis_hash="sha256:def456",
     )
 
@@ -174,6 +181,101 @@ def test_mapping_uses_kernel_outputs_without_reinterpretation(monkeypatch: pytes
     assert result.valuation_measures == expected
 
 
+def test_mapping_uses_explicit_resolved_kernel_scalars_not_curve_point_heuristics(monkeypatch: pytest.MonkeyPatch) -> None:
+    captured: dict[str, Decimal] = {}
+
+    def _fake_kernel(**kwargs: object) -> tuple[ValuationMeasureResultV1, ...]:
+        captured["domestic_rate"] = kwargs["domestic_rate"]  # type: ignore[index]
+        captured["foreign_rate"] = kwargs["foreign_rate"]  # type: ignore[index]
+        captured["volatility"] = kwargs["volatility"]  # type: ignore[index]
+        captured["time_to_expiry_years"] = kwargs["time_to_expiry_years"]  # type: ignore[index]
+        return tuple(
+            ValuationMeasureResultV1(measure_name=name, value=Decimal("1"))
+            for name in PHASE_C_CANONICAL_VALUATION_MEASURE_ORDER_V1
+        )
+
+    monkeypatch.setattr(
+        "core.pricing.black_scholes_european_fx_engine_v1.black_scholes_fx_measures_v1",
+        _fake_kernel,
+    )
+
+    resolved = _resolved_fx_inputs()
+    object.__setattr__(
+        resolved,
+        "resolved_kernel_scalars",
+        ResolvedFxKernelScalarsV1(
+            domestic_rate="0.031",
+            foreign_rate="0.017",
+            volatility="0.233",
+            time_to_expiry_years="0.25",
+        ),
+    )
+    object.__setattr__(
+        resolved,
+        "domestic_curve",
+        ResolvedCurveInputV1(
+            curve_id="curve.ils.ois.v1",
+            quote_convention="zero_rate",
+            interpolation_method="linear_zero_rate",
+            extrapolation_policy="flat_forward",
+            basis_timestamp=resolved.valuation_timestamp,
+            source_lineage_ref="market_snapshot:mkt.snap.001:curve:curve.ils.ois.v1",
+            points=(
+                ResolvedRatePointV1(tenor_label="1M", zero_rate="0.99"),
+                ResolvedRatePointV1(tenor_label="6M", zero_rate="0.98"),
+            ),
+        ),
+    )
+    object.__setattr__(
+        resolved,
+        "foreign_curve",
+        ResolvedCurveInputV1(
+            curve_id="curve.usd.ois.v1",
+            quote_convention="zero_rate",
+            interpolation_method="linear_zero_rate",
+            extrapolation_policy="flat_forward",
+            basis_timestamp=resolved.valuation_timestamp,
+            source_lineage_ref="market_snapshot:mkt.snap.001:curve:curve.usd.ois.v1",
+            points=(
+                ResolvedRatePointV1(tenor_label="1M", zero_rate="0.88"),
+                ResolvedRatePointV1(tenor_label="6M", zero_rate="0.77"),
+            ),
+        ),
+    )
+    object.__setattr__(
+        resolved,
+        "volatility_surface",
+        ResolvedVolatilityInputV1(
+            surface_id="surface.fx.usdils.v1",
+            quote_convention="implied_vol",
+            interpolation_method="surface_quote_map_lookup",
+            extrapolation_policy="none",
+            basis_timestamp=resolved.valuation_timestamp,
+            source_lineage_ref="market_snapshot:mkt.snap.001:vol_surface:surface.fx.usdils.v1",
+            points=(
+                ResolvedVolatilityPointV1(tenor_label="1M", strike="3.65", implied_vol="0.66"),
+            ),
+        ),
+    )
+
+    BlackScholesEuropeanFxEngineV1().value(resolved)
+
+    assert captured["domestic_rate"] == Decimal("0.031")
+    assert captured["foreign_rate"] == Decimal("0.017")
+    assert captured["volatility"] == Decimal("0.233")
+    assert captured["time_to_expiry_years"] == Decimal("0.25")
+
+
+def test_rejects_non_european_exercise_style() -> None:
+    contract = _fx_contract()
+    object.__setattr__(contract, "exercise_style", "american")
+    resolved = _resolved_fx_inputs()
+    object.__setattr__(resolved, "fx_option_contract", contract)
+
+    with pytest.raises(ValueError, match="exercise_style"):
+        BlackScholesEuropeanFxEngineV1().value(resolved)
+
+
 def test_no_hidden_default_or_registry_driven_identity() -> None:
     assert ENGINE_NAME_V1 == "black_scholes_european_fx_engine"
     assert ENGINE_VERSION_V1 == "1.0.0"
@@ -192,3 +294,5 @@ def test_engine_module_has_no_loader_or_repository_imports() -> None:
     assert "OptionPricingArtifactV1" not in source
     assert "canonical_serialization_v1" not in source
     assert "canonical_hashing_v1" not in source
+    assert "tenor_to_year" not in source
+    assert "tenor_label" not in source

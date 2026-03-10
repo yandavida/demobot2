@@ -1,8 +1,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from decimal import Decimal
-import re
 
 from core.contracts.option_pricing_engine_boundary_v1 import ensure_pure_option_pricing_input_v1
 from core.contracts.option_valuation_result_v1 import OptionValuationResultV1
@@ -18,9 +16,6 @@ RESOLVED_INPUT_CONTRACT_NAME_V1 = "ResolvedFxOptionValuationInputsV1"
 RESOLVED_INPUT_CONTRACT_VERSION_V1 = "1.0.0"
 
 
-_TENOR_LABEL_PATTERN_V1 = re.compile(r"^(?P<count>[1-9][0-9]*)(?P<unit>[DWMY])$")
-
-
 def _require_non_empty_string(value: str, field_name: str) -> str:
     if not isinstance(value, str) or not value.strip():
         raise ValueError(f"{field_name} must be a non-empty string")
@@ -29,52 +24,19 @@ def _require_non_empty_string(value: str, field_name: str) -> str:
     return value
 
 
-def _tenor_to_year_fraction_v1(tenor_label: str) -> Decimal:
-    normalized = _require_non_empty_string(tenor_label, "tenor_label").upper()
-    match = _TENOR_LABEL_PATTERN_V1.fullmatch(normalized)
-    if match is None:
-        raise ValueError("tenor_label must use supported format <positive-int><D|W|M|Y>")
-
-    count = Decimal(match.group("count"))
-    unit = match.group("unit")
-    if unit == "D":
-        return count / Decimal("365")
-    if unit == "W":
-        return (count * Decimal("7")) / Decimal("365")
-    if unit == "M":
-        return count / Decimal("12")
-    return count
-
-
-def _extract_kernel_inputs_v1(resolved_inputs: ResolvedFxOptionValuationInputsV1) -> tuple[str, Decimal, Decimal, Decimal, Decimal, Decimal, Decimal]:
+def _extract_kernel_inputs_v1(resolved_inputs: ResolvedFxOptionValuationInputsV1):
     if resolved_inputs.fx_option_contract.exercise_style != "european":
         raise ValueError("fx_option_contract.exercise_style must be european for BlackScholesEuropeanFxEngineV1")
-
-    if len(resolved_inputs.domestic_curve.points) == 0:
-        raise ValueError("domestic_curve.points must be non-empty")
-    if len(resolved_inputs.foreign_curve.points) == 0:
-        raise ValueError("foreign_curve.points must be non-empty")
-    if len(resolved_inputs.volatility_surface.points) == 0:
-        raise ValueError("volatility_surface.points must be non-empty")
-
-    domestic_point = resolved_inputs.domestic_curve.points[0]
-    foreign_point = resolved_inputs.foreign_curve.points[0]
-    vol_point = resolved_inputs.volatility_surface.points[0]
-
-    tenor_label = domestic_point.tenor_label
-    if foreign_point.tenor_label != tenor_label or vol_point.tenor_label != tenor_label:
-        raise ValueError("domestic/foreign/volatility first tenor_label entries must match")
-
-    time_to_expiry_years = _tenor_to_year_fraction_v1(tenor_label)
+    scalars = resolved_inputs.resolved_kernel_scalars
 
     return (
         resolved_inputs.fx_option_contract.option_type,
         resolved_inputs.spot.spot,
         resolved_inputs.fx_option_contract.strike,
-        domestic_point.zero_rate,
-        foreign_point.zero_rate,
-        vol_point.implied_vol,
-        time_to_expiry_years,
+        scalars.domestic_rate,
+        scalars.foreign_rate,
+        scalars.volatility,
+        scalars.time_to_expiry_years,
     )
 
 
