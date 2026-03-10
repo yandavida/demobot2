@@ -252,6 +252,31 @@ class NumericalPolicySnapshotV1:
 
 
 @dataclass(frozen=True)
+class ResolvedFxKernelScalarsV1:
+    """Resolved scalar kernel inputs for deterministic FX option valuation."""
+
+    domestic_rate: Decimal
+    foreign_rate: Decimal
+    volatility: Decimal
+    time_to_expiry_years: Decimal
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "domestic_rate", _require_finite_decimal(self.domestic_rate, "domestic_rate"))
+        object.__setattr__(self, "foreign_rate", _require_finite_decimal(self.foreign_rate, "foreign_rate"))
+        object.__setattr__(self, "volatility", _require_finite_decimal(self.volatility, "volatility"))
+        object.__setattr__(
+            self,
+            "time_to_expiry_years",
+            _require_finite_decimal(self.time_to_expiry_years, "time_to_expiry_years"),
+        )
+
+        if self.volatility < 0:
+            raise ValueError("volatility must be >= 0")
+        if self.time_to_expiry_years < 0:
+            raise ValueError("time_to_expiry_years must be >= 0")
+
+
+@dataclass(frozen=True)
 class ResolvedOptionValuationInputsV1:
     """Engine-facing resolved valuation inputs for generic options."""
 
@@ -298,6 +323,7 @@ class ResolvedFxOptionValuationInputsV1:
     settlement_conventions: tuple[str, ...]
     premium_conventions: tuple[str, ...]
     numerical_policy_snapshot: NumericalPolicySnapshotV1
+    resolved_kernel_scalars: ResolvedFxKernelScalarsV1
     resolved_basis_hash: str
 
     def __post_init__(self) -> None:
@@ -337,6 +363,8 @@ class ResolvedFxOptionValuationInputsV1:
 
         if not isinstance(self.numerical_policy_snapshot, NumericalPolicySnapshotV1):
             raise ValueError("numerical_policy_snapshot must be NumericalPolicySnapshotV1")
+        if not isinstance(self.resolved_kernel_scalars, ResolvedFxKernelScalarsV1):
+            raise ValueError("resolved_kernel_scalars must be ResolvedFxKernelScalarsV1")
 
         object.__setattr__(
             self,
@@ -350,6 +378,7 @@ __all__ = [
     "ResolvedConventionBasisV1",
     "ResolvedCurveInputV1",
     "ResolvedFxOptionValuationInputsV1",
+    "ResolvedFxKernelScalarsV1",
     "ResolvedOptionValuationInputsV1",
     "ResolvedRatePointV1",
     "ResolvedSpotInputV1",
