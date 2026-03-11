@@ -31,6 +31,7 @@ RHO_UNIT = "per_1_rate_decimal"
 # Phase C kernel near-zero policy constants (SSOT)
 TIME_EPSILON_YEARS_V1 = Decimal("1e-12")
 VOL_EPSILON_ABS_V1 = Decimal("1e-12")
+EXERCISE_EPSILON_ABS_V1 = Decimal("1e-12")
 
 
 @dataclass(frozen=True)
@@ -83,6 +84,7 @@ __all__ = [
     "RHO_UNIT",
     "TIME_EPSILON_YEARS_V1",
     "VOL_EPSILON_ABS_V1",
+    "EXERCISE_EPSILON_ABS_V1",
     "Tolerance",
     "MetricClass",
     "DEFAULT_TOLERANCES",
