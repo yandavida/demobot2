@@ -4,6 +4,7 @@ from dataclasses import dataclass
 
 from core.contracts.valuation_measure_result_v2 import ValuationMeasureResultV2
 from core.contracts.valuation_measure_set_v1 import PHASE_C_CANONICAL_VALUATION_MEASURE_ORDER_V1
+from core.contracts.valuation_measure_set_v1 import PHASE_D_MODEL_DIRECT_VALUATION_MEASURE_ORDER_V1
 
 
 def _require_non_empty_string(value: str, field_name: str) -> str:
@@ -29,6 +30,11 @@ class OptionValuationResultV2:
     resolved_lattice_policy_contract_version: str
     resolved_lattice_policy_reference: str
     valuation_measures: tuple[ValuationMeasureResultV2, ...]
+
+    _ALLOWED_MEASURE_ORDERS_V1: tuple[tuple, ...] = (
+        PHASE_C_CANONICAL_VALUATION_MEASURE_ORDER_V1,
+        PHASE_D_MODEL_DIRECT_VALUATION_MEASURE_ORDER_V1,
+    )
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "engine_name", _require_non_empty_string(self.engine_name, "engine_name"))
@@ -77,16 +83,19 @@ class OptionValuationResultV2:
 
         if not isinstance(self.valuation_measures, tuple):
             raise ValueError("valuation_measures must be a tuple")
-        if len(self.valuation_measures) != len(PHASE_C_CANONICAL_VALUATION_MEASURE_ORDER_V1):
-            raise ValueError("valuation_measures must contain exactly the approved Phase measure set")
+        if len(self.valuation_measures) not in {
+            len(PHASE_C_CANONICAL_VALUATION_MEASURE_ORDER_V1),
+            len(PHASE_D_MODEL_DIRECT_VALUATION_MEASURE_ORDER_V1),
+        }:
+            raise ValueError("valuation_measures must match an approved governed measure set")
 
         for measure in self.valuation_measures:
             if not isinstance(measure, ValuationMeasureResultV2):
                 raise ValueError("valuation_measures entries must be ValuationMeasureResultV2")
 
         provided_order = tuple(measure.measure_name for measure in self.valuation_measures)
-        if provided_order != PHASE_C_CANONICAL_VALUATION_MEASURE_ORDER_V1:
-            raise ValueError("valuation_measures must match approved measures in canonical order")
+        if provided_order not in self._ALLOWED_MEASURE_ORDERS_V1:
+            raise ValueError("valuation_measures must match an approved governed canonical order")
 
 
 __all__ = ["OptionValuationResultV2"]
