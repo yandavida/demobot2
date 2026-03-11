@@ -54,7 +54,7 @@ def _v2_measure_results() -> tuple[ValuationMeasureResultV2, ...]:
                 ValuationMeasureResultV2(
                     measure_name=measure_name,
                     value=values[measure_name],
-                    method_kind=ValuationMeasureMethodKindV2.ANALYTICAL,
+                    method_kind=ValuationMeasureMethodKindV2.MODEL_DIRECT,
                     measure_policy_id="phase_d.measure_policy.v2",
                 )
             )
@@ -70,6 +70,9 @@ def _v2_result(**overrides: object) -> OptionValuationResultV2:
         "resolved_input_contract_name": "ResolvedFxOptionValuationInputsV1",
         "resolved_input_contract_version": "1.0.0",
         "resolved_input_reference": "resolved-input-ref-2027-01-01-run-001",
+        "resolved_lattice_policy_contract_name": "ResolvedAmericanLatticePolicyV1",
+        "resolved_lattice_policy_contract_version": "1.0.0",
+        "resolved_lattice_policy_reference": "resolved-lattice-policy-ref-2027-01-01-run-001",
         "valuation_measures": _v2_measure_results(),
     }
     payload.update(overrides)
@@ -130,7 +133,7 @@ def test_v2_measure_requires_provenance_and_policy_traceability() -> None:
         ValuationMeasureResultV2(
             measure_name=ValuationMeasureNameV1.PRESENT_VALUE,
             value=Decimal("1"),
-            method_kind="analytical",  # type: ignore[arg-type]
+            method_kind="model_direct",  # type: ignore[arg-type]
             measure_policy_id="phase_d.measure_policy.v2",
         )
 
@@ -138,7 +141,7 @@ def test_v2_measure_requires_provenance_and_policy_traceability() -> None:
         ValuationMeasureResultV2(
             measure_name=ValuationMeasureNameV1.PRESENT_VALUE,
             value=Decimal("1"),
-            method_kind=ValuationMeasureMethodKindV2.ANALYTICAL,
+            method_kind=ValuationMeasureMethodKindV2.MODEL_DIRECT,
             measure_policy_id="",
         )
 
@@ -184,3 +187,19 @@ def test_v2_result_identity_and_lineage_shape_is_explicit() -> None:
     assert result.resolved_input_contract_name == "ResolvedFxOptionValuationInputsV1"
     assert result.resolved_input_contract_version == "1.0.0"
     assert result.resolved_input_reference == "resolved-input-ref-2027-01-01-run-001"
+    assert result.resolved_lattice_policy_contract_name == "ResolvedAmericanLatticePolicyV1"
+    assert result.resolved_lattice_policy_contract_version == "1.0.0"
+    assert result.resolved_lattice_policy_reference == "resolved-lattice-policy-ref-2027-01-01-run-001"
+
+
+def test_model_direct_outputs_use_model_direct_method_kind() -> None:
+    measures = _v2_measure_results()
+
+    assert measures[0].measure_name == ValuationMeasureNameV1.PRESENT_VALUE
+    assert measures[0].method_kind == ValuationMeasureMethodKindV2.MODEL_DIRECT
+
+    assert measures[1].measure_name == ValuationMeasureNameV1.INTRINSIC_VALUE
+    assert measures[1].method_kind == ValuationMeasureMethodKindV2.MODEL_DIRECT
+
+    assert measures[2].measure_name == ValuationMeasureNameV1.TIME_VALUE
+    assert measures[2].method_kind == ValuationMeasureMethodKindV2.MODEL_DIRECT

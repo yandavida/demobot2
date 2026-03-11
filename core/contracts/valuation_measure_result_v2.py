@@ -10,7 +10,7 @@ from core.contracts.valuation_measure_name_v1 import ValuationMeasureNameV1
 class ValuationMeasureMethodKindV2(str, Enum):
     """Governed method kind for single-trade valuation measure provenance."""
 
-    ANALYTICAL = "analytical"
+    MODEL_DIRECT = "model_direct"
     NUMERICAL_BUMP_REPRICE = "numerical_bump_reprice"
 
 
