@@ -4,6 +4,7 @@ from decimal import Decimal
 
 import pytest
 
+from core.numeric_policy import EXERCISE_EPSILON_ABS_V1
 from core.pricing.black_scholes_fx_kernel_v1 import black_scholes_fx_measures_v1
 from core.pricing.crr_american_fx_kernel_v1 import apply_american_exercise_decision_v1
 from core.pricing.crr_american_fx_kernel_v1 import crr_american_fx_kernel_v1
@@ -108,19 +109,21 @@ def test_invalid_state_rejection_is_strict() -> None:
 
 
 def test_early_exercise_strict_rule_tie_and_dominance() -> None:
-    # tie -> continuation
-    tie = apply_american_exercise_decision_v1(
-        exercise_value=Decimal("10"),
-        continuation_value=Decimal("10"),
-    )
-    assert tie == Decimal("10")
+    continuation = Decimal("10")
 
-    # strict dominance -> exercise
-    dominance = apply_american_exercise_decision_v1(
-        exercise_value=Decimal("10"),
-        continuation_value=Decimal("8"),
+    # near-tie inside epsilon boundary -> continuation
+    near_tie = apply_american_exercise_decision_v1(
+        exercise_value=continuation + (EXERCISE_EPSILON_ABS_V1 / Decimal("2")),
+        continuation_value=continuation,
     )
-    assert dominance == Decimal("10")
+    assert near_tie == continuation
+
+    # strict dominance beyond epsilon -> exercise
+    dominance = apply_american_exercise_decision_v1(
+        exercise_value=continuation + (EXERCISE_EPSILON_ABS_V1 * Decimal("2")),
+        continuation_value=continuation,
+    )
+    assert dominance == continuation + (EXERCISE_EPSILON_ABS_V1 * Decimal("2"))
 
 
 def test_intrinsic_time_value_consistency_and_non_negative_pv() -> None:
