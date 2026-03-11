@@ -45,7 +45,7 @@ class ResolvedAmericanLatticePolicyV1:
             _require_exact_policy_id(self.model_family_id, "model_family_id", AMERICAN_MODEL_FAMILY_ID_V1),
         )
 
-        if not isinstance(self.step_count, int) or self.step_count <= 0:
+        if isinstance(self.step_count, bool) or not isinstance(self.step_count, int) or self.step_count <= 0:
             raise ValueError("step_count must be a positive integer")
 
         object.__setattr__(

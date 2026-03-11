@@ -62,6 +62,12 @@ def test_crr_only_model_family_is_enforced() -> None:
 
 def test_step_count_is_explicit_positive_integer() -> None:
     with pytest.raises(ValueError, match="step_count"):
+        _policy(step_count=True)  # type: ignore[arg-type]
+
+    with pytest.raises(ValueError, match="step_count"):
+        _policy(step_count=False)  # type: ignore[arg-type]
+
+    with pytest.raises(ValueError, match="step_count"):
         _policy(step_count=0)
 
     with pytest.raises(ValueError, match="step_count"):
