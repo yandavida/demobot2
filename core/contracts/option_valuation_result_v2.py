@@ -25,6 +25,9 @@ class OptionValuationResultV2:
     resolved_input_contract_name: str
     resolved_input_contract_version: str
     resolved_input_reference: str
+    resolved_lattice_policy_contract_name: str
+    resolved_lattice_policy_contract_version: str
+    resolved_lattice_policy_reference: str
     valuation_measures: tuple[ValuationMeasureResultV2, ...]
 
     def __post_init__(self) -> None:
@@ -46,6 +49,30 @@ class OptionValuationResultV2:
             self,
             "resolved_input_reference",
             _require_non_empty_string(self.resolved_input_reference, "resolved_input_reference"),
+        )
+        object.__setattr__(
+            self,
+            "resolved_lattice_policy_contract_name",
+            _require_non_empty_string(
+                self.resolved_lattice_policy_contract_name,
+                "resolved_lattice_policy_contract_name",
+            ),
+        )
+        object.__setattr__(
+            self,
+            "resolved_lattice_policy_contract_version",
+            _require_non_empty_string(
+                self.resolved_lattice_policy_contract_version,
+                "resolved_lattice_policy_contract_version",
+            ),
+        )
+        object.__setattr__(
+            self,
+            "resolved_lattice_policy_reference",
+            _require_non_empty_string(
+                self.resolved_lattice_policy_reference,
+                "resolved_lattice_policy_reference",
+            ),
         )
 
         if not isinstance(self.valuation_measures, tuple):
