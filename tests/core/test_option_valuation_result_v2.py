@@ -8,6 +8,8 @@ import pytest
 
 from core.contracts.option_valuation_result_v1 import OptionValuationResultV1
 from core.contracts.option_valuation_result_v2 import OptionValuationResultV2
+from core.contracts.theta_rolled_fx_inputs_boundary_v1 import THETA_ROLLED_INPUT_BOUNDARY_CONTRACT_NAME_V1
+from core.contracts.theta_rolled_fx_inputs_boundary_v1 import THETA_ROLLED_INPUT_BOUNDARY_CONTRACT_VERSION_V1
 from core.contracts.valuation_measure_name_v1 import ValuationMeasureNameV1
 from core.contracts.valuation_measure_result_v1 import ValuationMeasureResultV1
 from core.contracts.valuation_measure_result_v2 import ValuationMeasureMethodKindV2
@@ -74,6 +76,14 @@ def _v2_result(**overrides: object) -> OptionValuationResultV2:
         "resolved_lattice_policy_contract_name": "ResolvedAmericanLatticePolicyV1",
         "resolved_lattice_policy_contract_version": "1.0.0",
         "resolved_lattice_policy_reference": "resolved-lattice-policy-ref-2027-01-01-run-001",
+        "theta_roll_boundary_contract_name": "ThetaRolledFxInputsBoundaryV1",
+        "theta_roll_boundary_contract_version": "1.0.0",
+        "theta_roll_boundary_reference": (
+            "ThetaRolledFxInputsBoundaryV1:"
+            "current_resolved_input_reference=sha256:current;"
+            "theta_rolled_resolved_input_reference=sha256:rolled;"
+            "theta_roll_policy_id=theta_rolled_resolved_input_1d_calendar_upstream_v1"
+        ),
         "valuation_measures": _v2_measure_results(),
     }
     payload.update(overrides)
@@ -189,9 +199,90 @@ def test_v2_result_accepts_governed_model_direct_slice_in_canonical_order() -> N
         for index, measure_name in enumerate(PHASE_D_MODEL_DIRECT_VALUATION_MEASURE_ORDER_V1)
     )
 
-    result = _v2_result(valuation_measures=model_direct_only)
+    result = _v2_result(
+        valuation_measures=model_direct_only,
+        theta_roll_boundary_contract_name=None,
+        theta_roll_boundary_contract_version=None,
+        theta_roll_boundary_reference=None,
+    )
 
     assert tuple(item.measure_name for item in result.valuation_measures) == PHASE_D_MODEL_DIRECT_VALUATION_MEASURE_ORDER_V1
+    assert result.theta_roll_boundary_contract_name is None
+    assert result.theta_roll_boundary_contract_version is None
+    assert result.theta_roll_boundary_reference is None
+
+
+def test_v2_result_requires_theta_boundary_lineage_for_full_canonical_set() -> None:
+    with pytest.raises(ValueError, match="all populated or all None"):
+        _v2_result(theta_roll_boundary_contract_name=None)
+
+    with pytest.raises(ValueError, match="all populated or all None"):
+        _v2_result(theta_roll_boundary_contract_name="ThetaRolledFxInputsBoundaryV1", theta_roll_boundary_contract_version=None)
+
+    with pytest.raises(ValueError, match="all populated or all None"):
+        _v2_result(
+            theta_roll_boundary_contract_name="ThetaRolledFxInputsBoundaryV1",
+            theta_roll_boundary_contract_version="1.0.0",
+            theta_roll_boundary_reference=None,
+        )
+
+
+def test_v2_result_rejects_partial_theta_boundary_lineage_population() -> None:
+    with pytest.raises(ValueError, match="all populated or all None"):
+        _v2_result(theta_roll_boundary_contract_name="ThetaRolledFxInputsBoundaryV1", theta_roll_boundary_contract_version=None)
+
+    with pytest.raises(ValueError, match="all populated or all None"):
+        _v2_result(theta_roll_boundary_reference="ThetaRolledFxInputsBoundaryV1:current=x;theta_rolled=y;theta_roll_policy_id=z", theta_roll_boundary_contract_name=None)
+
+
+def test_v2_result_model_direct_slice_rejects_any_theta_boundary_lineage() -> None:
+    model_direct_only = tuple(
+        ValuationMeasureResultV2(
+            measure_name=measure_name,
+            value=Decimal(index + 1),
+            method_kind=ValuationMeasureMethodKindV2.MODEL_DIRECT,
+            measure_policy_id="phase_d.measure_policy.v2",
+        )
+        for index, measure_name in enumerate(PHASE_D_MODEL_DIRECT_VALUATION_MEASURE_ORDER_V1)
+    )
+
+    with pytest.raises(ValueError, match="must be None for model-direct"):
+        _v2_result(
+            valuation_measures=model_direct_only,
+            theta_roll_boundary_contract_name=THETA_ROLLED_INPUT_BOUNDARY_CONTRACT_NAME_V1,
+            theta_roll_boundary_contract_version=THETA_ROLLED_INPUT_BOUNDARY_CONTRACT_VERSION_V1,
+            theta_roll_boundary_reference=(
+                "ThetaRolledFxInputsBoundaryV1:"
+                "current_resolved_input_reference=sha256:current;"
+                "theta_rolled_resolved_input_reference=sha256:rolled;"
+                "theta_roll_policy_id=theta_rolled_resolved_input_1d_calendar_upstream_v1"
+            ),
+        )
+
+
+def test_v2_result_rejects_wrong_theta_boundary_contract_identity() -> None:
+    with pytest.raises(ValueError, match="theta_roll_boundary_contract_name"):
+        _v2_result(theta_roll_boundary_contract_name="ThetaBoundaryOtherV1")
+
+    with pytest.raises(ValueError, match="theta_roll_boundary_contract_version"):
+        _v2_result(theta_roll_boundary_contract_version="2.0.0")
+
+
+def test_v2_result_accepts_theta_boundary_lineage_for_full_canonical_set() -> None:
+    result = _v2_result(
+        theta_roll_boundary_contract_name=THETA_ROLLED_INPUT_BOUNDARY_CONTRACT_NAME_V1,
+        theta_roll_boundary_contract_version=THETA_ROLLED_INPUT_BOUNDARY_CONTRACT_VERSION_V1,
+        theta_roll_boundary_reference=(
+            "ThetaRolledFxInputsBoundaryV1:"
+            "current_resolved_input_reference=sha256:current;"
+            "theta_rolled_resolved_input_reference=sha256:rolled;"
+            "theta_roll_policy_id=theta_rolled_resolved_input_1d_calendar_upstream_v1"
+        ),
+    )
+
+    assert result.theta_roll_boundary_contract_name == THETA_ROLLED_INPUT_BOUNDARY_CONTRACT_NAME_V1
+    assert result.theta_roll_boundary_contract_version == THETA_ROLLED_INPUT_BOUNDARY_CONTRACT_VERSION_V1
+    assert result.theta_roll_boundary_reference.startswith("ThetaRolledFxInputsBoundaryV1:")
 
 
 def test_v2_result_identity_and_lineage_shape_is_explicit() -> None:
@@ -207,6 +298,9 @@ def test_v2_result_identity_and_lineage_shape_is_explicit() -> None:
     assert result.resolved_lattice_policy_contract_name == "ResolvedAmericanLatticePolicyV1"
     assert result.resolved_lattice_policy_contract_version == "1.0.0"
     assert result.resolved_lattice_policy_reference == "resolved-lattice-policy-ref-2027-01-01-run-001"
+    assert result.theta_roll_boundary_contract_name == "ThetaRolledFxInputsBoundaryV1"
+    assert result.theta_roll_boundary_contract_version == "1.0.0"
+    assert result.theta_roll_boundary_reference.startswith("ThetaRolledFxInputsBoundaryV1:")
 
 
 def test_model_direct_outputs_use_model_direct_method_kind() -> None:
