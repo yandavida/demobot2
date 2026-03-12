@@ -33,6 +33,11 @@ TIME_EPSILON_YEARS_V1 = Decimal("1e-12")
 VOL_EPSILON_ABS_V1 = Decimal("1e-12")
 EXERCISE_EPSILON_ABS_V1 = Decimal("1e-12")
 
+# Phase D governed numerical bump constants (SSOT)
+SPOT_BUMP_RELATIVE_V1 = Decimal("0.001")
+VEGA_1VOL_ABS_BUMP_V1 = Decimal("0.01")
+RHO_1PCT_BUMP_V1 = Decimal("0.01")
+
 
 @dataclass(frozen=True)
 class Tolerance:
@@ -85,6 +90,9 @@ __all__ = [
     "TIME_EPSILON_YEARS_V1",
     "VOL_EPSILON_ABS_V1",
     "EXERCISE_EPSILON_ABS_V1",
+    "SPOT_BUMP_RELATIVE_V1",
+    "VEGA_1VOL_ABS_BUMP_V1",
+    "RHO_1PCT_BUMP_V1",
     "Tolerance",
     "MetricClass",
     "DEFAULT_TOLERANCES",

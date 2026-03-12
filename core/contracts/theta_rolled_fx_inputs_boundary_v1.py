@@ -6,6 +6,8 @@ from core.contracts.resolved_option_valuation_inputs_v1 import ResolvedFxOptionV
 
 
 THETA_ROLLED_INPUT_POLICY_ID_V1 = "theta_rolled_resolved_input_1d_calendar_upstream_v1"
+THETA_ROLLED_INPUT_BOUNDARY_CONTRACT_NAME_V1 = "ThetaRolledFxInputsBoundaryV1"
+THETA_ROLLED_INPUT_BOUNDARY_CONTRACT_VERSION_V1 = "1.0.0"
 
 
 def _require_non_empty_string(value: str, field_name: str) -> str:
@@ -64,7 +66,22 @@ class ThetaRolledFxInputsBoundaryV1:
         )
 
 
+def theta_rolled_inputs_boundary_reference_v1(boundary: ThetaRolledFxInputsBoundaryV1) -> str:
+    if not isinstance(boundary, ThetaRolledFxInputsBoundaryV1):
+        raise ValueError("boundary must be ThetaRolledFxInputsBoundaryV1")
+
+    return (
+        f"{THETA_ROLLED_INPUT_BOUNDARY_CONTRACT_NAME_V1}:"
+        f"current_resolved_input_reference={boundary.current_resolved_inputs.resolved_basis_hash};"
+        f"theta_rolled_resolved_input_reference={boundary.theta_rolled_resolved_inputs.resolved_basis_hash};"
+        f"theta_roll_policy_id={boundary.theta_roll_policy_id}"
+    )
+
+
 __all__ = [
+    "THETA_ROLLED_INPUT_BOUNDARY_CONTRACT_NAME_V1",
+    "THETA_ROLLED_INPUT_BOUNDARY_CONTRACT_VERSION_V1",
     "THETA_ROLLED_INPUT_POLICY_ID_V1",
     "ThetaRolledFxInputsBoundaryV1",
+    "theta_rolled_inputs_boundary_reference_v1",
 ]
