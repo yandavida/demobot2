@@ -72,6 +72,14 @@ def _valuation_result_v2() -> OptionValuationResultV2:
         resolved_lattice_policy_contract_name="ResolvedAmericanLatticePolicyV1",
         resolved_lattice_policy_contract_version="1.0.0",
         resolved_lattice_policy_reference="resolved-lattice-policy-ref-2027-01-01-run-001",
+        theta_roll_boundary_contract_name="ThetaRolledFxInputsBoundaryV1",
+        theta_roll_boundary_contract_version="1.0.0",
+        theta_roll_boundary_reference=(
+            "ThetaRolledFxInputsBoundaryV1:"
+            "current_resolved_input_reference=sha256:current;"
+            "theta_rolled_resolved_input_reference=sha256:rolled;"
+            "theta_roll_policy_id=theta_rolled_resolved_input_1d_calendar_upstream_v1"
+        ),
         valuation_measures=tuple(measures),
     )
 
@@ -138,6 +146,14 @@ def test_v2_artifact_requires_v2_result_payload_and_preserves_second_input_trace
     assert artifact.valuation_result.resolved_lattice_policy_contract_name == "ResolvedAmericanLatticePolicyV1"
     assert artifact.valuation_result.resolved_lattice_policy_contract_version == "1.0.0"
     assert artifact.valuation_result.resolved_lattice_policy_reference == "resolved-lattice-policy-ref-2027-01-01-run-001"
+    assert artifact.valuation_result.theta_roll_boundary_contract_name == "ThetaRolledFxInputsBoundaryV1"
+    assert artifact.valuation_result.theta_roll_boundary_contract_version == "1.0.0"
+    assert artifact.valuation_result.theta_roll_boundary_reference == (
+        "ThetaRolledFxInputsBoundaryV1:"
+        "current_resolved_input_reference=sha256:current;"
+        "theta_rolled_resolved_input_reference=sha256:rolled;"
+        "theta_roll_policy_id=theta_rolled_resolved_input_1d_calendar_upstream_v1"
+    )
     assert artifact.valuation_result is valuation_result
 
     with pytest.raises(ValueError, match="valuation_result"):
