@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import ClassVar
 
 from core.contracts.theta_rolled_fx_inputs_boundary_v1 import THETA_ROLLED_INPUT_BOUNDARY_CONTRACT_NAME_V1
 from core.contracts.theta_rolled_fx_inputs_boundary_v1 import THETA_ROLLED_INPUT_BOUNDARY_CONTRACT_VERSION_V1
@@ -36,7 +37,7 @@ class OptionValuationResultV2:
     theta_roll_boundary_contract_version: str | None = None
     theta_roll_boundary_reference: str | None = None
 
-    _ALLOWED_MEASURE_ORDERS_V1: tuple[tuple, ...] = (
+    _ALLOWED_MEASURE_ORDERS_V1: ClassVar[tuple[tuple, ...]] = (
         PHASE_C_CANONICAL_VALUATION_MEASURE_ORDER_V1,
         PHASE_D_MODEL_DIRECT_VALUATION_MEASURE_ORDER_V1,
     )
