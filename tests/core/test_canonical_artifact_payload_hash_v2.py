@@ -124,6 +124,16 @@ def test_serialization_is_deterministic_for_identical_input() -> None:
     assert serialized_1 == serialized_2
 
 
+def test_serialization_preserves_non_ascii_without_escaping() -> None:
+    base = _model_direct_result()
+    result = OptionValuationResultV2(**({**base.__dict__, "engine_name": "american_crr_fx_engine_א"}))
+
+    serialized = canonical_serialize_option_pricing_artifact_payload_v2(valuation_result=result)
+
+    assert "american_crr_fx_engine_א" in serialized
+    assert "\\u05d0" not in serialized
+
+
 def test_hash_is_deterministic_for_identical_input() -> None:
     result = _full_canonical_result()
     hash_1 = canonical_option_pricing_artifact_payload_hash_v2(valuation_result=result)

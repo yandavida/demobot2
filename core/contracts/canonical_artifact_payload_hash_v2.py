@@ -61,7 +61,7 @@ def canonical_serialize_option_pricing_artifact_payload_v2(
     payload = canonical_option_pricing_artifact_payload_v2(valuation_result=valuation_result)
     return json.dumps(
         payload,
-        ensure_ascii=True,
+        ensure_ascii=False,
         allow_nan=False,
         separators=(",", ":"),
     )
