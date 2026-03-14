@@ -23,8 +23,16 @@ def _norm_cdf(x: float) -> float:
 
 def _sanitize_sigma_T(sigma: float, T: float) -> tuple[float, float]:
     # Use numeric policy defaults instead of hardcoded small constants
-    min_sigma = DEFAULT_TOLERANCES[MetricClass.VOL].abs
-    min_T = DEFAULT_TOLERANCES[MetricClass.TIME].abs
+    min_sigma_opt = DEFAULT_TOLERANCES[MetricClass.VOL].abs
+    min_T_opt = DEFAULT_TOLERANCES[MetricClass.TIME].abs
+
+    if min_sigma_opt is None:
+        raise ValueError("vol tolerance abs must be configured")
+    if min_T_opt is None:
+        raise ValueError("time tolerance abs must be configured")
+
+    min_sigma = float(min_sigma_opt)
+    min_T = float(min_T_opt)
 
     sigma = max(min_sigma, float(sigma))
     T = max(min_T, float(T))
