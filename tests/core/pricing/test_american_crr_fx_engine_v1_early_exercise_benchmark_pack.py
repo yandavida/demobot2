@@ -106,6 +106,100 @@ EARLY_EXERCISE_BENCHMARK_CASES_V1: tuple[EarlyExerciseBenchmarkCaseV1, ...] = (
 )
 
 
+DEEP_ITM_OTM_BENCHMARK_CASES_V1: tuple[EarlyExerciseBenchmarkCaseV1, ...] = (
+    EarlyExerciseBenchmarkCaseV1(
+        case_id="deep_itm_call_low_vol_short",
+        option_type="call",
+        spot=Decimal("1.80"),
+        strike=Decimal("1.00"),
+        domestic_rate=Decimal("0.01"),
+        foreign_rate=Decimal("0.00"),
+        volatility=Decimal("0.05"),
+        time_to_expiry_years=Decimal("0.25"),
+        step_count=500,
+        expected_present_value=Decimal("0.8024968776025472"),
+        expected_intrinsic_value=Decimal("0.80"),
+        expected_time_value=Decimal("0.0024968776025472"),
+        expect_root_exercise=False,
+    ),
+    EarlyExerciseBenchmarkCaseV1(
+        case_id="deep_otm_call_low_vol_short",
+        option_type="call",
+        spot=Decimal("0.60"),
+        strike=Decimal("1.00"),
+        domestic_rate=Decimal("0.01"),
+        foreign_rate=Decimal("0.00"),
+        volatility=Decimal("0.05"),
+        time_to_expiry_years=Decimal("0.25"),
+        step_count=500,
+        expected_present_value=Decimal("1.5543627998435793E-116"),
+        expected_intrinsic_value=Decimal("0"),
+        expected_time_value=Decimal("1.5543627998435793E-116"),
+        expect_root_exercise=False,
+    ),
+    EarlyExerciseBenchmarkCaseV1(
+        case_id="deep_itm_put_high_carry",
+        option_type="put",
+        spot=Decimal("0.40"),
+        strike=Decimal("1.00"),
+        domestic_rate=Decimal("0.12"),
+        foreign_rate=Decimal("0.00"),
+        volatility=Decimal("0.08"),
+        time_to_expiry_years=Decimal("0.75"),
+        step_count=500,
+        expected_present_value=Decimal("0.60"),
+        expected_intrinsic_value=Decimal("0.60"),
+        expected_time_value=Decimal("0.00"),
+        expect_root_exercise=True,
+    ),
+    EarlyExerciseBenchmarkCaseV1(
+        case_id="deep_otm_put_low_vol_short",
+        option_type="put",
+        spot=Decimal("1.60"),
+        strike=Decimal("1.00"),
+        domestic_rate=Decimal("0.01"),
+        foreign_rate=Decimal("0.00"),
+        volatility=Decimal("0.05"),
+        time_to_expiry_years=Decimal("0.25"),
+        step_count=500,
+        expected_present_value=Decimal("2.484905515637785E-96"),
+        expected_intrinsic_value=Decimal("0"),
+        expected_time_value=Decimal("2.484905515637785E-96"),
+        expect_root_exercise=False,
+    ),
+    EarlyExerciseBenchmarkCaseV1(
+        case_id="deep_itm_call_negative_carry",
+        option_type="call",
+        spot=Decimal("1.80"),
+        strike=Decimal("1.00"),
+        domestic_rate=Decimal("0.01"),
+        foreign_rate=Decimal("0.10"),
+        volatility=Decimal("0.08"),
+        time_to_expiry_years=Decimal("0.75"),
+        step_count=500,
+        expected_present_value=Decimal("0.80"),
+        expected_intrinsic_value=Decimal("0.80"),
+        expected_time_value=Decimal("0.00"),
+        expect_root_exercise=True,
+    ),
+    EarlyExerciseBenchmarkCaseV1(
+        case_id="deep_otm_put_carry_sensitive",
+        option_type="put",
+        spot=Decimal("1.60"),
+        strike=Decimal("1.00"),
+        domestic_rate=Decimal("0.10"),
+        foreign_rate=Decimal("0.00"),
+        volatility=Decimal("0.20"),
+        time_to_expiry_years=Decimal("0.75"),
+        step_count=500,
+        expected_present_value=Decimal("0.00004991666317075974"),
+        expected_intrinsic_value=Decimal("0"),
+        expected_time_value=Decimal("0.00004991666317075974"),
+        expect_root_exercise=False,
+    ),
+)
+
+
 def _fx_contract(case: EarlyExerciseBenchmarkCaseV1) -> FxOptionRuntimeContractV1:
     return FxOptionRuntimeContractV1(
         contract_id=f"fx-opt-amer-d4-1-{case.case_id}",
@@ -318,3 +412,82 @@ def test_d41_engine_module_has_no_hidden_io_or_wall_clock_dependencies() -> None
     )
     for marker in forbidden_markers:
         assert marker not in source
+
+
+def test_d42_case_pack_structure_is_explicit_and_deterministic() -> None:
+    case_ids = tuple(case.case_id for case in DEEP_ITM_OTM_BENCHMARK_CASES_V1)
+    assert case_ids == (
+        "deep_itm_call_low_vol_short",
+        "deep_otm_call_low_vol_short",
+        "deep_itm_put_high_carry",
+        "deep_otm_put_low_vol_short",
+        "deep_itm_call_negative_carry",
+        "deep_otm_put_carry_sensitive",
+    )
+    assert len(case_ids) == len(set(case_ids))
+
+
+def test_d42_extreme_regime_result_benchmarks_are_regression_locked() -> None:
+    engine = AmericanCrrFxEngineV1()
+
+    for case in DEEP_ITM_OTM_BENCHMARK_CASES_V1:
+        first = engine.value(_resolved_inputs(case), _policy(step_count=case.step_count))
+        second = engine.value(_resolved_inputs(case), _policy(step_count=case.step_count))
+        assert first == second
+
+        values = _measure_values(first)
+        pv = values[ValuationMeasureNameV1.PRESENT_VALUE]
+        intrinsic = values[ValuationMeasureNameV1.INTRINSIC_VALUE]
+        time_value = values[ValuationMeasureNameV1.TIME_VALUE]
+
+        assert tuple(item.measure_name for item in first.valuation_measures) == PHASE_D_MODEL_DIRECT_VALUATION_MEASURE_ORDER_V1
+        assert first.resolved_input_reference == f"sha256:d4-1:{case.case_id}"
+        assert f"step_count={case.step_count}" in first.resolved_lattice_policy_reference
+
+        assert pv == case.expected_present_value
+        assert intrinsic == case.expected_intrinsic_value
+        assert time_value == case.expected_time_value
+
+        assert pv >= intrinsic
+        assert pv >= Decimal("0")
+        assert intrinsic >= Decimal("0")
+        assert time_value == pv - intrinsic
+
+        if case.case_id.startswith("deep_itm"):
+            assert intrinsic > Decimal("0")
+            assert pv >= intrinsic
+            if case.expect_root_exercise:
+                assert time_value == Decimal("0")
+        if case.case_id.startswith("deep_otm"):
+            assert intrinsic == Decimal("0")
+            assert pv < Decimal("0.001")
+
+
+def test_d42_carry_sensitive_extreme_regimes_are_explicitly_visible() -> None:
+    case_by_id = {case.case_id: case for case in DEEP_ITM_OTM_BENCHMARK_CASES_V1}
+    engine = AmericanCrrFxEngineV1()
+
+    low_carry_call = engine.value(
+        _resolved_inputs(case_by_id["deep_itm_call_low_vol_short"]),
+        _policy(step_count=case_by_id["deep_itm_call_low_vol_short"].step_count),
+    )
+    negative_carry_call = engine.value(
+        _resolved_inputs(case_by_id["deep_itm_call_negative_carry"]),
+        _policy(step_count=case_by_id["deep_itm_call_negative_carry"].step_count),
+    )
+    low_vol_otm_put = engine.value(
+        _resolved_inputs(case_by_id["deep_otm_put_low_vol_short"]),
+        _policy(step_count=case_by_id["deep_otm_put_low_vol_short"].step_count),
+    )
+    carry_sensitive_otm_put = engine.value(
+        _resolved_inputs(case_by_id["deep_otm_put_carry_sensitive"]),
+        _policy(step_count=case_by_id["deep_otm_put_carry_sensitive"].step_count),
+    )
+
+    low_carry_call_pv = _measure_values(low_carry_call)[ValuationMeasureNameV1.PRESENT_VALUE]
+    negative_carry_call_pv = _measure_values(negative_carry_call)[ValuationMeasureNameV1.PRESENT_VALUE]
+    low_vol_otm_put_pv = _measure_values(low_vol_otm_put)[ValuationMeasureNameV1.PRESENT_VALUE]
+    carry_sensitive_otm_put_pv = _measure_values(carry_sensitive_otm_put)[ValuationMeasureNameV1.PRESENT_VALUE]
+
+    assert low_carry_call_pv > negative_carry_call_pv
+    assert carry_sensitive_otm_put_pv > low_vol_otm_put_pv
