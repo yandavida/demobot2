@@ -35,6 +35,7 @@ from core.pricing.american_crr_fx_engine_v1 import RESOLVED_INPUT_CONTRACT_VERSI
 from core.pricing.american_crr_fx_engine_v1 import RESOLVED_LATTICE_POLICY_CONTRACT_NAME_V1
 from core.pricing.american_crr_fx_engine_v1 import RESOLVED_LATTICE_POLICY_CONTRACT_VERSION_V1
 from core.pricing.american_crr_fx_engine_v1 import __name__ as american_engine_module_name
+from core.pricing.crr_american_fx_kernel_v1 import CrrAmericanKernelResultV1
 from core.pricing.crr_american_fx_kernel_v1 import apply_american_exercise_decision_v1
 
 
@@ -56,6 +57,22 @@ class EarlyExerciseBenchmarkCaseV1:
     expected_intrinsic_value: Decimal
     expected_time_value: Decimal
     expect_root_exercise: bool
+
+
+@dataclass(frozen=True)
+class ConvergenceRegressionCaseV1:
+    case_id: str
+    option_type: str
+    spot: Decimal
+    strike: Decimal
+    domestic_rate: Decimal
+    foreign_rate: Decimal
+    volatility: Decimal
+    time_to_expiry_years: Decimal
+    base_step_count: int
+    expected_present_value_n: Decimal
+    expected_present_value_2n: Decimal
+    expected_present_value_4n: Decimal
 
 
 EARLY_EXERCISE_BENCHMARK_CASES_V1: tuple[EarlyExerciseBenchmarkCaseV1, ...] = (
@@ -276,6 +293,41 @@ SHORT_DATED_NEAR_EXPIRY_BENCHMARK_CASES_V1: tuple[EarlyExerciseBenchmarkCaseV1, 
         expected_intrinsic_value=Decimal("0.02"),
         expected_time_value=Decimal("0"),
         expect_root_exercise=True,
+    ),
+)
+
+
+CONVERGENCE_STEP_LADDER_MULTIPLIERS_V1: tuple[int, ...] = (1, 2, 4)
+
+
+CONVERGENCE_REGRESSION_CASES_V1: tuple[ConvergenceRegressionCaseV1, ...] = (
+    ConvergenceRegressionCaseV1(
+        case_id="convergence_continuation_favored_put",
+        option_type="put",
+        spot=Decimal("0.95"),
+        strike=Decimal("1.00"),
+        domestic_rate=Decimal("0.00"),
+        foreign_rate=Decimal("0.00"),
+        volatility=Decimal("0.35"),
+        time_to_expiry_years=Decimal("1.0"),
+        base_step_count=125,
+        expected_present_value_n=Decimal("0.1620741150593523"),
+        expected_present_value_2n=Decimal("0.16189020444280056"),
+        expected_present_value_4n=Decimal("0.16193927565943644"),
+    ),
+    ConvergenceRegressionCaseV1(
+        case_id="convergence_near_zero_boundary_call",
+        option_type="call",
+        spot=Decimal("1.02"),
+        strike=Decimal("1.00"),
+        domestic_rate=Decimal("0.01"),
+        foreign_rate=Decimal("0.00"),
+        volatility=Decimal("0.20"),
+        time_to_expiry_years=TIME_EPSILON_YEARS_V1,
+        base_step_count=125,
+        expected_present_value_n=Decimal("0.02"),
+        expected_present_value_2n=Decimal("0.02"),
+        expected_present_value_4n=Decimal("0.02"),
     ),
 )
 
@@ -647,3 +699,117 @@ def test_d43_tree_path_and_near_zero_boundary_distinction_is_explicit() -> None:
     assert below_eps_values[ValuationMeasureNameV1.TIME_VALUE] == Decimal("0")
 
     assert short_tree_values[ValuationMeasureNameV1.PRESENT_VALUE] > near_zero_values[ValuationMeasureNameV1.PRESENT_VALUE]
+
+
+def test_d44_convergence_pack_structure_is_explicit_and_deterministic() -> None:
+    case_ids = tuple(case.case_id for case in CONVERGENCE_REGRESSION_CASES_V1)
+    assert case_ids == (
+        "convergence_continuation_favored_put",
+        "convergence_near_zero_boundary_call",
+    )
+    assert CONVERGENCE_STEP_LADDER_MULTIPLIERS_V1 == (1, 2, 4)
+    assert len(case_ids) == len(set(case_ids))
+
+
+def test_d44_fixed_step_ladder_outputs_are_regression_locked() -> None:
+    engine = AmericanCrrFxEngineV1()
+
+    for case in CONVERGENCE_REGRESSION_CASES_V1:
+        ladder_steps = tuple(case.base_step_count * multiplier for multiplier in CONVERGENCE_STEP_LADDER_MULTIPLIERS_V1)
+        expected_pv_by_step = {
+            ladder_steps[0]: case.expected_present_value_n,
+            ladder_steps[1]: case.expected_present_value_2n,
+            ladder_steps[2]: case.expected_present_value_4n,
+        }
+
+        observed_pv_by_step: dict[int, Decimal] = {}
+
+        for step_count in ladder_steps:
+            fixture_case = EarlyExerciseBenchmarkCaseV1(
+                case_id=case.case_id,
+                option_type=case.option_type,
+                spot=case.spot,
+                strike=case.strike,
+                domestic_rate=case.domestic_rate,
+                foreign_rate=case.foreign_rate,
+                volatility=case.volatility,
+                time_to_expiry_years=case.time_to_expiry_years,
+                step_count=step_count,
+                expected_present_value=expected_pv_by_step[step_count],
+                expected_intrinsic_value=Decimal("0"),
+                expected_time_value=Decimal("0"),
+                expect_root_exercise=False,
+            )
+
+            first = engine.value(_resolved_inputs(fixture_case), _policy(step_count=step_count))
+            second = engine.value(_resolved_inputs(fixture_case), _policy(step_count=step_count))
+            assert first == second
+
+            first_values = _measure_values(first)
+            pv = first_values[ValuationMeasureNameV1.PRESENT_VALUE]
+            intrinsic = first_values[ValuationMeasureNameV1.INTRINSIC_VALUE]
+            time_value = first_values[ValuationMeasureNameV1.TIME_VALUE]
+
+            assert tuple(item.measure_name for item in first.valuation_measures) == PHASE_D_MODEL_DIRECT_VALUATION_MEASURE_ORDER_V1
+            assert first.resolved_input_reference == f"sha256:d4-1:{case.case_id}"
+            assert f"step_count={step_count}" in first.resolved_lattice_policy_reference
+            assert pv == expected_pv_by_step[step_count]
+            assert pv >= intrinsic
+            assert pv >= Decimal("0")
+            assert time_value == pv - intrinsic
+
+            observed_pv_by_step[step_count] = pv
+
+        delta_n_to_2n = abs(observed_pv_by_step[ladder_steps[1]] - observed_pv_by_step[ladder_steps[0]])
+        delta_2n_to_4n = abs(observed_pv_by_step[ladder_steps[2]] - observed_pv_by_step[ladder_steps[1]])
+
+        assert delta_2n_to_4n <= delta_n_to_2n
+
+        if case.case_id == "convergence_near_zero_boundary_call":
+            assert case.time_to_expiry_years <= TIME_EPSILON_YEARS_V1
+            assert delta_n_to_2n == Decimal("0")
+            assert delta_2n_to_4n == Decimal("0")
+
+
+def test_d44_convergence_is_validation_only_not_runtime_step_escalation(monkeypatch) -> None:
+    observed_step_counts: list[int] = []
+
+    def _recording_kernel(**kwargs: object):
+        step_count_obj = kwargs["step_count"]
+        assert isinstance(step_count_obj, int)
+        step_count = step_count_obj
+        observed_step_counts.append(step_count)
+        return_value = Decimal("1") + (Decimal(step_count) / Decimal("1000000"))
+        intrinsic = Decimal("1")
+        return CrrAmericanKernelResultV1(
+            present_value=return_value,
+            intrinsic_value=intrinsic,
+            time_value=return_value - intrinsic,
+        )
+
+    monkeypatch.setattr("core.pricing.american_crr_fx_engine_v1.crr_american_fx_kernel_v1", _recording_kernel)
+
+    engine = AmericanCrrFxEngineV1()
+    case = CONVERGENCE_REGRESSION_CASES_V1[0]
+    ladder_steps = tuple(case.base_step_count * multiplier for multiplier in CONVERGENCE_STEP_LADDER_MULTIPLIERS_V1)
+
+    fixture_case = EarlyExerciseBenchmarkCaseV1(
+        case_id=case.case_id,
+        option_type=case.option_type,
+        spot=case.spot,
+        strike=case.strike,
+        domestic_rate=case.domestic_rate,
+        foreign_rate=case.foreign_rate,
+        volatility=case.volatility,
+        time_to_expiry_years=case.time_to_expiry_years,
+        step_count=case.base_step_count,
+        expected_present_value=Decimal("0"),
+        expected_intrinsic_value=Decimal("0"),
+        expected_time_value=Decimal("0"),
+        expect_root_exercise=False,
+    )
+
+    for step_count in ladder_steps:
+        engine.value(_resolved_inputs(fixture_case), _policy(step_count=step_count))
+
+    assert observed_step_counts == list(ladder_steps)
