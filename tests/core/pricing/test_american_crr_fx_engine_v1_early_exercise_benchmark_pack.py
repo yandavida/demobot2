@@ -24,6 +24,7 @@ from core.contracts.resolved_option_valuation_inputs_v1 import ResolvedVolatilit
 from core.contracts.valuation_measure_name_v1 import ValuationMeasureNameV1
 from core.contracts.valuation_measure_set_v1 import PHASE_D_MODEL_DIRECT_VALUATION_MEASURE_ORDER_V1
 from core.numeric_policy import EXERCISE_EPSILON_ABS_V1
+from core.numeric_policy import TIME_EPSILON_YEARS_V1
 from core.pricing.american_crr_fx_engine_v1 import AmericanCrrFxEngineV1
 from core.pricing.american_crr_fx_engine_v1 import ENGINE_NAME_V1
 from core.pricing.american_crr_fx_engine_v1 import ENGINE_VERSION_V1
@@ -196,6 +197,85 @@ DEEP_ITM_OTM_BENCHMARK_CASES_V1: tuple[EarlyExerciseBenchmarkCaseV1, ...] = (
         expected_intrinsic_value=Decimal("0"),
         expected_time_value=Decimal("0.00004991666317075974"),
         expect_root_exercise=False,
+    ),
+)
+
+
+SHORT_DATED_NEAR_EXPIRY_BENCHMARK_CASES_V1: tuple[EarlyExerciseBenchmarkCaseV1, ...] = (
+    EarlyExerciseBenchmarkCaseV1(
+        case_id="short_tree_call_tiny_positive_time",
+        option_type="call",
+        spot=Decimal("1.02"),
+        strike=Decimal("1.00"),
+        domestic_rate=Decimal("0.01"),
+        foreign_rate=Decimal("0.00"),
+        volatility=Decimal("0.20"),
+        time_to_expiry_years=Decimal("1e-6"),
+        step_count=400,
+        expected_present_value=Decimal("0.02000001000000102"),
+        expected_intrinsic_value=Decimal("0.02"),
+        expected_time_value=Decimal("1.000000102E-8"),
+        expect_root_exercise=False,
+    ),
+    EarlyExerciseBenchmarkCaseV1(
+        case_id="short_tree_call_very_short_positive_time",
+        option_type="call",
+        spot=Decimal("1.02"),
+        strike=Decimal("1.00"),
+        domestic_rate=Decimal("0.01"),
+        foreign_rate=Decimal("0.00"),
+        volatility=Decimal("0.20"),
+        time_to_expiry_years=Decimal("1e-8"),
+        step_count=400,
+        expected_present_value=Decimal("0.020000000100008665"),
+        expected_intrinsic_value=Decimal("0.02"),
+        expected_time_value=Decimal("1.00008665E-10"),
+        expect_root_exercise=False,
+    ),
+    EarlyExerciseBenchmarkCaseV1(
+        case_id="short_tree_put_tiny_positive_time_exercise_favored",
+        option_type="put",
+        spot=Decimal("0.98"),
+        strike=Decimal("1.00"),
+        domestic_rate=Decimal("0.01"),
+        foreign_rate=Decimal("0.00"),
+        volatility=Decimal("0.20"),
+        time_to_expiry_years=Decimal("1e-6"),
+        step_count=400,
+        expected_present_value=Decimal("0.02"),
+        expected_intrinsic_value=Decimal("0.02"),
+        expected_time_value=Decimal("0.00"),
+        expect_root_exercise=True,
+    ),
+    EarlyExerciseBenchmarkCaseV1(
+        case_id="near_zero_boundary_equals_eps_call",
+        option_type="call",
+        spot=Decimal("1.02"),
+        strike=Decimal("1.00"),
+        domestic_rate=Decimal("0.01"),
+        foreign_rate=Decimal("0.00"),
+        volatility=Decimal("0.20"),
+        time_to_expiry_years=Decimal("1e-12"),
+        step_count=400,
+        expected_present_value=Decimal("0.02"),
+        expected_intrinsic_value=Decimal("0.02"),
+        expected_time_value=Decimal("0"),
+        expect_root_exercise=True,
+    ),
+    EarlyExerciseBenchmarkCaseV1(
+        case_id="near_zero_below_eps_put",
+        option_type="put",
+        spot=Decimal("0.98"),
+        strike=Decimal("1.00"),
+        domestic_rate=Decimal("0.01"),
+        foreign_rate=Decimal("0.00"),
+        volatility=Decimal("0.20"),
+        time_to_expiry_years=Decimal("5e-13"),
+        step_count=400,
+        expected_present_value=Decimal("0.02"),
+        expected_intrinsic_value=Decimal("0.02"),
+        expected_time_value=Decimal("0"),
+        expect_root_exercise=True,
     ),
 )
 
@@ -491,3 +571,79 @@ def test_d42_carry_sensitive_extreme_regimes_are_explicitly_visible() -> None:
 
     assert low_carry_call_pv > negative_carry_call_pv
     assert carry_sensitive_otm_put_pv > low_vol_otm_put_pv
+
+
+def test_d43_case_pack_structure_is_explicit_and_deterministic() -> None:
+    case_ids = tuple(case.case_id for case in SHORT_DATED_NEAR_EXPIRY_BENCHMARK_CASES_V1)
+    assert case_ids == (
+        "short_tree_call_tiny_positive_time",
+        "short_tree_call_very_short_positive_time",
+        "short_tree_put_tiny_positive_time_exercise_favored",
+        "near_zero_boundary_equals_eps_call",
+        "near_zero_below_eps_put",
+    )
+    assert len(case_ids) == len(set(case_ids))
+
+
+def test_d43_short_dated_and_near_expiry_result_benchmarks_are_regression_locked() -> None:
+    engine = AmericanCrrFxEngineV1()
+
+    for case in SHORT_DATED_NEAR_EXPIRY_BENCHMARK_CASES_V1:
+        first = engine.value(_resolved_inputs(case), _policy(step_count=case.step_count))
+        second = engine.value(_resolved_inputs(case), _policy(step_count=case.step_count))
+        assert first == second
+
+        values = _measure_values(first)
+        pv = values[ValuationMeasureNameV1.PRESENT_VALUE]
+        intrinsic = values[ValuationMeasureNameV1.INTRINSIC_VALUE]
+        time_value = values[ValuationMeasureNameV1.TIME_VALUE]
+
+        assert tuple(item.measure_name for item in first.valuation_measures) == PHASE_D_MODEL_DIRECT_VALUATION_MEASURE_ORDER_V1
+        assert first.resolved_input_reference == f"sha256:d4-1:{case.case_id}"
+        assert f"step_count={case.step_count}" in first.resolved_lattice_policy_reference
+
+        assert pv == case.expected_present_value
+        assert intrinsic == case.expected_intrinsic_value
+        assert time_value == case.expected_time_value
+
+        assert pv >= intrinsic
+        assert pv >= Decimal("0")
+        assert time_value == pv - intrinsic
+
+        if case.case_id.startswith("short_tree_call"):
+            assert case.time_to_expiry_years > TIME_EPSILON_YEARS_V1
+            assert time_value > Decimal("0")
+
+        if case.case_id.startswith("near_zero"):
+            assert case.time_to_expiry_years <= TIME_EPSILON_YEARS_V1
+            assert pv == intrinsic
+            assert time_value == Decimal("0")
+
+
+def test_d43_tree_path_and_near_zero_boundary_distinction_is_explicit() -> None:
+    case_by_id = {case.case_id: case for case in SHORT_DATED_NEAR_EXPIRY_BENCHMARK_CASES_V1}
+    engine = AmericanCrrFxEngineV1()
+
+    short_tree_case = case_by_id["short_tree_call_tiny_positive_time"]
+    near_zero_case = case_by_id["near_zero_boundary_equals_eps_call"]
+    below_eps_case = case_by_id["near_zero_below_eps_put"]
+
+    short_tree_values = _measure_values(
+        engine.value(_resolved_inputs(short_tree_case), _policy(step_count=short_tree_case.step_count))
+    )
+    near_zero_values = _measure_values(
+        engine.value(_resolved_inputs(near_zero_case), _policy(step_count=near_zero_case.step_count))
+    )
+    below_eps_values = _measure_values(
+        engine.value(_resolved_inputs(below_eps_case), _policy(step_count=below_eps_case.step_count))
+    )
+
+    assert short_tree_case.time_to_expiry_years > TIME_EPSILON_YEARS_V1
+    assert near_zero_case.time_to_expiry_years == TIME_EPSILON_YEARS_V1
+    assert below_eps_case.time_to_expiry_years < TIME_EPSILON_YEARS_V1
+
+    assert short_tree_values[ValuationMeasureNameV1.TIME_VALUE] > Decimal("0")
+    assert near_zero_values[ValuationMeasureNameV1.TIME_VALUE] == Decimal("0")
+    assert below_eps_values[ValuationMeasureNameV1.TIME_VALUE] == Decimal("0")
+
+    assert short_tree_values[ValuationMeasureNameV1.PRESENT_VALUE] > near_zero_values[ValuationMeasureNameV1.PRESENT_VALUE]
